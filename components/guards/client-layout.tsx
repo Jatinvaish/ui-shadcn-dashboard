@@ -17,7 +17,7 @@ import { DEFAULT_THEME } from "@/lib/themes";
 
 import "./globals.css";
 import { Toaster } from "sonner";
-import ToasterProvider from "@/components/guards/reactToast";
+import ToasterProvider from "./reactToast";
 
 // ---------------- AUTH INITIALIZER ----------------
 function AuthInitializer({ children }: { children: React.ReactNode }) {
