@@ -119,7 +119,7 @@ export function SidebarPrimary() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center shrink-0 px-2.5 py-2.5 gap-5 lg:w-[var(--sidebar-collapsed-width)] border-e border-input bg-muted">
+    <div className="flex flex-col items-center justify-center shrink-0 px-2.5 py-2.5 gap-5 lg:w-[var(--sidebar-collapsed-width)] border-0 border-input bg-muted">
       {/* Navigation */}
       <ScrollArea className="grow w-full h-[calc(100vh-13rem)] lg:h-[calc(100vh-5.5rem)]">
         <div className="grow gap-1 shrink-0 flex items-center flex-col">

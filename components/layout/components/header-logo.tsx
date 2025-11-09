@@ -50,7 +50,7 @@ export function HeaderLogo() {
   return (
     <div className="flex items-center gap-2 border-e border-border lg:w-[var(--sidebar-width)]">
       <div className="flex items-center w-full">
-        <div className="flex items-center justify-center shrink-0 border-e border-border w-[var(--sidebar-collapsed-width)] h-[var(--header-height-mobile)] lg:h-[var(--header-height)] bg-muted">
+        <div className="flex items-center justify-center shrink-0 border-0 border-border w-[var(--sidebar-collapsed-width)] h-[var(--header-height-mobile)] lg:h-[var(--header-height)] bg-muted">
           <Link href="/dashboard">
             <img
               src={toAbsoluteUrl('/media/app/fluera_logo.png')}
