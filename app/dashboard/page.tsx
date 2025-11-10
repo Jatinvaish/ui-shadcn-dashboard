@@ -1,25 +1,18 @@
 import { generateMeta } from "@/lib/utils";
 
-import CustomDateRangePicker from "@/components/custom-date-range-picker";
 import { Button } from "@/components/ui/button";
+import CalendarDateRangePicker from "@/components/custom-date-range-picker";
+import { EarningReportsCard, TicketsCard, WebsiteAnalyticsCard, AverageDailySalesCard, SaleOverviewCard, SalesByCountriesCard, TotalEarningCard, MonthlyCampaignStateCard } from "./default/components";
+import StatCards from "./ecommerce/components/stat-cards";
 
-import {
-  ChatWidget,
-  ExerciseMinutes,
-  LatestPayments,
-  PaymentMethodCard,
-  SubscriptionsCard,
-  TeamMembersCard,
-  TotalRevenueCard
-} from "@/app/dashboard/default/components";
-import { Download } from "lucide-react";
+ 
 
 export async function generateMetadata() {
   return generateMeta({
-    title: "Admin Dashboard",
+    title: "Website Analytics Admin Dashboard",
     description:
-      "The admin dashboard template offers a sleek and efficient interface for monitoring important data and user interactions. Built with shadcn/ui.",
-    canonical: "/default"
+      "Website analytics admin dashboard template offers an efficient and flexible tool that allows to track websites traffic data, user interactions and performance analytics in detail with a modern, user-friendly and responsive interface.",
+    canonical: "/website-analytics"
   });
 }
 
@@ -27,27 +20,42 @@ export default function Page() {
   return (
     <div className="space-y-4">
       <div className="flex flex-row items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight lg:text-2xl">Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight lg:text-2xl">Website Analytics</h1>
         <div className="flex items-center space-x-2">
-          <CustomDateRangePicker />
-          <Button>
-            <Download />
-            <span className="hidden lg:inline">Download</span>
-          </Button>
+          <div className="grow">
+            <CalendarDateRangePicker />
+          </div>
+          <Button>Download</Button>
         </div>
       </div>
-      <div className="gap-4 space-y-4 lg:grid lg:grid-cols-3 lg:space-y-0">
-        <TeamMembersCard />
-        <SubscriptionsCard />
-        <TotalRevenueCard />
-        <ChatWidget />
-        <div className="lg:col-span-2">
-          <ExerciseMinutes />
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-12">
+          <StatCards />
         </div>
-        <div className="lg:col-span-2">
-          <LatestPayments />
+        <div className="lg:col-span-12 xl:col-span-8">
+          <EarningReportsCard />
         </div>
-        <PaymentMethodCard />
+        <div className="lg:col-span-12 xl:col-span-4">
+          <TicketsCard />
+        </div>
+        <div className="lg:col-span-4">
+          <WebsiteAnalyticsCard />
+        </div>
+        <div className="lg:col-span-4">
+          <AverageDailySalesCard />
+        </div>
+        <div className="lg:col-span-4">
+          <SaleOverviewCard />
+        </div>
+        <div className="lg:col-span-4">
+          <SalesByCountriesCard />
+        </div>
+        <div className="lg:col-span-4">
+          <TotalEarningCard />
+        </div>
+        <div className="lg:col-span-4">
+          <MonthlyCampaignStateCard />
+        </div>
       </div>
     </div>
   );
