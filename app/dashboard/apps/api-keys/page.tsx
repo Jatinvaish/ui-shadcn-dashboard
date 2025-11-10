@@ -18,7 +18,7 @@ export async function generateMetadata() {
 
 async function getApiKeys() {
   const data = await fs.readFile(
-    path.join(process.cwd(), "app/dashboard/(auth)/apps/api-keys/data.json")
+    path.join(process.cwd(), "app/dashboard/apps/api-keys/data.json")
   );
   return JSON.parse(data.toString());
 }
