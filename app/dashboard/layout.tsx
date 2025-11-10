@@ -1,38 +1,29 @@
-import React from "react";
-import { cookies } from "next/headers";
+'use client';
 
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/layout/sidebar/app-sidebar";
-import { SiteHeader } from "@/components/layout/header";
+import { Layout14 } from '@/components/layout';
+import { ReactNode, useEffect, useState } from 'react';
 
-export default async function AuthLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const cookieStore = await cookies();
-  const defaultOpen =
-    cookieStore.get("sidebar_state")?.value === "true" ||
-    cookieStore.get("sidebar_state") === undefined;
+import { ScreenLoader } from '@/components/screen-loader';
 
+export default function Layout({children}: {children: ReactNode}) {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate short loading time
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000); // 1 second loading time
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <ScreenLoader />;
+  }
+  
   return (
-    <SidebarProvider
-      defaultOpen={defaultOpen}
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 64)",
-          "--header-height": "calc(var(--spacing) * 14)"
-        } as React.CSSProperties
-      }>
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main p-4 xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">
-            {children}
-          </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    <Layout14>
+      {children}
+    </Layout14>
   );
 }
