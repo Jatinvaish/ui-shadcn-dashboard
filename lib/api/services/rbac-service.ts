@@ -1,9 +1,9 @@
-// lib/api/services/rbac.service.ts - UPDATED WITH NEW BACKEND ENDPOINTS
+// lib/api/services/rbac.service.ts - COMPLETE VERSION WITH ALL METHODS
 
 import { encryptedApiClient } from '../encrypted-client';
 
-
 // ==================== INTERFACES ====================
+
 export interface CreateRolePayload {
   name: string;
   displayName?: string;
@@ -123,6 +123,7 @@ export interface Role {
   hierarchy_level: number;
   permissions_count: number;
   users_count: number;
+  is_default?: boolean;
   is_system_role: boolean;
   organization_id?: number;
   created_at: string;
@@ -132,6 +133,7 @@ export interface Role {
 export interface Permission {
   id: number;
   name: string;
+  permission_key: string;
   resource: string;
   action: string;
   description?: string;
@@ -171,6 +173,7 @@ export interface MenuPermission {
   is_required: boolean;
   created_at: string;
   permission_name: string;
+  permission_key: string;
   resource: string;
   action: string;
   category?: string;
@@ -186,7 +189,6 @@ export interface PaginationMeta {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
 }
-
 
 export interface ResourcePermission {
   id: number;
@@ -224,9 +226,20 @@ export interface ResourceShare {
   shareUrl?: string;
 }
 
+export interface UserAccessibleMenusResponse {
+  success: boolean;
+  data: {
+    userId: string;
+    userPermissions: Permission[];
+    accessibleMenus: string[];
+    blockedMenus: string[];
+  };
+}
+
 export class RbacService {
 
   // ==================== ROLES ====================
+
   static async listRoles(filters: ListParams = {}) {
     return encryptedApiClient.post<{
       data: {
@@ -252,7 +265,7 @@ export class RbacService {
     return encryptedApiClient.post('/rbac/roles/delete', { roleId });
   }
 
-  // ==================== NEW: HIERARCHICAL ROLE PERMISSIONS ====================
+  // ==================== HIERARCHICAL ROLE PERMISSIONS ====================
 
   /**
    * Get permissions tree for a role (for Manage Permissions page)
@@ -303,7 +316,10 @@ export class RbacService {
    * Bulk update role permissions
    * Accepts array of changes: [{ mode: 'I', permissionId: 1 }, { mode: 'D', permissionId: 2 }]
    */
-  static async bulkAssignRolePermissions(roleId: number, changes: Array<{ mode: 'I' | 'D'; permissionId: number }>) {
+  static async bulkAssignRolePermissions(
+    roleId: number, 
+    changes: Array<{ mode: 'I' | 'D'; permissionId: number }>
+  ) {
     return encryptedApiClient.post<{
       success: boolean;
       data: {
@@ -316,59 +332,31 @@ export class RbacService {
     }>('/rbac/roles/permissions/bulk-assign', { roleId, changes });
   }
 
-  // ==================== DEPRECATED: Remove these if not used ====================
-
-  // DEPRECATED: Use getRolePermissionsTree instead
-  static async assignPermissionsToRole(payload: AssignPermissionsPayload) {
-    console.warn('⚠️ assignPermissionsToRole is deprecated. Use bulkAssignRolePermissions instead.');
-    return encryptedApiClient.post('/rbac/roles/permissions/assign', payload);
-  }
-
-  // DEPRECATED: Use getRolePermissionsTree instead
-  static async getRolePermissions(roleId: number) {
-    console.warn('⚠️ getRolePermissions is deprecated. Use getRolePermissionsTree instead.');
-    return encryptedApiClient.post<{
-      data: Array<{
-        role_permission_id: number;
-        role_id: number;
-        permission_id: number;
-        permission_name: string;
-        resource: string;
-        action: string;
-        category: string;
-      }>;
-    }>('/rbac/roles/permissions/list', { roleId });
-  }
-
-  // DEPRECATED: Use bulkAssignRolePermissions instead
-  static async removePermissionFromRole(roleId: number, permissionId: number) {
-    console.warn('⚠️ removePermissionFromRole is deprecated. Use bulkAssignRolePermissions instead.');
-    return encryptedApiClient.post('/rbac/roles/permissions/remove', { roleId, permissionId });
-  }
-
   // ==================== PERMISSIONS ====================
+
   static async listPermissions(filters: ListParams = {}) {
     return encryptedApiClient.post<{
       data: {
         permissionsList: Permission[];
         meta: PaginationMeta;
       };
-    }>('/permissions/list', filters);
+    }>('/rbac/permissions/list', filters);
   }
 
   static async getPermission(permissionId: number) {
-    return encryptedApiClient.post<{ data: Permission }>('/permissions/get', { permissionId });
+    return encryptedApiClient.post<{ data: Permission }>('/rbac/permissions/get', { permissionId });
   }
 
   static async createPermission(payload: CreatePermissionPayload) {
-    return encryptedApiClient.post<{ data: Permission }>('/permissions/create', payload);
+    return encryptedApiClient.post<{ data: Permission }>('/rbac/permissions/create', payload);
   }
 
   static async deletePermission(permissionId: number) {
-    return encryptedApiClient.post('/permissions/delete', { permissionId });
+    return encryptedApiClient.post('/rbac/permissions/delete', { permissionId });
   }
 
   // ==================== USER ROLES ====================
+
   static async assignRoleToUser(payload: AssignRolePayload) {
     return encryptedApiClient.post<{
       success: boolean;
@@ -396,29 +384,49 @@ export class RbacService {
   }
 
   // ==================== MENU PERMISSIONS ====================
+
   static async linkMenuPermission(payload: LinkMenuPermissionPayload) {
-    return encryptedApiClient.post('/menu-permissions/link', payload);
+    return encryptedApiClient.post<{
+      success: boolean;
+      data: MenuPermission;
+      message: string;
+    }>('/rbac/menu-permissions/link', payload);
   }
 
   static async bulkLinkMenuPermissions(mappings: LinkMenuPermissionPayload[]) {
-    return encryptedApiClient.post('/menu-permissions/bulk-link', { mappings });
+    return encryptedApiClient.post<{
+      success: boolean;
+      data: MenuPermission[];
+      message: string;
+      created: number;
+      total: number;
+    }>('/rbac/menu-permissions/bulk-link', { mappings });
   }
 
   static async unlinkMenuPermission(menuKey: string, permissionId: number) {
-    return encryptedApiClient.post('/menu-permissions/unlink', { menuKey, permissionId });
+    return encryptedApiClient.post<{
+      success: boolean;
+      message: string;
+    }>('/rbac/menu-permissions/unlink', { menuKey, permissionId });
   }
 
   static async getMenuPermissions(menuKey: string) {
-    return encryptedApiClient.post<{ data: MenuPermission[] }>('/menu-permissions/menu/get', { menuKey });
+    return encryptedApiClient.post<{ 
+      success: boolean;
+      data: MenuPermission[];
+      message: string;
+    }>('/rbac/menu-permissions/menu/get', { menuKey });
   }
 
   static async listMenuPermissions(params: ListMenuPermissionsParams = {}) {
     return encryptedApiClient.post<{
+      success: boolean;
       data: {
         menuPermissionsList: MenuPermission[];
         meta: PaginationMeta;
       };
-    }>('/menu-permissions/list', params);
+      message: string;
+    }>('/rbac/menu-permissions/list', params);
   }
 
   // ==================== USER ACCESSIBLE MENUS ====================
@@ -426,92 +434,145 @@ export class RbacService {
   /**
    * CRITICAL: This endpoint is called on login to load menu permissions
    * Returns user's permissions and accessible menu keys
+   * NO PERMISSION CHECK REQUIRED
    */
-  static async getMyAccessibleMenus() {
-    return encryptedApiClient.post<{
-      success: boolean;
-      data: {
-        userId: string;
-        userPermissions: Permission[];
-        accessibleMenus: string[]; // FIXED: Now returns flat array of menu keys
-        blockedMenus: string[]; // FIXED: Now returns flat array of menu keys
-      };
-    }>('/menu-permissions/my-access', {});
+  static async getMyAccessibleMenus(): Promise<UserAccessibleMenusResponse> {
+    return encryptedApiClient.post<UserAccessibleMenusResponse>(
+      '/rbac/menu-permissions/my-access', 
+      {}
+    );
   }
 
-  static async getUserAccessibleMenus(userId?: number) {
-    return encryptedApiClient.post<{
-      success: boolean;
-      data: {
-        userId: string;
-        userPermissions: Permission[];
-        accessibleMenus: string[]; // FIXED: Now returns flat array of menu keys
-        blockedMenus: string[]; // FIXED: Now returns flat array of menu keys
-      };
-    }>('/menu-permissions/user-access', userId ? { userId } : {});
+  /**
+   * Get another user's accessible menus (requires permission)
+   */
+  static async getUserAccessibleMenus(userId?: number): Promise<UserAccessibleMenusResponse> {
+    return encryptedApiClient.post<UserAccessibleMenusResponse>(
+      '/rbac/menu-permissions/user-access', 
+      userId ? { userId } : {}
+    );
   }
 
+  /**
+   * Check if current user can access a specific menu
+   */
   static async checkMenuAccess(menuKey: string, userId?: number) {
     return encryptedApiClient.post<{
+      success: boolean;
       data: {
         canAccess: boolean;
         menuKey: string;
         userId: string;
       };
-    }>('/menu-permissions/check-access', { menuKey, userId });
+      message: string;
+    }>('/rbac/menu-permissions/check-access', { menuKey, userId });
   }
 
   // ==================== RESOURCE PERMISSIONS (SHARING) ====================
+
   static async grantResourcePermission(payload: GrantResourcePermissionPayload) {
-    return encryptedApiClient.post('/permissions/grant', payload);
+    return encryptedApiClient.post('/rbac/resource-permissions/grant', payload);
   }
 
   static async revokeResourcePermission(payload: RevokeResourcePermissionPayload) {
-    return encryptedApiClient.post('/permissions/revoke', payload);
+    return encryptedApiClient.post('/rbac/resource-permissions/revoke', payload);
   }
 
   static async checkResourcePermission(payload: CheckResourcePermissionPayload) {
-    return encryptedApiClient.post<{ hasPermission: boolean; grantedBy: number | null; expiresAt: string | null }>(
-      '/permissions/check',
-      payload
-    );
+    return encryptedApiClient.post<{ 
+      success: boolean;
+      data: {
+        hasPermission: boolean; 
+        grantedBy: number | null; 
+        expiresAt: string | null;
+      };
+    }>('/rbac/resource-permissions/check', payload);
   }
 
   static async checkBatchPermissions(checks: CheckResourcePermissionPayload[]) {
-    return encryptedApiClient.post<{ checks: Array<CheckResourcePermissionPayload & { hasPermission: boolean }> }>(
-      '/permissions/check/batch',
-      { checks }
-    );
+    return encryptedApiClient.post<{ 
+      success: boolean;
+      data: Array<CheckResourcePermissionPayload & { hasPermission: boolean }>;
+    }>('/rbac/resource-permissions/check-batch', { checks });
   }
 
   static async listResourcePermissions(resourceType: string, resourceId: number) {
-    return encryptedApiClient.post<ResourcePermission[]>('/permissions/resource/list', {
+    return encryptedApiClient.post<{
+      success: boolean;
+      data: ResourcePermission[];
+    }>('/rbac/resource-permissions/list', {
       resourceType,
       resourceId,
     });
   }
 
   static async checkAccess(payload: CheckAccessPayload) {
-    return encryptedApiClient.post<{ hasAccess: boolean }>('/permissions/access/check', payload);
+    return encryptedApiClient.post<{ 
+      success: boolean;
+      data: { hasAccess: boolean };
+    }>('/rbac/permissions/access/check', payload);
   }
 
   // ==================== SHARING ====================
+
   static async createShare(payload: CreateSharePayload) {
-    return encryptedApiClient.post<ResourceShare>('/permissions/share/create', payload);
+    return encryptedApiClient.post<{
+      success: boolean;
+      data: ResourceShare;
+    }>('/rbac/permissions/share/create', payload);
   }
 
   static async accessShare(payload: AccessSharePayload) {
-    return encryptedApiClient.post('/permissions/share/access', payload);
+    return encryptedApiClient.post('/rbac/permissions/share/access', payload);
   }
 
   static async revokeShare(shareId: number) {
-    return encryptedApiClient.post('/permissions/share/revoke', { shareId });
+    return encryptedApiClient.post('/rbac/permissions/share/revoke', { shareId });
   }
 
   static async listShares(resourceType: string, resourceId: number) {
-    return encryptedApiClient.post<ResourceShare[]>('/permissions/share/list', {
+    return encryptedApiClient.post<{
+      success: boolean;
+      data: ResourceShare[];
+    }>('/rbac/permissions/share/list', {
       resourceType,
       resourceId,
     });
+  }
+
+  // ==================== DEPRECATED METHODS (Keep for backwards compatibility) ====================
+
+  /**
+   * @deprecated Use bulkAssignRolePermissions instead
+   */
+  static async assignPermissionsToRole(payload: AssignPermissionsPayload) {
+    console.warn('⚠️ assignPermissionsToRole is deprecated. Use bulkAssignRolePermissions instead.');
+    return encryptedApiClient.post('/rbac/roles/permissions/assign', payload);
+  }
+
+  /**
+   * @deprecated Use getRolePermissionsTree instead
+   */
+  static async getRolePermissions(roleId: number) {
+    console.warn('⚠️ getRolePermissions is deprecated. Use getRolePermissionsTree instead.');
+    return encryptedApiClient.post<{
+      data: Array<{
+        role_permission_id: number;
+        role_id: number;
+        permission_id: number;
+        permission_name: string;
+        resource: string;
+        action: string;
+        category: string;
+      }>;
+    }>('/rbac/roles/permissions/list', { roleId });
+  }
+
+  /**
+   * @deprecated Use bulkAssignRolePermissions instead
+   */
+  static async removePermissionFromRole(roleId: number, permissionId: number) {
+    console.warn('⚠️ removePermissionFromRole is deprecated. Use bulkAssignRolePermissions instead.');
+    return encryptedApiClient.post('/rbac/roles/permissions/remove', { roleId, permissionId });
   }
 }

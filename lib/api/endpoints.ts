@@ -366,5 +366,11 @@ export const API_ENDPOINTS = {
     },
     MARK_READ: "/chat/mark-read",
   },
-
+  SYSTEM_CONFIG: {
+    LIST: '/system-config',
+    GET: (id: string) => `/system-config/${id}`,
+    CREATE: '/system-config',
+    UPDATE: (id: string) => `/system-config/${id}`,
+    DELETE: (id: string) => `/system-config/${id}`,
+  },
 };
