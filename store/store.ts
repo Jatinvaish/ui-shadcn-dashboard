@@ -1,18 +1,17 @@
-// ============================================
-// store/store.ts - UPDATED
-// ============================================
+// store/store.ts - UPDATED WITH NEW SLICES
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import menuPermissionsReducer from './slices/menu-permissions.slice';
 import chatReducer from './slices/chatSlice';
+import rolesReducer from './slices/roles.slice';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     menuPermissions: menuPermissionsReducer,
     chat: chatReducer,
-    // Remove duplicate - menuPermissions already covers this
-    // permissions: menuPermissionsReducer,  
+    roles: rolesReducer,
+    menuPermissionsManagement: menuPermissionsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

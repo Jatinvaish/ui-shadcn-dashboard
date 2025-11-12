@@ -231,7 +231,8 @@ export default function VerificationPage() {
                 Didn&apos;t receive the code?{" "}
                 <Button
                   type="button"
-                  variant="link"
+                  variant="primary"
+                  mode="link"
                   className="h-auto p-0 text-sm underline"
                   onClick={handleResendCode}
                   disabled={resendLoading || countdown > 0}

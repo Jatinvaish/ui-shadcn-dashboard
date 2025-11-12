@@ -1,4 +1,3 @@
-
 // components/route-guard.tsx - FIXED FOR DYNAMIC ROUTES
 "use client";
 
@@ -9,6 +8,7 @@ import { Loader2, Lock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { isPublicRoute } from '@/lib/route-menu-map';
 
 interface RouteGuardProps {
   children: React.ReactNode;
@@ -22,29 +22,26 @@ export function RouteGuard({ children }: RouteGuardProps) {
   const [checkComplete, setCheckComplete] = useState(false);
 
   useEffect(() => {
-    // Wait for initialization
+    // ✅ Wait for initialization
     if (!isInitialized) {
       setIsAuthorized(null);
       setCheckComplete(false);
       return;
     }
 
-    // Public routes that don't require permission checks
-    const publicRoutes = ['/login', '/register', '/forgot-password', '/errors'];
-    const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-    
-    if (isPublicRoute) {
+    // ✅ Public routes always allowed
+    if (isPublicRoute(pathname)) {
       setIsAuthorized(true);
       setCheckComplete(true);
       return;
     }
 
-    // Check if user can access this route
+    // ✅ Check route access using fixed canAccessRoute
     const hasAccess = canAccessRoute(pathname);
     setIsAuthorized(hasAccess);
     setCheckComplete(true);
 
-    // Redirect if no access
+    // ✅ Redirect if no access
     if (!hasAccess) {
       console.warn(`❌ Access denied to ${pathname}`);
       router.push('/errors/forbidden');
@@ -53,7 +50,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
     }
   }, [pathname, canAccessRoute, isInitialized, router]);
 
-  // Show loading only while initializing OR checking access
+  // Show loading while checking
   if (!checkComplete || loading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -65,7 +62,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
     );
   }
 
-  // If check is complete but not authorized, show error
+  // Show error if not authorized after check
   if (checkComplete && !isAuthorized) {
     return (
       <div className="flex h-screen items-center justify-center p-4">
