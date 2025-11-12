@@ -1,6 +1,6 @@
 import * as React from "react";
-
 import { cn } from "@/lib/utils";
+import { cva, type VariantProps } from 'class-variance-authority';
 
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -71,5 +71,30 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     />
   );
 }
+const cardTableVariants = cva('grid grow', {
+  variants: {
+    variant: {
+      default: '',
+      accent: 'bg-card rounded-xl',
+    },
+  },
+  defaultVariants: {
+    variant: 'default',
+  },
+});
 
-export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent };
+// Define props type that includes 'variant'
+interface CardTableProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+  VariantProps<typeof cardTableVariants> { }
+
+function CardTable({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-table"
+      className={cn(cardTableVariants({}), className)}
+      {...props}
+    />
+  );
+}
+export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardTable, CardDescription, CardContent };
