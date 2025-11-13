@@ -218,8 +218,9 @@
 // } as const;
 
 
-// lib/api/endpoints.ts - VERIFIED
+// lib/api/endpoints.ts - UPDATED v4.0
 export const API_ENDPOINTS = {
+  // ==================== AUTH ====================
   AUTH: {
     REGISTER: '/auth/register',
     LOGIN: '/auth/login',
@@ -234,6 +235,8 @@ export const API_ENDPOINTS = {
     CREATE_BRAND: '/auth/create-brand',
     CREATE_CREATOR: '/auth/create-creator',
   },
+
+  // ==================== TENANTS ====================
   TENANTS: {
     MY_TENANTS: '/tenants/my-tenants',
     GET: (id: string) => `/tenants/${id}`,
@@ -241,6 +244,8 @@ export const API_ENDPOINTS = {
     MEMBERS: (id: string) => `/tenants/${id}/members`,
     USAGE: (id: string) => `/tenants/${id}/usage`,
   },
+
+  // ==================== RBAC ====================
   RBAC: {
     ROLES_LIST: '/rbac/roles/list',
     ROLES_GET: '/rbac/roles/get',
@@ -253,6 +258,8 @@ export const API_ENDPOINTS = {
     USER_ROLES_LIST: '/rbac/users/roles/list',
     USER_ROLES_REMOVE: '/rbac/users/roles/remove',
   },
+
+  // ==================== PERMISSIONS ====================
   PERMISSIONS: {
     LIST: '/permissions/list',
     GET: '/permissions/get',
@@ -269,6 +276,8 @@ export const API_ENDPOINTS = {
     SHARE_REVOKE: '/permissions/share/revoke',
     SHARE_LIST: '/permissions/share/list',
   },
+
+  // ==================== MENU PERMISSIONS ====================
   MENU_PERMISSIONS: {
     LINK: '/menu-permissions/link',
     BULK_LINK: '/menu-permissions/bulk-link',
@@ -279,93 +288,71 @@ export const API_ENDPOINTS = {
     MY_ACCESS: '/menu-permissions/my-access',
     CHECK_ACCESS: '/menu-permissions/check-access',
   },
+
+  // ==================== CHAT ====================
   CHAT: {
     CHANNELS: {
-      LIST: "/chat/channels/list",
-      CREATE: "/chat/channels/create",
-      GET_BY_ID: "/chat/channels/get-by-id",
-      UPDATE: "/chat/channels/update",
-      ARCHIVE: "/chat/channels/archive",
-      DELETE: "/chat/channels/delete",
-      LEAVE: "/chat/channels/leave",
-      PINNED_MESSAGES: "/chat/channels/pinned-messages",
+      LIST: '/chat/channels/list',
+      CREATE: '/chat/channels/create',
+      GET_BY_ID: '/chat/channels/get-by-id',
+      UPDATE: '/chat/channels/update',
+      ARCHIVE: '/chat/channels/archive',
+      DELETE: '/chat/channels/delete',
+      LEAVE: '/chat/channels/leave',
+      PINNED_MESSAGES: '/chat/channels/pinned-messages',
+      SETTINGS_GET: '/chat/channels/settings/get',
+      SETTINGS_UPDATE: '/chat/channels/settings/update',
+      ROTATE_KEY: '/chat/channels/rotate-key',
     },
     MEMBERS: {
-      LIST: "/chat/channels/members/list",
-      ADD: "/chat/channels/members/add",
-      REMOVE: "/chat/channels/members/remove",
-      UPDATE_ROLE: "/chat/channels/members/update-role",
+      LIST: '/chat/channels/members/list',
+      ADD: '/chat/channels/members/add',
+      REMOVE: '/chat/channels/members/remove',
+      UPDATE_ROLE: '/chat/channels/members/update-role',
     },
     NOTIFICATIONS: {
-      UPDATE: "/chat/channels/members/notifications/update",
+      UPDATE: '/chat/channels/notifications/update',
     },
     MESSAGES: {
-      LIST: "/chat/messages/list",
-      SEND: "/chat/messages/send",
-      REPLY: "/chat/messages/reply",
-      EDIT: "/chat/messages/edit",
-      DELETE: "/chat/messages/delete",
-      PIN: "/chat/messages/pin",
+      LIST: '/chat/messages/list',
+      SEND: '/chat/messages/send',
+      EDIT: '/chat/messages/edit',
+      DELETE: '/chat/messages/delete',
+      BULK_DELETE: '/chat/messages/bulk-delete',
+      PIN: '/chat/messages/pin',
+      FORWARD: '/chat/messages/forward',
+      STATUS: '/chat/messages/status',
+      STATUS_BULK: '/chat/messages/status/bulk',
     },
     REACTIONS: {
-      ADD: "/chat/messages/reactions/add",
-      REMOVE: "/chat/messages/reactions/remove",
-      LIST: "/chat/messages/reactions/list",
+      ADD: '/chat/messages/reactions/add',
+      LIST: '/chat/messages/reactions/list',
     },
     THREADS: {
-      LIST: "/chat/threads/list",
-      SEND: "/chat/threads/send",
-      MESSAGES: "/chat/threads/messages",
+      MESSAGES: '/chat/threads/messages',
+      REPLY: '/chat/threads/reply',
     },
-    SEARCH: {
-      MESSAGES: "/chat/messages/search",
+    SEARCH: '/chat/search',
+    DIRECT: {
+      SEND: '/chat/direct/send',
     },
-    USERS: {
-      DIRECT_MESSAGE: "/chat/users/direct-message",
-    },
-    GROUP: {
-      CREATE: "/chat/users/group/create",
-      ADD: "/chat/users/group/add",
-      REMOVE: "/chat/users/group/remove",
-    },
-    PRIVATE: {
-      CREATE: "/chat/users/private/create",
-      ADD: "/chat/users/private/add",
-      REMOVE: "/chat/users/private/remove",
-    },
-    THREAD_MESSAGES: {
-      LIST: "/chat/threads/messages/list",
-      SEND: "/chat/threads/messages/send",
-    },
-    SEARCH_MESSAGES: {
-      ALL: "/chat/messages/search/all",
-    },
-    DIRECT_MESSAGES: {
-      LIST: "/chat/users/direct-messages/list",
-      SEND: "/chat/users/direct-messages/send",
-    },
-    GROUP_MESSAGES: {
-      LIST: "/chat/users/group-messages/list",
-      SEND: "/chat/users/group-messages/send",
-    },
-    PRIVATE_MESSAGES: {
-      LIST: "/chat/users/private-messages/list",
-      SEND: "/chat/users/private-messages/send",
+    MARK_READ: '/chat/mark-read',
+    MARK_READ_BULK: '/chat/mark-read/bulk',
+    UNREAD: {
+      COUNT: '/chat/unread/count',
     },
     FILES: {
-      UPLOAD: "/chat/files/upload",
-      DOWNLOAD: "/chat/files/download",
-      LIST: "/chat/files/list",
+      LIST: '/chat/channels/files/list',
+      UPLOAD: '/chat/files/upload',
+      DOWNLOAD: '/chat/files/download',
     },
-    DIRECT: {
-      SEND: "/chat/direct/send",
-      LIST: "/chat/direct/list",
+    PRESENCE: {
+      UPDATE: '/chat/presence/update',
+      ONLINE: '/chat/presence/online',
     },
-    UNREAD: {
-      COUNT: "/chat/unread/count",
-    },
-    MARK_READ: "/chat/mark-read",
   },
+
+  // ==================== SYSTEM CONFIG ====================
   SYSTEM_CONFIG: {
     LIST: '/system-config',
     GET: (id: string) => `/system-config/${id}`,
@@ -373,4 +360,4 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/system-config/${id}`,
     DELETE: (id: string) => `/system-config/${id}`,
   },
-};
+} as const;
