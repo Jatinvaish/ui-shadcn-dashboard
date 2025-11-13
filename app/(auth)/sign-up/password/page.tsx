@@ -46,7 +46,7 @@ export default function SignUpPasswordPage() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email");
   const [showPassword, setShowPassword] = useState(false);
-  
+
   const dispatch = useAppDispatch();
   const { isLoading, error, requiresVerification, verificationEmail } =
     useAppSelector((state) => state.auth);
@@ -94,10 +94,21 @@ export default function SignUpPasswordPage() {
 
   return (
     <div className="flex items-center justify-center py-4 lg:h-screen">
-      <Card className="mx-auto w-96">
-        <CardHeader>
-          <CardTitle className="text-2xl">Create Password</CardTitle>
-          <CardDescription>Create a secure password for {email}</CardDescription>
+      <Card className="mx-auto w-96 rounded-2xl border-0 bg-accent">
+        <CardHeader className="text-center pb-2 space-y-0.5">
+          <div className="inline-flex items-center gap-2 mb-0 justify-center pr-3">
+            <img
+              src="/fluera_new_logo.png"
+              alt="Fluera logo"
+              className="h-9 w-30"
+            />
+          </div>
+          <CardTitle className="text-2xl font-bold pt-0.5 mt-3">
+            Create Password
+          </CardTitle>
+          <CardDescription className="text-xs pt-0">
+            Create a secure password for {email}.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -159,7 +170,7 @@ export default function SignUpPasswordPage() {
                 </div>
 
                 {/* Password Requirements */}
-                <div className="text-xs text-muted-foreground space-y-1 bg-muted p-3 rounded-md">
+                <div className="text-xs text-muted-foreground space-y-1 p-3 rounded-md">
                   <p className="font-medium mb-1.5">Password must contain:</p>
                   <ul className="space-y-1 list-none">
                     <li className="flex items-start gap-2">
@@ -191,7 +202,7 @@ export default function SignUpPasswordPage() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full h-10 font-semibold text-sm mt-1"
                   disabled={isLoading}
                 >
                   {isLoading ? (

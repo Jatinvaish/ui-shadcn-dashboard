@@ -112,7 +112,7 @@ const RolesListPage = () => {
   };
 
   const handleRowClick = (row: Role) => {
-    router.push(`/dasboard/access-control/roles/${row.id}`);
+    router.push(`/dashboard/access-control/roles/${row.id}`);
   };
 
   const columns = useMemo<ColumnDef<Role>[]>(
@@ -273,7 +273,7 @@ const RolesListPage = () => {
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/dasboard/access-control/roles/${row.original.id}/edit`);
+                  router.push(`/dashboard/access-control/roles/${row.original.id}/edit`);
                 }}
               >
                 <Edit className="h-4 w-4" />

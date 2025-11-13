@@ -42,16 +42,25 @@ export default function ForgotPasswordForm() {
 
   return (
     <div className="flex items-center justify-center py-4 lg:h-screen">
-      <Card className="mx-auto w-96">
-        <CardHeader>
-          <CardTitle className="text-2xl">Forgot your password?</CardTitle>
-          <CardDescription>
+      <Card className="mx-auto w-96 rounded-2xl border-0 bg-accent">
+        <CardHeader className="text-center pb-2 space-y-0.5">
+          <div className="inline-flex items-center gap-2 mb-0 justify-center pr-3">
+            <img
+              src="/fluera_new_logo.png"
+              alt="Fluera logo"
+              className="h-9 w-30"
+            />
+          </div>
+          <CardTitle className="text-2xl font-bold pt-0.5 mt-3">
+            Forgot your password?
+          </CardTitle>
+          <CardDescription className="text-xs pt-0">
             Enter your email address and we&apos;ll send you a link to reset your password
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
-            <div className="grid gap-4">
+            <div className="grid gap-2">
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -66,7 +75,7 @@ export default function ForgotPasswordForm() {
               </div>
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full h-10 font-semibold text-sm mt-1"
                 disabled={isLoading}
               >
                 {isLoading ? (

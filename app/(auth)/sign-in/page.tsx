@@ -108,16 +108,27 @@ export default function Page() {
   };
 
   return (
-    <div className="flex items-center justify-center py-4 lg:h-screen">
-      <Card className="mx-auto w-96">
-        <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>Enter your email below to login to your account</CardDescription>
+    <div className="flex items-center justify-center py-4 lg:h-screen ">
+      <Card className="mx-auto w-96 rounded-2xl border-0 bg-accent">
+        <CardHeader className="text-center pb-2 space-y-0.5">
+          <div className="inline-flex items-center gap-2 mb-0 justify-center pr-3">
+            <img
+              src="/fluera_new_logo.png"
+              alt="Fluera logo"
+              className="h-9 w-30"
+            />
+          </div>
+          <CardTitle className="text-2xl font-bold pt-0.5 mt-3">
+            Welcome back
+          </CardTitle>
+          <CardDescription className="text-xs pt-0">
+            Sign in to your account to continue.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
-              <div className="grid gap-4">
+              <div className="grid gap-2">
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
                   <FormField
@@ -143,7 +154,7 @@ export default function Page() {
                     <Label htmlFor="password">Password</Label>
                     <Link
                       href="/forgot-password"
-                      
+
                       className="ml-auto inline-block text-sm underline">
                       Forgot your password?
                     </Link>
@@ -183,12 +194,14 @@ export default function Page() {
                 </div>
 
 
-                <Button type="submit" className="w-full"
+                <Button
+                  type="submit"
+                  className="w-full h-10 font-semibold text-sm mt-1"
                   disabled={isLoading || socialLoading !== null}
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Signing in...
                     </>
                   ) : (
@@ -199,10 +212,11 @@ export default function Page() {
                 <div className="my-1">
                   <div className="flex items-center gap-3">
                     <div className="w-full border-t" />
-                    <span className="text-muted-foreground shrink-0  ">or continue with</span>
+                    <span className="text-sm text-muted-foreground shrink-0 primary">OR</span>
                     <div className="w-full border-t" />
                   </div>
                 </div>
+
 
                 {/* Google Sign-In */}
                 <Button
