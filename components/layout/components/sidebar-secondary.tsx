@@ -1,11 +1,10 @@
-
 // ==================== sidebar-secondary.tsx ====================
 import { Separator } from "@/components/ui/separator";
 import { SidebarSearch } from "./sidebar-search";
-import { useLayout } from './context';
-import { Badge } from '@/components/ui/badge';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
+import { useLayout } from "./context";
+import { Badge } from "@/components/ui/badge";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import {
   ChartPieIcon,
@@ -46,10 +45,10 @@ import {
   ComponentIcon,
   ProportionsIcon,
   GithubIcon,
-  ChevronRight,
-} from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { cn } from '@/lib/utils';
+  ChevronRight
+} from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 // Navigation data based on your provided structure
 const navItems = {
@@ -105,12 +104,22 @@ const navItems = {
       { title: "Kanban", href: "/dashboard/apps/kanban", icon: SquareKanbanIcon, isNew: true },
       { title: "Notes", href: "/dashboard/apps/notes", icon: StickyNoteIcon, badge: "8" },
       { title: "Chats", href: "/dashboard/apps/chat", icon: MessageSquareIcon, badge: "5" },
-      { title: "Social Media", href: "/dashboard/apps/social-media", icon: MessageSquareHeartIcon, isComing: true },
+      {
+        title: "Social Media",
+        href: "/dashboard/apps/social-media",
+        icon: MessageSquareHeartIcon,
+        isComing: true
+      },
       { title: "Mail", href: "/dashboard/apps/mail", icon: MailIcon },
       { title: "Todo List App", href: "/dashboard/apps/todo-list-app", icon: SquareCheckIcon },
       { title: "Tasks", href: "/dashboard/apps/tasks", icon: ClipboardCheckIcon },
       { title: "Calendar", href: "/dashboard/apps/calendar", icon: CalendarIcon },
-      { title: "File Manager", href: "/dashboard/apps/file-manager", icon: ArchiveRestoreIcon, isNew: true },
+      {
+        title: "File Manager",
+        href: "/dashboard/apps/file-manager",
+        icon: ArchiveRestoreIcon,
+        isNew: true
+      },
       { title: "Api Keys", href: "/dashboard/apps/api-keys", icon: KeyIcon },
       { title: "POS App", href: "/dashboard/apps/pos-system", icon: CookieIcon },
       { title: "Courses", href: "/dashboard/apps/courses", icon: BookAIcon, isComing: true }
@@ -120,9 +129,19 @@ const navItems = {
     title: "AI Apps",
     items: [
       { title: "AI Chat", href: "/dashboard/apps/ai-chat", icon: BrainIcon },
-      { title: "AI Chat V2", href: "/dashboard/apps/ai-chat-v2", icon: BrainCircuitIcon, isNew: true },
+      {
+        title: "AI Chat V2",
+        href: "/dashboard/apps/ai-chat-v2",
+        icon: BrainCircuitIcon,
+        isNew: true
+      },
       { title: "Image Generator", href: "/dashboard/apps/ai-image-generator", icon: ImagesIcon },
-      { title: "Text to Speech", href: "/dashboard/apps/text-to-speech", icon: SpeechIcon, isComing: true }
+      {
+        title: "Text to Speech",
+        href: "/dashboard/apps/text-to-speech",
+        icon: SpeechIcon,
+        isComing: true
+      }
     ]
   },
   pages: {
@@ -197,6 +216,12 @@ const navItems = {
       { title: "Templates", href: "/templates", icon: ProportionsIcon, newTab: true },
       { title: "Github", href: "https://github.com/bundui", icon: GithubIcon, newTab: true }
     ]
+  },
+  chat: {
+    title: "chat",
+    items: [
+      { title: "chat", href: "/dashboard/chat", icon: ClipboardMinusIcon },
+    ]
   }
 };
 
@@ -219,17 +244,18 @@ function MenuItem({ item, pathname }: MenuItemProps) {
               "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors",
               "hover:bg-primary/10 hover:text-foreground",
               "text-foreground"
-            )}
-          >
+            )}>
             {item.icon && <item.icon className="size-4 shrink-0" />}
             <span className="flex-1 text-left">{item.title}</span>
-            <ChevronRight className={cn(
-              "size-4 shrink-0 transition-transform duration-200",
-              isOpen && "rotate-90"
-            )} />
+            <ChevronRight
+              className={cn(
+                "size-4 shrink-0 transition-transform duration-200",
+                isOpen && "rotate-90"
+              )}
+            />
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="pl-6 mt-1 space-y-1">
+        <CollapsibleContent className="mt-1 space-y-1 pl-6">
           {item.items.map((subItem: any, index: number) => (
             <Link
               key={index}
@@ -241,8 +267,7 @@ function MenuItem({ item, pathname }: MenuItemProps) {
                 pathname === subItem.href
                   ? "bg-primary/10 text-foreground font-medium"
                   : "text-muted-foreground"
-              )}
-            >
+              )}>
               <span>{subItem.title}</span>
             </Link>
           ))}
@@ -259,26 +284,32 @@ function MenuItem({ item, pathname }: MenuItemProps) {
         className={cn(
           "flex flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors",
           "hover:bg-primary/10 hover:text-foreground",
-          isActive
-            ? "bg-primary/10 text-foreground font-medium"
-            : "text-foreground"
-        )}
-      >
+          isActive ? "bg-primary/10 text-foreground font-medium" : "text-foreground"
+        )}>
         {item.icon && <item.icon className="size-4 shrink-0" />}
         <span className="flex-1">{item.title}</span>
       </Link>
       {item.isNew && (
-        <Badge variant="primary" size="sm" className="absolute right-2 border border-green-400 bg-green-50 text-green-600 text-[10px] px-1.5 py-0">
+        <Badge
+          variant="primary"
+          size="sm"
+          className="absolute right-2 border border-green-400 bg-green-50 px-1.5 py-0 text-[10px] text-green-600">
           New
         </Badge>
       )}
       {item.isComing && (
-        <Badge variant="secondary" size="sm" className="absolute right-2 opacity-50 text-[10px] px-1.5 py-0">
+        <Badge
+          variant="secondary"
+          size="sm"
+          className="absolute right-2 px-1.5 py-0 text-[10px] opacity-50">
           Soon
         </Badge>
       )}
       {item.badge && (
-        <Badge variant="primary" size="sm" className="absolute right-2 bg-primary/20 text-foreground text-[10px] px-1.5 py-0">
+        <Badge
+          variant="primary"
+          size="sm"
+          className="bg-primary/20 text-foreground absolute right-2 px-1.5 py-0 text-[10px]">
           {item.badge}
         </Badge>
       )}
@@ -293,13 +324,13 @@ export function SidebarSecondary() {
   const currentNav = navItems[activeSecondaryMenu as keyof typeof navItems] || navItems.dashboards;
 
   return (
-    <div className="flex flex-col flex-1 h-full overflow-hidden">
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
       <div className="shrink-0 pt-2.5">
         <SidebarSearch />
       </div>
       <div className="flex-1 overflow-y-auto py-2.5">
-        <div className="px-2.5 space-y-1">
-          <div className="text-xs font-normal text-muted-foreground mb-3 px-2.5">
+        <div className="space-y-1 px-2.5">
+          <div className="text-muted-foreground mb-3 px-2.5 text-xs font-normal">
             {currentNav.title}
           </div>
           <div className="space-y-1">
