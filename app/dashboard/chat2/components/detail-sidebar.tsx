@@ -9,14 +9,14 @@ import {
   LogOut,
   Trash2,
 } from "lucide-react";
-import { Channel, User } from "@/types/chat";
+import { Channel } from "@/lib/api/services/chat-service";
 
 // ==================== TYPES ====================
 
 
 
 // For temporary display until connected to real data
-declare const MOCK_USERS: User[];
+declare const MOCK_USERS: any;
 
 interface ChannelDetailsSidebarProps {
   channel: Channel;
@@ -63,7 +63,7 @@ export const ChannelDetailsSidebar: React.FC<ChannelDetailsSidebarProps> = ({
           </div>
 
           <div className="space-y-2">
-            {MOCK_USERS.slice(0, 5).map((user) => (
+            {MOCK_USERS.slice(0, 5).map((user:any) => (
               <div
                 key={user.id}
                 className="flex items-center gap-2 hover:bg-gray-700 p-2 rounded"

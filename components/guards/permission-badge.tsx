@@ -15,7 +15,7 @@ export function PermissionBadge({ permissionName }: PermissionBadgeProps) {
 
   return (
     <Badge 
-      variant={hasPerm ? "default" : "secondary"}
+      variant={hasPerm ? "primary" : "secondary"}
       className="gap-1"
     >
       {hasPerm ? (

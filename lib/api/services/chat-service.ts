@@ -69,6 +69,10 @@ export interface Channel {
   name: string;
   description?: string;
   channel_type: string;
+  isMuted: number;
+  unreadCount: number;
+  memberCount: number;
+  type: string;
   is_private: boolean;
   member_count: number;
   message_count: number;

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, BellOff } from "lucide-react";
-import { Channel } from "@/types/chat";
+import { Channel } from "@/lib/api/services/chat-service";
 
 // ==================== TYPES ====================
 

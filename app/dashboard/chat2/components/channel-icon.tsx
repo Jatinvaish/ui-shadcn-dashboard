@@ -1,4 +1,4 @@
-import { Channel } from "@/types/chat";
+import { Channel } from "@/lib/api/services/chat-service";
 import { Hash, Lock } from "lucide-react";
 import { JSX } from "react";
 
@@ -6,7 +6,7 @@ import { JSX } from "react";
 // ==================== RENDER FUNCTIONS ====================
 const renderChannelIcon = (channel: Channel): JSX.Element => {
   if (channel.type === "direct") {
-    return (
+    return ( 
       <div className="relative mr-2">
         <div className="w-6 h-6 rounded bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-semibold">
           {channel.name?.substring(0, 2).toUpperCase()}
