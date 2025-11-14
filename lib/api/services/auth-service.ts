@@ -1,6 +1,7 @@
 // lib/api/services/auth.service.ts - COMPLETE
 import { encryptedApiClient } from '../encrypted-client';
 import { API_ENDPOINTS } from '../endpoints';
+import Cookies from 'js-cookie';
 
 export interface RegisterPayload {
   email: string;
@@ -19,6 +20,7 @@ export interface CreateAgencyPayload {
   phone?: string;
   timezone?: string;
   industry?: string;
+  metadata?: any;
 }
 
 export interface CreateBrandPayload {
@@ -28,6 +30,7 @@ export interface CreateBrandPayload {
   phone?: string;
   website?: string;
   industry?: string;
+  metadata?: any;
 }
 
 export interface CreateCreatorPayload {
@@ -35,6 +38,7 @@ export interface CreateCreatorPayload {
   lastName: string;
   stageName?: string;
   phone?: string;
+  metadata?: any;
   bio?: string;
 }
 
@@ -67,10 +71,6 @@ export class AuthService {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGIN, payload);
   }
 
-  // Logout
-  static async logout() {
-    return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-  }
 
   // Verify Registration
   static async verifyRegistration(payload: VerifyRegistrationPayload) {
@@ -120,5 +120,30 @@ export class AuthService {
   // Get User Sessions
   static async getUserSessions() {
     return encryptedApiClient.get(API_ENDPOINTS.AUTH.SESSIONS);
+  }
+
+  // Logout
+  static async logout() {
+    return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+  }
+  static updateAuthCookies(data: { accessToken?: string; refreshToken?: string; user?: any }) {
+    const cookieOptions = {
+      expires: 7,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
+    };
+
+    if (data.accessToken) {
+      Cookies.set('accessToken', data.accessToken, cookieOptions);
+    }
+
+    if (data.refreshToken) {
+      Cookies.set('refreshToken', data.refreshToken, cookieOptions);
+    }
+
+    if (data.user) {
+      Cookies.set('user', JSON.stringify(data.user), cookieOptions);
+    }
   }
 }

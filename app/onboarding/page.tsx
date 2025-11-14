@@ -19,7 +19,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
-import Cookies from "js-cookie"
 import { AuthService } from "@/lib/api"
 
 interface FormData {
@@ -312,7 +311,6 @@ const OnboardingFlow: React.FC = () => {
       const field = stepConfig.config.field
       const value = formData[field]
 
-      // Allow optional fields
       const optionalFields = ['stageName', 'bio', 'website', 'industry']
       if (optionalFields.includes(field) && (!value || value.trim() === "")) {
         return true
@@ -368,8 +366,25 @@ const OnboardingFlow: React.FC = () => {
     setError("")
 
     try {
+      // Prepare metadata
+      const metadata: Record<string, any> = {}
+
+      if (userType === "agency") {
+        if (formData.dealFrequency) metadata.dealFrequency = formData.dealFrequency
+        if (formData.staffCount) metadata.staffCount = formData.staffCount
+        if (formData.creatorsManaged) metadata.creatorsManaged = formData.creatorsManaged
+        if (formData.yearlyRevenue) metadata.yearlyRevenue = formData.yearlyRevenue
+      } else if (userType === "brand") {
+        if (formData.brandStaffCount) metadata.brandStaffCount = formData.brandStaffCount
+        if (formData.creatorsPartneredMonthly) metadata.creatorsPartneredMonthly = formData.creatorsPartneredMonthly
+      } else if (userType === "creator") {
+        if (formData.dealFrequency) metadata.dealFrequency = formData.dealFrequency
+        if (formData.followersCount) metadata.followersCount = formData.followersCount
+      }
+
       let result
 
+      // Call appropriate API
       if (userType === "agency") {
         result = await AuthService.createAgency({
           name: formData.organizationName,
@@ -378,6 +393,7 @@ const OnboardingFlow: React.FC = () => {
           phone: formData.phone || undefined,
           timezone: formData.timezone || undefined,
           industry: formData.industry || undefined,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         })
       } else if (userType === "brand") {
         result = await AuthService.createBrand({
@@ -387,6 +403,7 @@ const OnboardingFlow: React.FC = () => {
           phone: formData.phone || undefined,
           website: formData.website || undefined,
           industry: formData.industry || undefined,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         })
       } else if (userType === "creator") {
         result = await AuthService.createCreator({
@@ -395,40 +412,45 @@ const OnboardingFlow: React.FC = () => {
           stageName: formData.stageName || undefined,
           phone: formData.phone || undefined,
           bio: formData.bio || undefined,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         })
       }
 
-      // Update tokens immediately
-      if (result?.accessToken && result?.refreshToken) {
-        const cookieOptions = {
-          expires: 7,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax' as const,
-          path: '/',
-        }
-
-        Cookies.set('accessToken', result.accessToken, cookieOptions)
-        Cookies.set('refreshToken', result.refreshToken, cookieOptions)
-
-        // Update user data in cookie
-        if (result.user) {
-          Cookies.set('user', JSON.stringify({
-            ...result.user,
-            onboardingRequired: false,
-          }), cookieOptions)
-        }
+      // ✅ Validate response structure
+      if (!result || typeof result !== 'object') {
+        throw new Error('Invalid response from server')
       }
 
-      // Show success message briefly
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // ✅ Update cookies with new auth data
+      AuthService.updateAuthCookies({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: {
+          ...result.user,
+          onboardingRequired: false,
+          onboardingCompleted: true,
+        },
+      })
 
-      // Redirect to dashboard
-      router.push('/dashboard')
+      // ✅ Small delay to ensure cookies are written
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      // ✅ Hard navigation to dashboard (forces middleware re-read)
+      window.location.href = '/dashboard'
+
     } catch (err: any) {
-      console.error('Onboarding error:', err)
-      const errorMessage = err?.response?.data?.message || err?.message || 'Something went wrong. Please try again.'
+      console.error('❌ Onboarding error:', err)
+      
+      // Better error messages
+      let errorMessage = 'Something went wrong. Please try again.'
+      
+      if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message
+      } else if (err?.message) {
+        errorMessage = err.message
+      }
+      
       setError(errorMessage)
-    } finally {
       setIsSubmitting(false)
     }
   }
@@ -437,6 +459,7 @@ const OnboardingFlow: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-accent overflow-hidden">
+      {/* ... rest of your JSX remains exactly the same ... */}
       <div className="h-full w-full">
         <div className="grid md:grid-cols-2 h-full">
           {/* Left Content Section */}

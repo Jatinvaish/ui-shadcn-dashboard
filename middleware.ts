@@ -13,22 +13,22 @@ const PUBLIC_ROUTES = [
 ];
 
 const AUTH_ROUTES = [
-  "/sign-in", 
-  "/sign-up", 
-  "/forgot-password", 
+  "/sign-in",
+  "/sign-up",
+  "/forgot-password",
   "/verify"
 ];
 
 const PROTECTED_ROUTES = [
-  "/dashboard", 
-  "/onboarding", 
-  "/profile", 
+  "/dashboard",
+  "/onboarding",
+  "/profile",
   "/settings"
 ];
 
 const ONBOARDING_REQUIRED_ROUTES = [
-  "/dashboard", 
-  "/profile", 
+  "/dashboard",
+  "/profile",
   "/settings"
 ];
 
@@ -73,13 +73,13 @@ export async function middleware(request: NextRequest) {
     // Redirect to sign-in for protected routes
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
-    
+
     // Add redirect parameter for protected routes
     if (isProtectedRoute) {
       url.searchParams.set("session_expired", "true");
       url.searchParams.set("redirect", pathname);
     }
-    
+
     return NextResponse.redirect(url);
   }
 
@@ -91,7 +91,7 @@ export async function middleware(request: NextRequest) {
     }
   } catch (e) {
     console.error("[Middleware] Failed to parse user cookie:", e);
-    
+
     // Invalid user cookie - clear auth and redirect
     const response = NextResponse.redirect(
       new URL("/sign-in?error=invalid_session", request.url)
@@ -114,7 +114,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // ==================== CASE 3: Check Onboarding Status ====================
-  const onboardingComplete = userData?.onboardingRequired === false;
+  const onboardingComplete =
+    userData?.onboardingRequired === false ||
+    userData?.onboardingCompleted === true;
 
   // User needs onboarding but trying to access protected routes
   if (!onboardingComplete && requiresOnboarding && pathname !== "/onboarding") {
@@ -129,7 +131,6 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
-
   // ==================== CASE 4: Authenticated User on Auth Routes ====================
   if (isAuthRoute && accessToken && userData) {
     const url = request.nextUrl.clone();
@@ -146,7 +147,7 @@ export async function middleware(request: NextRequest) {
     response.headers.set("x-user-email", userData.email || "");
     response.headers.set("x-user-type", userData.userType || "");
     response.headers.set("x-onboarding-complete", String(onboardingComplete));
-    
+
     // Add tenant/organization ID if available
     if (userData.tenantId) {
       response.headers.set("x-tenant-id", String(userData.tenantId));
