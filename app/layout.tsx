@@ -6,7 +6,6 @@ import { store } from "@/store/store";
 import { useAppDispatch } from "@/store/hooks";
 import { loadUserFromCookies } from "@/store/slices/authSlice";
 import { fetchMyAccessibleMenus } from "@/store/slices/menu-permissions.slice";
-
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
 import GoogleAnalyticsInit from "@/lib/ga";
@@ -14,10 +13,10 @@ import { fontVariables } from "@/lib/fonts";
 import NextTopLoader from "nextjs-toploader";
 import { ActiveThemeProvider } from "@/components/active-theme";
 import { DEFAULT_THEME } from "@/lib/themes";
-
 import "./globals.css";
 import { Toaster } from "sonner";
 import ToasterProvider from "@/components/guards/reactToast";
+import '../lib/axios-interceptor'; // Import at the top
 
 // ---------------- AUTH INITIALIZER ----------------
 function AuthInitializer({ children }: { children: React.ReactNode }) {
