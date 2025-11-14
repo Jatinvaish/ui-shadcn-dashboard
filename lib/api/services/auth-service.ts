@@ -1,4 +1,4 @@
-// lib/api/services/auth.service.ts - UPDATED
+// lib/api/services/auth.service.ts - COMPLETE
 import { encryptedApiClient } from '../encrypted-client';
 import { API_ENDPOINTS } from '../endpoints';
 
@@ -12,9 +12,8 @@ export interface LoginPayload {
   password: string;
 }
 
-// ✅ UPDATED: Changed to match backend DTO
 export interface CreateAgencyPayload {
-  name: string; // ✅ Changed from organizationName
+  name: string;
   firstName: string;
   lastName: string;
   phone?: string;
@@ -22,15 +21,13 @@ export interface CreateAgencyPayload {
   industry?: string;
 }
 
-// ✅ UPDATED: Changed to match backend DTO
 export interface CreateBrandPayload {
-  name: string; // ✅ Changed from brandName
+  name: string;
   firstName: string;
   lastName: string;
   phone?: string;
   website?: string;
   industry?: string;
-  description?: string;
 }
 
 export interface CreateCreatorPayload {
@@ -39,6 +36,24 @@ export interface CreateCreatorPayload {
   stageName?: string;
   phone?: string;
   bio?: string;
+}
+
+export interface VerifyRegistrationPayload {
+  email: string;
+  code: string;
+}
+
+export interface RefreshTokenPayload {
+  refreshToken: string;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  newPassword: string;
 }
 
 export class AuthService {
@@ -58,7 +73,7 @@ export class AuthService {
   }
 
   // Verify Registration
-  static async verifyRegistration(payload: { email: string; code: string }) {
+  static async verifyRegistration(payload: VerifyRegistrationPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.VERIFY_REGISTRATION, payload);
   }
 
@@ -78,12 +93,12 @@ export class AuthService {
   }
 
   // Forgot Password
-  static async forgotPassword(payload: { email: string }) {
+  static async forgotPassword(payload: ForgotPasswordPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.PASSWORD_RESET_REQUEST, payload);
   }
 
   // Reset Password
-  static async resetPassword(payload: { token: string; newPassword: string }) {
+  static async resetPassword(payload: ResetPasswordPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.PASSWORD_RESET_CONFIRM, payload);
   }
 
@@ -100,5 +115,10 @@ export class AuthService {
   // Create Creator
   static async createCreator(payload: CreateCreatorPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.CREATE_CREATOR, payload);
+  }
+
+  // Get User Sessions
+  static async getUserSessions() {
+    return encryptedApiClient.get(API_ENDPOINTS.AUTH.SESSIONS);
   }
 }
