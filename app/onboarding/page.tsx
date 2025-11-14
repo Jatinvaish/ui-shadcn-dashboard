@@ -18,6 +18,9 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useRouter } from "next/navigation"
+import Cookies from "js-cookie"
+import { AuthService } from "@/lib/api"
 
 interface FormData {
   firstName: string
@@ -31,6 +34,12 @@ interface FormData {
   yearlyRevenue: string
   brandStaffCount: string
   creatorsPartneredMonthly: string
+  organizationName: string
+  website: string
+  stageName: string
+  bio: string
+  industry: string
+  timezone: string
 }
 
 interface UserTypeOption {
@@ -55,6 +64,7 @@ interface CurrentStepConfig {
 }
 
 const OnboardingFlow: React.FC = () => {
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [userType, setUserType] = useState<"creator" | "agency" | "brand" | "">("")
   const [formData, setFormData] = useState<FormData>({
@@ -69,6 +79,12 @@ const OnboardingFlow: React.FC = () => {
     yearlyRevenue: "",
     brandStaffCount: "",
     creatorsPartneredMonthly: "",
+    organizationName: "",
+    website: "",
+    stageName: "",
+    bio: "",
+    industry: "",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   })
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
@@ -126,19 +142,26 @@ const OnboardingFlow: React.FC = () => {
       icon: Phone,
       type: "tel",
     },
-    {
-      field: "email",
-      label: "Your email address",
-      placeholder: "john@example.com",
-      icon: Mail,
-      type: "email",
-    },
   ]
 
   const creatorSteps: StepConfig[] = [
     {
+      field: "stageName",
+      label: "What's your stage name? (Optional)",
+      placeholder: "Creative Name",
+      icon: Sparkles,
+      type: "text",
+    },
+    {
+      field: "bio",
+      label: "Tell us about yourself",
+      placeholder: "Brief bio about your content...",
+      icon: User,
+      type: "text",
+    },
+    {
       field: "dealFrequency",
-      label: "How often do you collaborate with brands or campaigns?",
+      label: "How often do you collaborate with brands?",
       placeholder: "Select frequency",
       icon: TrendingUp,
       type: "chips",
@@ -146,7 +169,7 @@ const OnboardingFlow: React.FC = () => {
     },
     {
       field: "followersCount",
-      label: "How many followers or subscribers do you have?",
+      label: "How many followers do you have?",
       placeholder: "Select range",
       icon: UsersRound,
       type: "chips",
@@ -155,6 +178,20 @@ const OnboardingFlow: React.FC = () => {
   ]
 
   const agencySteps: StepConfig[] = [
+    {
+      field: "organizationName",
+      label: "What's your agency name?",
+      placeholder: "Agency Name",
+      icon: Building2,
+      type: "text",
+    },
+    {
+      field: "industry",
+      label: "What industry do you focus on?",
+      placeholder: "e.g., Entertainment, Fashion, Tech",
+      icon: Briefcase,
+      type: "text",
+    },
     {
       field: "staffCount",
       label: "How many staff members do you have?",
@@ -183,6 +220,27 @@ const OnboardingFlow: React.FC = () => {
 
   const brandSteps: StepConfig[] = [
     {
+      field: "organizationName",
+      label: "What's your brand name?",
+      placeholder: "Brand Name",
+      icon: Building2,
+      type: "text",
+    },
+    {
+      field: "website",
+      label: "What's your website?",
+      placeholder: "https://example.com",
+      icon: Mail,
+      type: "text",
+    },
+    {
+      field: "industry",
+      label: "What industry are you in?",
+      placeholder: "e.g., Fashion, Beauty, Tech",
+      icon: Briefcase,
+      type: "text",
+    },
+    {
       field: "brandStaffCount",
       label: "How many staff members do you have?",
       placeholder: "Select range",
@@ -192,7 +250,7 @@ const OnboardingFlow: React.FC = () => {
     },
     {
       field: "creatorsPartneredMonthly",
-      label: "How many creators do you partner with each month?",
+      label: "How many creators do you partner with monthly?",
       placeholder: "Select range",
       icon: UsersRound,
       type: "chips",
@@ -254,23 +312,29 @@ const OnboardingFlow: React.FC = () => {
       const field = stepConfig.config.field
       const value = formData[field]
 
+      // Allow optional fields
+      const optionalFields = ['stageName', 'bio', 'website', 'industry']
+      if (optionalFields.includes(field) && (!value || value.trim() === "")) {
+        return true
+      }
+
       if (!value || value.trim() === "") {
         setError(`Please ${stepConfig.config.type === "chips" ? "select" : "enter"} your ${stepConfig.config.label.toLowerCase()}`)
         return false
-      }
-
-      if (field === "email") {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(value)) {
-          setError("Please enter a valid email address")
-          return false
-        }
       }
 
       if (field === "phone") {
         const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/
         if (!phoneRegex.test(value)) {
           setError("Please enter a valid phone number")
+          return false
+        }
+      }
+
+      if (field === "website" && value) {
+        const urlRegex = /^https?:\/\/.+\..+/
+        if (!urlRegex.test(value)) {
+          setError("Please enter a valid website URL")
           return false
         }
       }
@@ -304,10 +368,65 @@ const OnboardingFlow: React.FC = () => {
     setError("")
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      console.log("Onboarding completed successfully", { userType, formData })
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again."
+      let result
+
+      if (userType === "agency") {
+        result = await AuthService.createAgency({
+          name: formData.organizationName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone || undefined,
+          timezone: formData.timezone || undefined,
+          industry: formData.industry || undefined,
+        })
+      } else if (userType === "brand") {
+        result = await AuthService.createBrand({
+          name: formData.organizationName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone || undefined,
+          website: formData.website || undefined,
+          industry: formData.industry || undefined,
+        })
+      } else if (userType === "creator") {
+        result = await AuthService.createCreator({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          stageName: formData.stageName || undefined,
+          phone: formData.phone || undefined,
+          bio: formData.bio || undefined,
+        })
+      }
+
+      // Update tokens immediately
+      if (result?.accessToken && result?.refreshToken) {
+        const cookieOptions = {
+          expires: 7,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax' as const,
+          path: '/',
+        }
+
+        Cookies.set('accessToken', result.accessToken, cookieOptions)
+        Cookies.set('refreshToken', result.refreshToken, cookieOptions)
+
+        // Update user data in cookie
+        if (result.user) {
+          Cookies.set('user', JSON.stringify({
+            ...result.user,
+            onboardingRequired: false,
+          }), cookieOptions)
+        }
+      }
+
+      // Show success message briefly
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Redirect to dashboard
+      router.push('/dashboard')
+    } catch (err: any) {
+      console.error('Onboarding error:', err)
+      const errorMessage = err?.response?.data?.message || err?.message || 'Something went wrong. Please try again.'
       setError(errorMessage)
     } finally {
       setIsSubmitting(false)
@@ -336,7 +455,7 @@ const OnboardingFlow: React.FC = () => {
                 <div className="h-1 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary transition-all duration-700 ease-out"
-                    style={{ width: `${currentStep === 0 ? 0 :((currentStep + 1) / getTotalSteps()) * 100}%` }}
+                    style={{ width: `${currentStep === 0 ? 0 : ((currentStep + 1) / getTotalSteps()) * 100}%` }}
                   />
                 </div>
               </div>
@@ -413,11 +532,10 @@ const OnboardingFlow: React.FC = () => {
                                 <button
                                   key={option}
                                   onClick={() => handleInputChange(field, option)}
-                                  className={`px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 border ${
-                                    formData[field] === option
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "bg-accent text-foreground border-border"
-                                  }`}
+                                  className={`px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 border ${formData[field] === option
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-accent text-foreground border-border"
+                                    }`}
                                 >
                                   {option}
                                 </button>
@@ -478,7 +596,7 @@ const OnboardingFlow: React.FC = () => {
                       type="button"
                       onClick={handleNext}
                       disabled={isSubmitting}
-                      className="flex-1 h-10 text-sm bg-primary  text-primary-foreground font-medium transition-all"
+                      className="flex-1 h-10 text-sm bg-primary text-primary-foreground font-medium transition-all"
                     >
                       Continue
                       <ChevronRight className="w-4 h-4 ml-1" />
@@ -488,7 +606,7 @@ const OnboardingFlow: React.FC = () => {
                       type="button"
                       onClick={handleSubmit}
                       disabled={isSubmitting}
-                      className="flex-1 h-10 text-sm bg-primary  text-primary-foreground font-medium transition-all"
+                      className="flex-1 h-10 text-sm bg-primary text-primary-foreground font-medium transition-all"
                     >
                       {isSubmitting ? (
                         <>
@@ -507,7 +625,6 @@ const OnboardingFlow: React.FC = () => {
 
           {/* Right Showcase Section */}
           <div className="hidden md:flex bg-muted/30 relative overflow-hidden">
-            {/* Image Slider */}
             <div className="absolute inset-0">
               {images.map((img, idx) => (
                 <div
@@ -525,7 +642,6 @@ const OnboardingFlow: React.FC = () => {
               ))}
             </div>
 
-            {/* Dots Navigation */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-10">
               {images.map((_, idx) => (
                 <button
@@ -540,7 +656,6 @@ const OnboardingFlow: React.FC = () => {
               ))}
             </div>
 
-            {/* Overlay Content */}
             <div className="relative z-10 p-10 flex flex-col justify-end text-white">
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
@@ -563,469 +678,3 @@ const OnboardingFlow: React.FC = () => {
 }
 
 export default OnboardingFlow
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// "use client"
-// import type React from "react"
-// import { useState } from "react"
-// import {
-//   ChevronLeft,
-//   ChevronRight,
-//   Users,
-//   Building2,
-//   Sparkles,
-//   Mail,
-//   Phone,
-//   User,
-//   TrendingUp,
-//   Briefcase,
-//   DollarSign,
-//   UsersRound,
-//   type LucideIcon,
-// } from "lucide-react"
-// import { Button } from "@/components/ui/button"
-// import { Input } from "@/components/ui/input"
-
-// interface FormData {
-//   firstName: string
-//   lastName: string
-//   phone: string
-//   email: string
-//   dealFrequency: string
-//   followersCount: string
-//   staffCount: string
-//   creatorsManaged: string
-//   yearlyRevenue: string
-//   brandStaffCount: string
-//   creatorsPartneredMonthly: string
-// }
-
-// interface UserTypeOption {
-//   id: "creator" | "agency" | "brand"
-//   title: string
-//   description: string
-//   icon: LucideIcon
-// }
-
-// interface StepConfig {
-//   field: keyof FormData
-//   label: string
-//   placeholder: string
-//   icon: LucideIcon
-//   type: "text" | "email" | "tel" | "number" | "chips"
-//   options?: string[]
-// }
-
-// interface CurrentStepConfig {
-//   type: "userTypeSelection" | "input"
-//   config?: StepConfig
-// }
-
-// const OnboardingFlow: React.FC = () => {
-//   const [currentStep, setCurrentStep] = useState<number>(0)
-//   const [userType, setUserType] = useState<"creator" | "agency" | "brand" | "">("")
-//   const [formData, setFormData] = useState<FormData>({
-//     firstName: "",
-//     lastName: "",
-//     phone: "",
-//     email: "",
-//     dealFrequency: "",
-//     followersCount: "",
-//     staffCount: "",
-//     creatorsManaged: "",
-//     yearlyRevenue: "",
-//     brandStaffCount: "",
-//     creatorsPartneredMonthly: "",
-//   })
-//   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
-//   const [error, setError] = useState<string>("")
-
-//   const images = [
-//     "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&h=800&fit=crop",
-//     "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&h=800&fit=crop",
-//     "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=1200&h=800&fit=crop",
-//     "https://images.unsplash.com/photo-1553877522-43269d4ea984?w=1200&h=800&fit=crop",
-//     "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=1200&h=800&fit=crop",
-//   ]
-
-//   const [imageIndex, setImageIndex] = useState(0)
-
-//   const userTypes: UserTypeOption[] = [
-//     {
-//       id: "creator",
-//       title: "Creator",
-//       description: "Individual content creator",
-//       icon: Sparkles,
-//     },
-//     {
-//       id: "agency",
-//       title: "Talent Agency",
-//       description: "Manage multiple creators",
-//       icon: Building2,
-//     },
-//     {
-//       id: "brand",
-//       title: "Brand",
-//       description: "Partner with creators",
-//       icon: Users,
-//     },
-//   ]
-
-//   const commonSteps: StepConfig[] = [
-//     {
-//       field: "firstName",
-//       label: "What's your first name?",
-//       placeholder: "John",
-//       icon: User,
-//       type: "text",
-//     },
-//     {
-//       field: "lastName",
-//       label: "What's your last name?",
-//       placeholder: "Doe",
-//       icon: User,
-//       type: "text",
-//     },
-//     {
-//       field: "phone",
-//       label: "Contact number",
-//       placeholder: "+1 (555) 000-0000",
-//       icon: Phone,
-//       type: "tel",
-//     },
-//     {
-//       field: "email",
-//       label: "Your email address",
-//       placeholder: "john@example.com",
-//       icon: Mail,
-//       type: "email",
-//     },
-//   ]
-
-//   const creatorSteps: StepConfig[] = [
-//     {
-//       field: "dealFrequency",
-//       label: "How often do you collaborate with brands or campaigns?",
-//       placeholder: "Select frequency",
-//       icon: TrendingUp,
-//       type: "chips",
-//       options: ["Daily", "Weekly", "Bi-weekly", "Monthly", "Quarterly", "Rarely"],
-//     },
-//     {
-//       field: "followersCount",
-//       label: "How many followers or subscribers do you have?",
-//       placeholder: "Select range",
-//       icon: UsersRound,
-//       type: "chips",
-//       options: ["Under 1K", "1K - 10K", "10K - 50K", "50K - 100K", "100K - 500K", "500K - 1M", "Over 1M"],
-//     },
-//   ]
-
-//   const agencySteps: StepConfig[] = [
-//     {
-//       field: "staffCount",
-//       label: "How many staff members do you have?",
-//       placeholder: "Select range",
-//       icon: Briefcase,
-//       type: "chips",
-//       options: ["1-5", "6-10", "11-25", "26-50", "51-100", "Over 100"],
-//     },
-//     {
-//       field: "creatorsManaged",
-//       label: "How many creators do you manage?",
-//       placeholder: "Select range",
-//       icon: UsersRound,
-//       type: "chips",
-//       options: ["1-10", "11-25", "26-50", "51-100", "101-250", "Over 250"],
-//     },
-//     {
-//       field: "yearlyRevenue",
-//       label: "What is your yearly revenue?",
-//       placeholder: "Select range",
-//       icon: DollarSign,
-//       type: "chips",
-//       options: ["Under $100K", "$100K - $500K", "$500K - $1M", "$1M - $5M", "$5M - $10M", "Over $10M"],
-//     },
-//   ]
-
-//   const brandSteps: StepConfig[] = [
-//     {
-//       field: "brandStaffCount",
-//       label: "How many staff members do you have?",
-//       placeholder: "Select range",
-//       icon: Briefcase,
-//       type: "chips",
-//       options: ["1-10", "11-50", "51-100", "101-500", "501-1000", "Over 1000"],
-//     },
-//     {
-//       field: "creatorsPartneredMonthly",
-//       label: "How many creators do you partner with each month?",
-//       placeholder: "Select range",
-//       icon: UsersRound,
-//       type: "chips",
-//       options: ["1-5", "6-15", "16-30", "31-50", "51-100", "Over 100"],
-//     },
-//   ]
-
-//   const getTotalSteps = (): number => {
-//     if (!userType) return 1
-//     let total = 1 + commonSteps.length
-//     if (userType === "creator") total += creatorSteps.length
-//     if (userType === "agency") total += agencySteps.length
-//     if (userType === "brand") total += brandSteps.length
-//     return total
-//   }
-
-//   const getCurrentStepConfig = (): CurrentStepConfig | null => {
-//     if (currentStep === 0) return { type: "userTypeSelection" }
-
-//     const adjustedStep = currentStep - 1
-
-//     if (adjustedStep < commonSteps.length) {
-//       return { type: "input", config: commonSteps[adjustedStep] }
-//     }
-
-//     const typeSpecificStep = adjustedStep - commonSteps.length
-
-//     if (userType === "creator" && typeSpecificStep < creatorSteps.length) {
-//       return { type: "input", config: creatorSteps[typeSpecificStep] }
-//     }
-
-//     if (userType === "agency" && typeSpecificStep < agencySteps.length) {
-//       return { type: "input", config: agencySteps[typeSpecificStep] }
-//     }
-
-//     if (userType === "brand" && typeSpecificStep < brandSteps.length) {
-//       return { type: "input", config: brandSteps[typeSpecificStep] }
-//     }
-
-//     return null
-//   }
-
-//   const handleInputChange = (field: keyof FormData, value: string): void => {
-//     setFormData((prev) => ({ ...prev, [field]: value }))
-//     setError("")
-//   }
-
-//   const validateStep = (): boolean => {
-//     const stepConfig = getCurrentStepConfig()
-
-//     if (stepConfig?.type === "userTypeSelection") {
-//       if (!userType) {
-//         setError("Please select who you are")
-//         return false
-//       }
-//     }
-
-//     if (stepConfig?.type === "input" && stepConfig.config) {
-//       const field = stepConfig.config.field
-//       const value = formData[field]
-
-//       if (!value || value.trim() === "") {
-//         setError(
-//           `Please ${stepConfig.config.type === "chips" ? "select" : "enter"} your ${stepConfig.config.label.toLowerCase()}`,
-//         )
-//         return false
-//       }
-
-//       if (field === "email") {
-//         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-//         if (!emailRegex.test(value)) {
-//           setError("Please enter a valid email address")
-//           return false
-//         }
-//       }
-
-//       if (field === "phone") {
-//         const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/
-//         if (!phoneRegex.test(value)) {
-//           setError("Please enter a valid phone number")
-//           return false
-//         }
-//       }
-//     }
-
-//     setError("")
-//     return true
-//   }
-
-//   const handleNext = (): void => {
-//     if (!validateStep()) return
-
-//     if (currentStep < getTotalSteps() - 1) {
-//       setCurrentStep((prev) => prev + 1)
-//       setImageIndex((prev) => (prev + 1) % images.length)
-//     }
-//   }
-
-//   const handleBack = (): void => {
-//     if (currentStep > 0) {
-//       setCurrentStep((prev) => prev - 1)
-//       setImageIndex((prev) => (prev - 1 + images.length) % images.length)
-//       setError("")
-//     }
-//   }
-
-//   const handleSubmit = async (): Promise<void> => {
-//     if (!validateStep()) return
-
-//     setIsSubmitting(true)
-//     setError("")
-
-//     try {
-//       await new Promise((resolve) => setTimeout(resolve, 2000))
-//       console.log("Onboarding completed successfully", { userType, formData })
-//     } catch (err: unknown) {
-//       const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again."
-//       setError(errorMessage)
-//     } finally {
-//       setIsSubmitting(false)
-//     }
-//   }
-
-//   const isLastStep = currentStep === getTotalSteps() - 1
-
-//   return (
-//     <div className="h-screen w-screen bg-accent overflow-hidden">
-//       <div className="h-full w-full">
-//         <div className="grid md:grid-cols-2 h-full">
-//           {/* Left Content Section */}
-//           <div className="p-8 md:p-12 flex flex-col justify-center bg-accent h-full overflow-y-auto">
-//             <div className="max-w-md mx-auto w-full space-y-6">
-//               {/* Progress Bar */}
-//               <div className="mb-8">
-//                 <div className="flex items-center justify-between mb-2">
-//                   <span className="text-xs font-medium text-muted-foreground">
-//                     Step {currentStep + 1} of {getTotalSteps()}
-//                   </span>
-//                   <span className="text-xs font-medium text-muted-foreground">
-//                     {currentStep === 0 ? 0 : Math.round(((currentStep + 1) / getTotalSteps()) * 100)} %
-//                   </span>
-//                 </div>
-//                 <div className="h-1 bg-muted rounded-full overflow-hidden">
-//                   <div
-//                     className="h-full bg-primary transition-all duration-700 ease-out"
-//                     style={{ width: `${currentStep === 0 ? 0 : ((currentStep + 1) / getTotalSteps()) * 100}%` }}
-//                   />
-//                 </div>
-//               </div>
-
-//               <div className="space-y-5">
-//                 {currentStep === 0 && (
-//                   <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-700">
-//                     <div>
-//                       <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">Who are you?</h1>
-//                       <p className="text-sm text-muted-foreground">Choose the option that best describes you</p>
-//                     </div>
-
-//                     <div className="space-y-2.5">
-//                       {userTypes.map((type) => {
-//                         const Icon = type.icon
-//                         return (
-//                           <button
-//                             key={type.id}
-//                             onClick={() => {
-//                               setUserType(type.id)
-//                               setError("")
-//                             }}
-//                             className={`w-full p-3.5 rounded-lg border transition-all duration-300 text-left group cursor-pointer ${
-//                               userType === type.id
-//                                 ? "border-primary bg-primary/5 text-card-foreground shadow-sm"
-//                                 : "border-border bg-accent hover:border-primary/30 hover:bg-primary/2"
-//                             }`}
-//                           >
-//                             <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-//                             <div className="flex flex-col">
-//                               <span className="font-semibold text-sm group-hover:text-foreground">{type.title}</span>
-//                               <span className="text-xs text-muted-foreground group-hover:text-foreground">
-//                                 {type.description}
-//                               </span>
-//                             </div>
-//                           </button>
-//                         )
-//                       })}
-//                     </div>
-//                   </div>
-//                 )}
-
-//                 {currentStep !== 0 && (
-//                   <div className="animate-in fade-in slide-in-from-right-4 duration-700">
-//                     <div>
-//                       <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-//                         {getCurrentStepConfig()?.config?.label}
-//                       </h1>
-//                     </div>
-
-//                     <div className="space-y-2.5">
-//                       {getCurrentStepConfig()?.config?.type === "chips" && (
-//                         <div className="flex flex-wrap gap-2">
-//                           {getCurrentStepConfig()?.config?.options?.map((option) => (
-//                             <button
-//                               key={option}
-//                               onClick={() => handleInputChange(getCurrentStepConfig()?.config?.field || "", option)}
-//                               className={`px-3 py-1 rounded-lg border transition-all duration-300 ${
-//                                 formData[getCurrentStepConfig()?.config?.field || ""] === option
-//                                   ? "border-primary bg-primary/5 text-card-foreground shadow-sm"
-//                                   : "border-border bg-accent hover:border-primary/30 hover:bg-primary/2"
-//                               }`}
-//                             >
-//                               {option}
-//                             </button>
-//                           ))}
-//                         </div>
-//                       )}
-
-//                       {getCurrentStepConfig()?.config?.type !== "chips" && (
-//                         <Input
-//                           value={formData[getCurrentStepConfig()?.config?.field || ""]}
-//                           onChange={(e) =>
-//                             handleInputChange(getCurrentStepConfig()?.config?.field || "", e.target.value)
-//                           }
-//                           placeholder={getCurrentStepConfig()?.config?.placeholder || ""}
-//                           className="w-full"
-//                         />
-//                       )}
-//                     </div>
-//                   </div>
-//                 )}
-//               </div>
-
-//               <div className="flex justify-between">
-//                 <Button onClick={handleBack} disabled={currentStep === 0}>
-//                   <ChevronLeft className="mr-2 h-4 w-4" /> Back
-//                 </Button>
-//                 <Button onClick={isLastStep ? handleSubmit : handleNext} disabled={isSubmitting}>
-//                   {isLastStep ? "Submit" : "Next"} <ChevronRight className="ml-2 h-4 w-4" />
-//                 </Button>
-//               </div>
-//             </div>
-//           </div>
-
-//           {/* Right Image Section */}
-//           <div className="hidden md:block h-full">
-//             <img
-//               src={images[imageIndex] || "/placeholder.svg"}
-//               alt="Onboarding Step"
-//               className="h-full w-full object-cover"
-//             />
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   )
-// }
-
-// export default OnboardingFlow
