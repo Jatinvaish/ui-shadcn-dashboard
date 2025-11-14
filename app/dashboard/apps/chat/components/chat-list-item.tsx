@@ -25,8 +25,9 @@ export function ChatListItem({ chat, active }: { chat: ChatItemProps; active: bo
       onClick={() => handleClick(chat)}>
       <Avatar className="overflow-visible md:size-10">
         <AvatarImage src={chat.user?.avatar} alt="avatar image" />
-        <AvatarIndicator variant={chat.user?.online_status} />
-        <AvatarFallback>{generateAvatarFallback(chat.user?.name)}</AvatarFallback>
+        {/*  TODO: Enable online status indicator */}
+        {/* <AvatarIndicator variant={user?.online_status  =='success'? 'success' :'error' } /> */}
+                <AvatarFallback>{generateAvatarFallback(chat.user?.name)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 grow">
         <div className="flex items-center justify-between">

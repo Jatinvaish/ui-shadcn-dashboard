@@ -64,7 +64,7 @@ export function MenuAccessIndicator({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="default" className="gap-1">
+          <Badge variant="primary" className="gap-1">
             <CheckCircle2 className="h-3 w-3" />
             Access Granted
           </Badge>

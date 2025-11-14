@@ -64,7 +64,7 @@ export function MailList({ items }: MailListProps) {
 
 function getBadgeVariantFromLabel(label: string): ComponentProps<typeof Badge>["variant"] {
   if (["work"].includes(label.toLowerCase())) {
-    return "default";
+    return "primary";
   }
 
   if (["personal"].includes(label.toLowerCase())) {
