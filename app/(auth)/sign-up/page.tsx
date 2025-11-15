@@ -58,15 +58,26 @@ export default function SignUpPage() {
 
   return (
     <div className="flex items-center justify-center py-4 lg:h-screen">
-      <Card className="mx-auto w-96">
-        <CardHeader>
-          <CardTitle className="text-2xl">Sign Up</CardTitle>
-          <CardDescription>Enter your email below to create your account</CardDescription>
+      <Card className="mx-auto w-96 rounded-2xl border-0 bg-accent">
+        <CardHeader className="text-center pb-2 space-y-0.5">
+          <div className="inline-flex items-center gap-2 mb-0 justify-center pr-3">
+            <img
+              src="/fluera_new_logo.png"
+              alt="Fluera logo"
+              className="h-9 w-30"
+            />
+          </div>
+          <CardTitle className="text-2xl font-bold pt-0.5 mt-3">
+            Sign Up
+          </CardTitle>
+          <CardDescription className="text-xs pt-0">
+            Enter your email below to create your account.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
-              <div className="grid gap-4">
+              <div className="grid gap-2">
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
                   <FormField
@@ -90,23 +101,19 @@ export default function SignUpPage() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full h-10 font-semibold text-sm mt-1"
                   disabled={socialLoading !== null}
                 >
                   Continue
                 </Button>
 
-                <div className="relative my-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      or continue with
-                    </span>
+                <div className="my-1">
+                  <div className="flex items-center gap-3">
+                    <div className="w-full border-t" />
+                    <span className="text-sm text-muted-foreground shrink-0 primary">OR</span>
+                    <div className="w-full border-t" />
                   </div>
                 </div>
-
                 {/* Google Sign-Up */}
                 <Button
                   variant="outline"

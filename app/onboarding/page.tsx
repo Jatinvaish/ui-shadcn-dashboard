@@ -1,5 +1,4 @@
 "use client"
-
 import type React from "react"
 import { useState } from "react"
 import {
@@ -19,6 +18,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useRouter } from "next/navigation"
 import { AuthService } from "@/lib/api"
 
 interface FormData {
@@ -33,6 +33,12 @@ interface FormData {
   yearlyRevenue: string
   brandStaffCount: string
   creatorsPartneredMonthly: string
+  organizationName: string
+  website: string
+  stageName: string
+  bio: string
+  industry: string
+  timezone: string
 }
 
 interface UserTypeOption {
@@ -47,7 +53,8 @@ interface StepConfig {
   label: string
   placeholder: string
   icon: LucideIcon
-  type: "text" | "email" | "tel" | "number"
+  type: "text" | "email" | "tel" | "number" | "chips"
+  options?: string[]
 }
 
 interface CurrentStepConfig {
@@ -56,6 +63,7 @@ interface CurrentStepConfig {
 }
 
 const OnboardingFlow: React.FC = () => {
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [userType, setUserType] = useState<"creator" | "agency" | "brand" | "">("")
   const [formData, setFormData] = useState<FormData>({
@@ -70,9 +78,25 @@ const OnboardingFlow: React.FC = () => {
     yearlyRevenue: "",
     brandStaffCount: "",
     creatorsPartneredMonthly: "",
+    organizationName: "",
+    website: "",
+    stageName: "",
+    bio: "",
+    industry: "",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   })
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
+
+  const images = [
+    "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&h=800&fit=crop",
+    "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&h=800&fit=crop",
+    "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=1200&h=800&fit=crop",
+    "https://images.unsplash.com/photo-1553877522-43269d4ea984?w=1200&h=800&fit=crop",
+    "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=1200&h=800&fit=crop",
+  ]
+
+  const [imageIndex, setImageIndex] = useState(0)
 
   const userTypes: UserTypeOption[] = [
     {
@@ -117,70 +141,119 @@ const OnboardingFlow: React.FC = () => {
       icon: Phone,
       type: "tel",
     },
-    {
-      field: "email",
-      label: "Your email address",
-      placeholder: "john@example.com",
-      icon: Mail,
-      type: "email",
-    },
   ]
 
   const creatorSteps: StepConfig[] = [
     {
-      field: "dealFrequency",
-      label: "How often do you collaborate with brands or campaigns?",
-      placeholder: "e.g., Weekly, Monthly, Quarterly",
-      icon: TrendingUp,
+      field: "stageName",
+      label: "What's your stage name? (Optional)",
+      placeholder: "Creative Name",
+      icon: Sparkles,
       type: "text",
     },
     {
-      field: "followersCount",
-      label: "How many followers or subscribers do you have?",
-      placeholder: "e.g., 10,000",
-      icon: UsersRound,
+      field: "bio",
+      label: "Tell us about yourself",
+      placeholder: "Brief bio about your content...",
+      icon: User,
       type: "text",
+    },
+    {
+      field: "dealFrequency",
+      label: "How often do you collaborate with brands?",
+      placeholder: "Select frequency",
+      icon: TrendingUp,
+      type: "chips",
+      options: ["Daily", "Weekly", "Bi-weekly", "Monthly", "Quarterly", "Rarely"],
+    },
+    {
+      field: "followersCount",
+      label: "How many followers do you have?",
+      placeholder: "Select range",
+      icon: UsersRound,
+      type: "chips",
+      options: ["Under 1K", "1K - 10K", "10K - 50K", "50K - 100K", "100K - 500K", "500K - 1M", "Over 1M"],
     },
   ]
 
   const agencySteps: StepConfig[] = [
     {
+      field: "organizationName",
+      label: "What's your agency name?",
+      placeholder: "Agency Name",
+      icon: Building2,
+      type: "text",
+    },
+    {
+      field: "industry",
+      label: "What industry do you focus on?",
+      placeholder: "e.g., Entertainment, Fashion, Tech",
+      icon: Briefcase,
+      type: "text",
+    },
+    {
       field: "staffCount",
       label: "How many staff members do you have?",
-      placeholder: "e.g., 5",
+      placeholder: "Select range",
       icon: Briefcase,
-      type: "number",
+      type: "chips",
+      options: ["1-5", "6-10", "11-25", "26-50", "51-100", "Over 100"],
     },
     {
       field: "creatorsManaged",
       label: "How many creators do you manage?",
-      placeholder: "e.g., 20",
+      placeholder: "Select range",
       icon: UsersRound,
-      type: "number",
+      type: "chips",
+      options: ["1-10", "11-25", "26-50", "51-100", "101-250", "Over 250"],
     },
     {
       field: "yearlyRevenue",
       label: "What is your yearly revenue?",
-      placeholder: "e.g., $500,000",
+      placeholder: "Select range",
       icon: DollarSign,
-      type: "text",
+      type: "chips",
+      options: ["Under $100K", "$100K - $500K", "$500K - $1M", "$1M - $5M", "$5M - $10M", "Over $10M"],
     },
   ]
 
   const brandSteps: StepConfig[] = [
     {
+      field: "organizationName",
+      label: "What's your brand name?",
+      placeholder: "Brand Name",
+      icon: Building2,
+      type: "text",
+    },
+    {
+      field: "website",
+      label: "What's your website?",
+      placeholder: "https://example.com",
+      icon: Mail,
+      type: "text",
+    },
+    {
+      field: "industry",
+      label: "What industry are you in?",
+      placeholder: "e.g., Fashion, Beauty, Tech",
+      icon: Briefcase,
+      type: "text",
+    },
+    {
       field: "brandStaffCount",
       label: "How many staff members do you have?",
-      placeholder: "e.g., 10",
+      placeholder: "Select range",
       icon: Briefcase,
-      type: "number",
+      type: "chips",
+      options: ["1-10", "11-50", "51-100", "101-500", "501-1000", "Over 1000"],
     },
     {
       field: "creatorsPartneredMonthly",
-      label: "How many creators do you partner with each month?",
-      placeholder: "e.g., 15",
+      label: "How many creators do you partner with monthly?",
+      placeholder: "Select range",
       icon: UsersRound,
-      type: "number",
+      type: "chips",
+      options: ["1-5", "6-15", "16-30", "31-50", "51-100", "Over 100"],
     },
   ]
 
@@ -238,23 +311,28 @@ const OnboardingFlow: React.FC = () => {
       const field = stepConfig.config.field
       const value = formData[field]
 
-      if (!value || value.trim() === "") {
-        setError(`Please enter your ${stepConfig.config.label.toLowerCase()}`)
-        return false
+      const optionalFields = ['stageName', 'bio', 'website', 'industry']
+      if (optionalFields.includes(field) && (!value || value.trim() === "")) {
+        return true
       }
 
-      if (field === "email") {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(value)) {
-          setError("Please enter a valid email address")
-          return false
-        }
+      if (!value || value.trim() === "") {
+        setError(`Please ${stepConfig.config.type === "chips" ? "select" : "enter"} your ${stepConfig.config.label.toLowerCase()}`)
+        return false
       }
 
       if (field === "phone") {
         const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/
         if (!phoneRegex.test(value)) {
           setError("Please enter a valid phone number")
+          return false
+        }
+      }
+
+      if (field === "website" && value) {
+        const urlRegex = /^https?:\/\/.+\..+/
+        if (!urlRegex.test(value)) {
+          setError("Please enter a valid website URL")
           return false
         }
       }
@@ -269,12 +347,14 @@ const OnboardingFlow: React.FC = () => {
 
     if (currentStep < getTotalSteps() - 1) {
       setCurrentStep((prev) => prev + 1)
+      setImageIndex((prev) => (prev + 1) % images.length)
     }
   }
 
   const handleBack = (): void => {
     if (currentStep > 0) {
       setCurrentStep((prev) => prev - 1)
+      setImageIndex((prev) => (prev - 1 + images.length) % images.length)
       setError("")
     }
   }
@@ -286,39 +366,91 @@ const OnboardingFlow: React.FC = () => {
     setError("")
 
     try {
-      if (userType === "creator") {
-        await AuthService.createCreator({
+      // Prepare metadata
+      const metadata: Record<string, any> = {}
+
+      if (userType === "agency") {
+        if (formData.dealFrequency) metadata.dealFrequency = formData.dealFrequency
+        if (formData.staffCount) metadata.staffCount = formData.staffCount
+        if (formData.creatorsManaged) metadata.creatorsManaged = formData.creatorsManaged
+        if (formData.yearlyRevenue) metadata.yearlyRevenue = formData.yearlyRevenue
+      } else if (userType === "brand") {
+        if (formData.brandStaffCount) metadata.brandStaffCount = formData.brandStaffCount
+        if (formData.creatorsPartneredMonthly) metadata.creatorsPartneredMonthly = formData.creatorsPartneredMonthly
+      } else if (userType === "creator") {
+        if (formData.dealFrequency) metadata.dealFrequency = formData.dealFrequency
+        if (formData.followersCount) metadata.followersCount = formData.followersCount
+      }
+
+      let result
+
+      // Call appropriate API
+      if (userType === "agency") {
+        result = await AuthService.createAgency({
+          name: formData.organizationName,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          phone: formData.phone,
-          stageName: `${formData.firstName} ${formData.lastName}`,
-          bio: `${formData.dealFrequency} collaborations, ${formData.followersCount} followers`,
-        })
-      } else if (userType === "agency") {
-        await AuthService.createAgency({
-          name: `${formData.firstName} ${formData.lastName} Agency`,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          phone: formData.phone,
-          timezone: "UTC",
-          industry: `Staff: ${formData.staffCount}, Creators: ${formData.creatorsManaged}, Revenue: ${formData.yearlyRevenue}`,
+          phone: formData.phone || undefined,
+          timezone: formData.timezone || undefined,
+          industry: formData.industry || undefined,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         })
       } else if (userType === "brand") {
-        await AuthService.createBrand({
-          name: `${formData.firstName} ${formData.lastName} Brand`,
+        result = await AuthService.createBrand({
+          name: formData.organizationName,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          phone: formData.phone,
-          website: "",
-          industry: `Staff: ${formData.brandStaffCount}, Monthly Partnerships: ${formData.creatorsPartneredMonthly}`,
+          phone: formData.phone || undefined,
+          website: formData.website || undefined,
+          industry: formData.industry || undefined,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        })
+      } else if (userType === "creator") {
+        result = await AuthService.createCreator({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          stageName: formData.stageName || undefined,
+          phone: formData.phone || undefined,
+          bio: formData.bio || undefined,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         })
       }
 
-      console.log("Onboarding completed successfully")
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again."
+      // ✅ Validate response structure
+      if (!result || typeof result !== 'object') {
+        throw new Error('Invalid response from server')
+      }
+
+      // ✅ Update cookies with new auth data
+      AuthService.updateAuthCookies({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: {
+          ...result.user,
+          onboardingRequired: false,
+          onboardingCompleted: true,
+        },
+      })
+
+      // ✅ Small delay to ensure cookies are written
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      // ✅ Hard navigation to dashboard (forces middleware re-read)
+      window.location.href = '/dashboard'
+
+    } catch (err: any) {
+      console.error('❌ Onboarding error:', err)
+      
+      // Better error messages
+      let errorMessage = 'Something went wrong. Please try again.'
+      
+      if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message
+      } else if (err?.message) {
+        errorMessage = err.message
+      }
+      
       setError(errorMessage)
-    } finally {
       setIsSubmitting(false)
     }
   }
@@ -326,38 +458,37 @@ const OnboardingFlow: React.FC = () => {
   const isLastStep = currentStep === getTotalSteps() - 1
 
   return (
-    <div
-      className="min-h-screen bg-background flex items-center justify-center p-2"
-      style={{ "--animation-duration": "20s" } as React.CSSProperties}
-    >
-      <div className="w-full max-w-6xl rounded-2xl overflow-hidden">
-        <div className="mb-6 px-8 md:px-10 pt-8">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              Step {currentStep + 1} of {getTotalSteps()}
-            </span>
-            <span className="text-xs font-medium text-muted-foreground">
-              {Math.round(((currentStep + 1) / getTotalSteps()) * 100)}%
-            </span>
-          </div>
-          <div className="h-0.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-500 ease-out"
-              style={{ width: `${((currentStep + 1) / getTotalSteps()) * 100}%` }}
-            />
-          </div>
-        </div>
+    <div className="h-screen w-screen bg-accent overflow-hidden">
+      {/* ... rest of your JSX remains exactly the same ... */}
+      <div className="h-full w-full">
+        <div className="grid md:grid-cols-2 h-full">
+          {/* Left Content Section */}
+          <div className="p-8 md:p-12 flex flex-col justify-center bg-accent h-full overflow-y-auto">
+            <div className="max-w-md mx-auto w-full space-y-6">
+              {/* Progress Bar */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Step {currentStep + 1} of {getTotalSteps()}
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {currentStep === 0 ? 0 : (Math.round(((currentStep + 1) / getTotalSteps()) * 100))} %
+                  </span>
+                </div>
+                <div className="h-1 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-700 ease-out"
+                    style={{ width: `${currentStep === 0 ? 0 : ((currentStep + 1) / getTotalSteps()) * 100}%` }}
+                  />
+                </div>
+              </div>
 
-        <div className="overflow-hidden rounded-2xl border border-border bg-background">
-          <div className="grid md:grid-cols-2 min-h-[550px]">
-            {/* Left Content Section */}
-            <div className="p-8 md:p-12 flex flex-col justify-center bg-card">
               <div className="space-y-5">
                 {currentStep === 0 && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-700">
                     <div>
-                      <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1.5">Who are you?</h1>
-                      <p className="text-xs text-muted-foreground">Choose the option that best describes you</p>
+                      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">Who are you?</h1>
+                      <p className="text-sm text-muted-foreground">Choose the option that best describes you</p>
                     </div>
 
                     <div className="space-y-2.5">
@@ -370,11 +501,10 @@ const OnboardingFlow: React.FC = () => {
                               setUserType(type.id)
                               setError("")
                             }}
-                            className={`w-full p-3.5 rounded-lg border transition-all duration-300 text-left group ${
-                              userType === type.id
-                                ? "border-primary bg-primary/5 text-card-foreground"
-                                : "border-border bg-background hover:border-primary/40"
-                            }`}
+                            className={`w-full p-3.5 rounded-lg border transition-all duration-300 text-left group ${userType === type.id
+                              ? "border-primary bg-primary/5 text-card-foreground"
+                              : "border-border bg-accent"
+                              }`}
                           >
                             <div className="flex items-start gap-2.5">
                               <div className="p-1.5 rounded-md bg-primary/10 flex-shrink-0">
@@ -385,9 +515,8 @@ const OnboardingFlow: React.FC = () => {
                                 <p className="text-xs text-muted-foreground">{type.description}</p>
                               </div>
                               <div
-                                className={`w-4 h-4 rounded-full border transition-all flex-shrink-0 mt-1 ${
-                                  userType === type.id ? "border-primary bg-primary" : "border-border"
-                                }`}
+                                className={`w-4 h-4 rounded-full border transition-all flex-shrink-0 mt-1 ${userType === type.id ? "border-primary bg-primary" : "border-border"
+                                  }`}
                               >
                                 {userType === type.id && (
                                   <div className="w-full h-full flex items-center justify-center">
@@ -408,39 +537,58 @@ const OnboardingFlow: React.FC = () => {
                     const stepConfig = getCurrentStepConfig()
                     if (!stepConfig || stepConfig.type !== "input" || !stepConfig.config) return null
 
-                    const { label, placeholder, icon: Icon, field, type } = stepConfig.config
+                    const { label, placeholder, icon: Icon, field, type, options } = stepConfig.config
 
                     return (
-                      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-700">
                         <div>
-                          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1.5">{label}</h1>
-                          <p className="text-xs text-muted-foreground">Please provide your information</p>
+                          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">{label}</h1>
+                          <p className="text-sm text-muted-foreground">
+                            {type === "chips" ? "Select the option that best fits" : "Please provide your information"}
+                          </p>
                         </div>
 
                         <div className="space-y-2">
-                          <div className="relative">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
-                              <Icon className="w-3.5 h-3.5" />
+                          {type === "chips" && options ? (
+                            <div className="flex flex-wrap gap-2">
+                              {options.map((option) => (
+                                <button
+                                  key={option}
+                                  onClick={() => handleInputChange(field, option)}
+                                  className={`px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 border ${formData[field] === option
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-accent text-foreground border-border"
+                                    }`}
+                                >
+                                  {option}
+                                </button>
+                              ))}
                             </div>
-                            <Input
-                              id={field}
-                              type={type}
-                              value={formData[field]}
-                              onChange={(e) => handleInputChange(field, e.target.value)}
-                              placeholder={placeholder}
-                              className="pl-9 h-8 text-xs border-border bg-background text-foreground focus:border-primary focus:ring-0 focus:ring-primary/10"
-                              autoFocus
-                              onKeyPress={(e) => {
-                                if (e.key === "Enter") {
-                                  if (isLastStep) {
-                                    handleSubmit()
-                                  } else {
-                                    handleNext()
+                          ) : (
+                            <div className="relative">
+                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+                                <Icon className="w-3.5 h-3.5" />
+                              </div>
+                              <Input
+                                id={field}
+                                type={type}
+                                value={formData[field]}
+                                onChange={(e) => handleInputChange(field, e.target.value)}
+                                placeholder={placeholder}
+                                className="pl-9 h-10 text-sm border-border bg-accent text-foreground focus:border-primary focus:ring-0 focus:ring-primary/10"
+                                autoFocus
+                                onKeyPress={(e) => {
+                                  if (e.key === "Enter") {
+                                    if (isLastStep) {
+                                      handleSubmit()
+                                    } else {
+                                      handleNext()
+                                    }
                                   }
-                                }
-                              }}
-                            />
-                          </div>
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
@@ -459,9 +607,9 @@ const OnboardingFlow: React.FC = () => {
                       variant="outline"
                       onClick={handleBack}
                       disabled={isSubmitting}
-                      className="h-8 px-3 text-xs bg-background border-border hover:bg-accent hover:text-accent-foreground"
+                      className="h-10 px-4 text-sm bg-accent border-border transition-all"
                     >
-                      <ChevronLeft className="w-3 h-3 mr-1" />
+                      <ChevronLeft className="w-4 h-4 mr-1" />
                       Back
                     </Button>
                   )}
@@ -471,21 +619,21 @@ const OnboardingFlow: React.FC = () => {
                       type="button"
                       onClick={handleNext}
                       disabled={isSubmitting}
-                      className="flex-1 h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all"
+                      className="flex-1 h-10 text-sm bg-primary text-primary-foreground font-medium transition-all"
                     >
                       Continue
-                      <ChevronRight className="w-3 h-3 ml-1" />
+                      <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
                   ) : (
                     <Button
                       type="button"
                       onClick={handleSubmit}
                       disabled={isSubmitting}
-                      className="flex-1 h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all"
+                      className="flex-1 h-10 text-sm bg-primary text-primary-foreground font-medium transition-all"
                     >
                       {isSubmitting ? (
                         <>
-                          <div className="w-2.5 h-2.5 border border-primary-foreground border-t-transparent rounded-full animate-spin mr-1" />
+                          <div className="w-3 h-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
                           Creating...
                         </>
                       ) : (
@@ -496,68 +644,56 @@ const OnboardingFlow: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Right Showcase Section */}
-            <div className="hidden md:flex bg-primary p-10 relative overflow-hidden flex-col justify-center items-center">
-              <div className="absolute inset-0 opacity-[0.08]">
-                <div className="absolute top-10 -left-20 w-80 h-80 bg-primary-foreground rounded-full blur-3xl" />
-                <div className="absolute -bottom-10 -right-20 w-80 h-80 bg-primary-foreground rounded-full blur-3xl" />
-              </div>
-
-              <div className="relative z-10 h-full flex flex-col justify-center items-center text-center">
-                <div className="space-y-5">
-                  {currentStep === 0 && (
-                    <>
-                      <div className="w-14 h-14 mx-auto bg-white/5 backdrop-blur-xl rounded-lg flex items-center justify-center border border-white/15">
-                        <Sparkles className="w-6 h-6 text-primary-foreground" />
-                      </div>
-                      <h2 className="text-2xl font-bold text-primary-foreground leading-tight">
-                        Welcome to Our Platform
-                      </h2>
-                      <p className="text-xs text-primary-foreground/75 max-w-xs leading-relaxed">
-                        Join thousands of creators, agencies, and brands building amazing partnerships
-                      </p>
-                    </>
-                  )}
-
-                  {currentStep > 0 && userType && (
-                    <>
-                      <div className="w-14 h-14 mx-auto bg-white/5 backdrop-blur-xl rounded-lg flex items-center justify-center border border-white/15">
-                        {(() => {
-                          const selectedType = userTypes.find((t) => t.id === userType)
-                          const Icon = selectedType?.icon
-                          return Icon ? <Icon className="w-6 h-6 text-primary-foreground" /> : null
-                        })()}
-                      </div>
-                      <h2 className="text-2xl font-bold text-primary-foreground leading-tight capitalize">
-                        {userType} Setup
-                      </h2>
-                      <p className="text-xs text-primary-foreground/75 max-w-xs leading-relaxed">
-                        We're excited to have you join our community. Just a few more details to get started.
-                      </p>
-                      <div className="grid grid-cols-3 gap-2 pt-4">
-                        {[1, 2, 3].map((i) => (
-                          <div key={i} className="p-2.5 bg-white/5 backdrop-blur-xl rounded-md border border-white/10">
-                            <div className="text-sm font-bold text-primary-foreground mb-0.5">
-                              {i === 1 ? "10k+" : i === 2 ? "500+" : "99%"}
-                            </div>
-                            <div className="text-xs text-primary-foreground/70">
-                              {i === 1 ? "Users" : i === 2 ? "Agencies" : "Satisfaction"}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
+          {/* Right Showcase Section */}
+          <div className="hidden md:flex bg-muted/30 relative overflow-hidden">
+            <div className="absolute inset-0">
+              {images.map((img, idx) => (
+                <div
+                  key={idx}
+                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === imageIndex ? "opacity-100" : "opacity-0"
+                    }`}
+                >
+                  <img
+                    src={img}
+                    alt={`Slide ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                 </div>
+              ))}
+            </div>
+
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+              {images.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setImageIndex(idx)}
+                  className={`transition-all duration-500 rounded-full ${idx === imageIndex
+                    ? "w-8 h-2 bg-white"
+                    : "w-2 h-2 bg-white/40"
+                    }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            <div className="relative z-10 p-10 flex flex-col justify-end text-white">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
+                  <Sparkles className="w-4 h-4" />
+                  <span className="text-sm font-medium">Join Our Community</span>
+                </div>
+                <h2 className="text-4xl font-bold leading-tight max-w-md">
+                  Build Amazing Partnerships
+                </h2>
+                <p className="text-white/80 text-sm max-w-md leading-relaxed">
+                  Connect with thousands of creators, agencies, and brands to create meaningful collaborations
+                </p>
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="text-center mt-6 px-8 text-xs text-muted-foreground">
-          Already have an account?{" "}
-          <button className="text-primary hover:text-primary/90 font-medium transition-colors">Sign in</button>
         </div>
       </div>
     </div>

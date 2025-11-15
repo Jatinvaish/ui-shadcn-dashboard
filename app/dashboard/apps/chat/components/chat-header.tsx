@@ -30,7 +30,8 @@ export function ChatHeader({ user }: { user: UserPropsTypes }) {
         </Button>
         <Avatar className="overflow-visible lg:size-10">
           <AvatarImage src={`${user?.avatar}`} alt="avatar image" />
-          <AvatarIndicator variant={user?.online_status} />
+          {/*  TODO: Enable online status indicator */}
+          {/* <AvatarIndicator variant={user?.online_status  =='success'? 'success' :'error' } /> */}
           <AvatarFallback>{generateAvatarFallback(user?.name)}</AvatarFallback>
         </Avatar>
         <div className="flex flex-col gap-1">

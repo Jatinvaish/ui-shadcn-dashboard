@@ -44,7 +44,7 @@ export function NavDesktop({ isCollapsed }: NavDesktopProps) {
             title: "Inbox",
             label: "128",
             icon: Inbox,
-            variant: "default"
+            variant: "primary"
           },
           {
             title: "Drafts",

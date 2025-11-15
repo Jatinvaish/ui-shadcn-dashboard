@@ -1,6 +1,7 @@
-// lib/api/services/auth.service.ts - UPDATED
+// lib/api/services/auth.service.ts - COMPLETE
 import { encryptedApiClient } from '../encrypted-client';
 import { API_ENDPOINTS } from '../endpoints';
+import Cookies from 'js-cookie';
 
 export interface RegisterPayload {
   email: string;
@@ -12,25 +13,24 @@ export interface LoginPayload {
   password: string;
 }
 
-// ✅ UPDATED: Changed to match backend DTO
 export interface CreateAgencyPayload {
-  name: string; // ✅ Changed from organizationName
+  name: string;
   firstName: string;
   lastName: string;
   phone?: string;
   timezone?: string;
   industry?: string;
+  metadata?: any;
 }
 
-// ✅ UPDATED: Changed to match backend DTO
 export interface CreateBrandPayload {
-  name: string; // ✅ Changed from brandName
+  name: string;
   firstName: string;
   lastName: string;
   phone?: string;
   website?: string;
   industry?: string;
-  description?: string;
+  metadata?: any;
 }
 
 export interface CreateCreatorPayload {
@@ -38,7 +38,26 @@ export interface CreateCreatorPayload {
   lastName: string;
   stageName?: string;
   phone?: string;
+  metadata?: any;
   bio?: string;
+}
+
+export interface VerifyRegistrationPayload {
+  email: string;
+  code: string;
+}
+
+export interface RefreshTokenPayload {
+  refreshToken: string;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  newPassword: string;
 }
 
 export class AuthService {
@@ -52,13 +71,9 @@ export class AuthService {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGIN, payload);
   }
 
-  // Logout
-  static async logout() {
-    return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-  }
 
   // Verify Registration
-  static async verifyRegistration(payload: { email: string; code: string }) {
+  static async verifyRegistration(payload: VerifyRegistrationPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.VERIFY_REGISTRATION, payload);
   }
 
@@ -78,12 +93,12 @@ export class AuthService {
   }
 
   // Forgot Password
-  static async forgotPassword(payload: { email: string }) {
+  static async forgotPassword(payload: ForgotPasswordPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.PASSWORD_RESET_REQUEST, payload);
   }
 
   // Reset Password
-  static async resetPassword(payload: { token: string; newPassword: string }) {
+  static async resetPassword(payload: ResetPasswordPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.PASSWORD_RESET_CONFIRM, payload);
   }
 
@@ -100,5 +115,35 @@ export class AuthService {
   // Create Creator
   static async createCreator(payload: CreateCreatorPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.CREATE_CREATOR, payload);
+  }
+
+  // Get User Sessions
+  static async getUserSessions() {
+    return encryptedApiClient.get(API_ENDPOINTS.AUTH.SESSIONS);
+  }
+
+  // Logout
+  static async logout() {
+    return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+  }
+  static updateAuthCookies(data: { accessToken?: string; refreshToken?: string; user?: any }) {
+    const cookieOptions = {
+      expires: 7,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
+    };
+
+    if (data.accessToken) {
+      Cookies.set('accessToken', data.accessToken, cookieOptions);
+    }
+
+    if (data.refreshToken) {
+      Cookies.set('refreshToken', data.refreshToken, cookieOptions);
+    }
+
+    if (data.user) {
+      Cookies.set('user', JSON.stringify(data.user), cookieOptions);
+    }
   }
 }

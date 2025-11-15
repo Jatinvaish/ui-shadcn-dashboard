@@ -161,17 +161,25 @@ export default function VerificationPage() {
 
   return (
     <div className="flex items-center justify-center py-4 lg:h-screen">
-      <Card className="mx-auto w-96">
-        <CardHeader>
-          <CardTitle className="text-2xl">Verify your email</CardTitle>
-          <CardDescription>
-            We sent a verification code to <strong>{email}</strong>
+      <Card className="mx-auto w-96 rounded-2xl border-0 bg-accent">
+        <CardHeader className="text-center pb-2 space-y-0.5">
+          <div className="inline-flex items-center gap-2 mb-0 justify-center pr-3">
+            <img
+              src="/fluera_new_logo.png"
+              alt="Fluera logo"
+              className="h-9 w-30"
+            />
+          </div>
+          <CardTitle className="text-2xl font-bold pt-0.5 mt-3">
+            Verify your email
+          </CardTitle>
+          <CardDescription className="text-xs pt-0">
+            We sent a verification code to <strong>{email}</strong>.
           </CardDescription>
         </CardHeader>
-
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="grid gap-4">
+            <div className="grid gap-2">
               {error && (
                 <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
                   {error}
@@ -214,7 +222,7 @@ export default function VerificationPage() {
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full h-10 text-xs justify-center text-left gap-1.5 cursor-pointer"
                 disabled={isLoading || code.length !== 6}
               >
                 {isLoading ? (

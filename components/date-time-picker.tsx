@@ -64,7 +64,7 @@ export function DateTimePicker({ date, setDate }: Props) {
                   <Button
                     key={hour}
                     size="icon"
-                    variant={date && date.getHours() % 12 === hour % 12 ? "default" : "ghost"}
+                    variant={date && date.getHours() % 12 === hour % 12 ? "primary" : "ghost"}
                     className="aspect-square shrink-0 sm:w-full"
                     onClick={() => handleTimeChange("hour", hour.toString())}>
                     {hour}
@@ -79,7 +79,7 @@ export function DateTimePicker({ date, setDate }: Props) {
                   <Button
                     key={minute}
                     size="icon"
-                    variant={date && date.getMinutes() === minute ? "default" : "ghost"}
+                    variant={date && date.getMinutes() === minute ? "primary" : "ghost"}
                     className="aspect-square shrink-0 sm:w-full"
                     onClick={() => handleTimeChange("minute", minute.toString())}>
                     {minute}
@@ -98,7 +98,7 @@ export function DateTimePicker({ date, setDate }: Props) {
                       date &&
                       ((ampm === "AM" && date.getHours() < 12) ||
                         (ampm === "PM" && date.getHours() >= 12))
-                        ? "default"
+                        ? "primary"
                         : "ghost"
                     }
                     className="aspect-square shrink-0 sm:w-full"

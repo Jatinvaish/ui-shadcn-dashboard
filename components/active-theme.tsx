@@ -37,7 +37,7 @@ export function ActiveThemeProvider({
     setThemeCookie("theme_radius", theme.radius);
     body.setAttribute("data-theme-radius", theme.radius);
 
-    if (theme.radius != "default") {
+    if (theme.radius != "md") {
       setThemeCookie("theme_preset", theme.radius);
       body.setAttribute("data-theme-radius", theme.radius);
     } else {

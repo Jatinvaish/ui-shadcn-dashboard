@@ -1,7 +1,13 @@
-// lib/api/encrypted-client.ts - FIXED CHECKSUM
+// lib/api/encrypted-client.ts - FIXED TOKEN REFRESH
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
 import * as crypto from 'crypto';
+
+interface UserSession {
+  userId?: number;
+  privateKey?: string;
+  channelKeys: Map<number, string>;
+}
 
 class EncryptedApiClient {
   private client: AxiosInstance;
@@ -16,17 +22,20 @@ class EncryptedApiClient {
     reject: (error: any) => void;
   }> = [];
 
+  private userSession: UserSession = {
+    channelKeys: new Map(),
+  };
+
   constructor() {
     const encryptionKey = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || '';
-    
+
     if (!encryptionKey || encryptionKey.length < 32) {
       console.error('⚠️ NEXT_PUBLIC_ENCRYPTION_KEY must be at least 32 characters!');
     }
 
-    // ✅ Derive key using PBKDF2 (same as backend)
     this.masterKey = crypto.pbkdf2Sync(
       encryptionKey,
-      'fluera-platform-salt', // Must match backend salt
+      'fluera-platform-salt',
       100000,
       this.KEY_LENGTH,
       'sha256'
@@ -42,38 +51,69 @@ class EncryptedApiClient {
     });
 
     this.setupInterceptors();
+    this.startTokenRefreshTimer(); // NEW: Proactive token refresh
+  }
+
+  // NEW: Proactive token refresh before expiry
+  private startTokenRefreshTimer() {
+    setInterval(async () => {
+      const accessToken = Cookies.get('accessToken');
+      const refreshToken = Cookies.get('refreshToken');
+      
+      if (!accessToken || !refreshToken) return;
+      
+      try {
+        // Decode token to check expiry (without verification)
+        const tokenParts = accessToken.split('.');
+        if (tokenParts.length !== 3) return;
+        
+        const payload = JSON.parse(atob(tokenParts[1]));
+        const expiryTime = payload.exp * 1000; // Convert to milliseconds
+        const currentTime = Date.now();
+        const timeUntilExpiry = expiryTime - currentTime;
+        
+        // Refresh if less than 2 minutes until expiry
+        if (timeUntilExpiry < 120000 && timeUntilExpiry > 0) {
+          console.log('🔄 Proactive token refresh triggered');
+          await this.refreshAccessToken(refreshToken);
+        }
+      } catch (error) {
+        console.error('Token refresh timer error:', error);
+      }
+    }, 30000); // Check every 30 seconds
   }
 
   private setupInterceptors() {
-    // ============================================
     // REQUEST INTERCEPTOR
-    // ============================================
     this.client.interceptors.request.use(
       async (config) => {
+        // Get fresh token from cookies for each request
         const token = Cookies.get('accessToken');
         const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        // Set headers
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
-        
+
         config.headers['X-Request-ID'] = requestId;
         config.headers['X-Encryption-Enabled'] = 'true';
 
-        // Add device fingerprint
         const deviceFingerprint = this.getDeviceFingerprint();
         if (deviceFingerprint) {
           config.headers['X-Device-Fingerprint'] = deviceFingerprint;
         }
 
-        // Encrypt payload if exists and not empty
+        // Skip encryption for auth/refresh endpoint
+        if (config.url?.includes('auth/refresh')) {
+          return config;
+        }
+
         if (config.data && typeof config.data === 'object' && Object.keys(config.data).length > 0) {
           try {
             const jsonString = JSON.stringify(config.data);
-            const encrypted = this.encrypt(jsonString);
+            const encrypted = this.encryptTransport(jsonString);
             const checksum = this.generateChecksum(encrypted);
-            
+
             config.data = {
               __payload: encrypted,
               __checksum: checksum,
@@ -95,19 +135,15 @@ class EncryptedApiClient {
       }
     );
 
-    // ============================================
     // RESPONSE INTERCEPTOR
-    // ============================================
     this.client.interceptors.response.use(
       async (response) => {
         const requestId = response.config.headers?.['X-Request-ID'];
 
-        // Decrypt encrypted responses
         if (response.data?.__payload) {
           try {
             const { __checksum, __payload } = response.data;
 
-            // Verify checksum if present
             if (__checksum) {
               const calculatedChecksum = this.generateChecksum(__payload);
               if (calculatedChecksum !== __checksum) {
@@ -116,9 +152,9 @@ class EncryptedApiClient {
               }
             }
 
-            const decrypted = this.decrypt(__payload);
+            const decrypted = this.decryptTransport(__payload);
             response.data = JSON.parse(decrypted);
-            
+
             console.log(`[${requestId}] ✅ Response decrypted`);
           } catch (error) {
             console.error(`[${requestId}] ❌ Decryption error:`, error);
@@ -132,19 +168,16 @@ class EncryptedApiClient {
         const originalRequest = error.config;
         const requestId = originalRequest?.headers?.['X-Request-ID'];
 
-        console.error(`[${requestId}] ❌ Response error:`, error.response?.status);
+        // Don't retry refresh endpoint
+        if (originalRequest?.url?.includes('auth/refresh')) {
+          return Promise.reject(error);
+        }
 
         // Handle 401 - Token Expired
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
 
-          const refreshToken = Cookies.get('refreshToken');
-          if (!refreshToken) {
-            this.handleLogout();
-            return Promise.reject(error);
-          }
-
-          // Handle concurrent refresh requests
+          // If already refreshing, queue the request
           if (this.isRefreshing) {
             return new Promise((resolve, reject) => {
               this.refreshQueue.push({ resolve, reject });
@@ -159,6 +192,12 @@ class EncryptedApiClient {
           this.isRefreshing = true;
 
           try {
+            const refreshToken = Cookies.get('refreshToken');
+            
+            if (!refreshToken) {
+              throw new Error('No refresh token available');
+            }
+
             const response = await this.refreshAccessToken(refreshToken);
             const { accessToken, refreshToken: newRefreshToken } = response;
 
@@ -174,11 +213,14 @@ class EncryptedApiClient {
             originalRequest.headers.Authorization = `Bearer ${accessToken}`;
             return this.client(originalRequest);
           } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+            
             // Reject all queued requests
             this.refreshQueue.forEach((promise) => {
               promise.reject(refreshError);
             });
             this.refreshQueue = [];
+            
             this.handleLogout();
             return Promise.reject(refreshError);
           } finally {
@@ -191,56 +233,42 @@ class EncryptedApiClient {
     );
   }
 
-  // ============================================
-  // TOKEN REFRESH
-  // ============================================
+  // FIXED TOKEN REFRESH
   private async refreshAccessToken(refreshToken: string) {
     try {
       const requestId = `refresh-${Date.now()}`;
       console.log(`[${requestId}] 🔄 Refreshing access token...`);
 
-      // Encrypt refresh token payload
-      const payload = JSON.stringify({ refreshToken });
-      const encrypted = this.encrypt(payload);
-      const checksum = this.generateChecksum(encrypted);
-
+      // Make a simple POST request without encryption for refresh endpoint
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-        {
-          __payload: encrypted,
-          __checksum: checksum,
-          __timestamp: Date.now(),
-        },
+        { refreshToken },
         {
           headers: {
             'Content-Type': 'application/json',
-            'X-Encryption-Enabled': 'true',
             'X-Request-ID': requestId,
           },
           withCredentials: true,
+          timeout: 10000,
         }
       );
 
-      let data = response.data;
-
-      // Decrypt if response is encrypted
-      if (data?.__payload) {
-        const decrypted = this.decrypt(data.__payload);
-        data = JSON.parse(decrypted);
-      }
-
+      const data = response.data;
       console.log(`[${requestId}] ✅ Token refreshed successfully`);
-      return data;
-    } catch (error) {
-      console.error('❌ Token refresh failed:', error);
+      
+      // Return tokens
+      return {
+        accessToken: data.accessToken || data.data?.accessToken,
+        refreshToken: data.refreshToken || data.data?.refreshToken
+      };
+    } catch (error: any) {
+      console.error('❌ Token refresh failed:', error?.response?.data || error.message);
       throw error;
     }
   }
 
-  // ============================================
-  // ✅ FIXED: AES-256-GCM ENCRYPTION (MATCHES BACKEND)
-  // ============================================
-  private encrypt(text: string): string {
+  // TRANSPORT ENCRYPTION
+  private encryptTransport(text: string): string {
     try {
       const iv = crypto.randomBytes(this.IV_LENGTH);
       const cipher = crypto.createCipheriv(this.ALGORITHM, this.masterKey, iv);
@@ -250,18 +278,14 @@ class EncryptedApiClient {
 
       const authTag = cipher.getAuthTag();
 
-      // ✅ Format: iv:authTag:encrypted (matches backend)
       return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
     } catch (error) {
-      console.error('Encryption failed:', error);
+      console.error('Transport encryption failed:', error);
       throw new Error('Failed to encrypt data');
     }
   }
 
-  // ============================================
-  // ✅ FIXED: AES-256-GCM DECRYPTION (MATCHES BACKEND)
-  // ============================================
-  private decrypt(encryptedData: string): string {
+  private decryptTransport(encryptedData: string): string {
     try {
       const [ivHex, authTagHex, encryptedHex] = encryptedData.split(':');
 
@@ -281,17 +305,12 @@ class EncryptedApiClient {
 
       return decrypted.toString('utf8');
     } catch (error) {
-      console.error('Decryption failed:', error);
+      console.error('Transport decryption failed:', error);
       throw new Error('Failed to decrypt data');
     }
   }
 
-  // ============================================
-  // ✅ FIXED: CHECKSUM GENERATION (MUST MATCH BACKEND)
-  // ============================================
   private generateChecksum(data: string): string {
-    // ✅ CRITICAL: Must match backend's checksum calculation exactly
-    // Backend: crypto.createHash('sha256').update(payload + ENCRYPTION_KEY).digest('hex')
     const encryptionKey = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || '';
     return crypto
       .createHash('sha256')
@@ -299,9 +318,6 @@ class EncryptedApiClient {
       .digest('hex');
   }
 
-  // ============================================
-  // DEVICE FINGERPRINT
-  // ============================================
   private getDeviceFingerprint(): string | null {
     if (typeof window === 'undefined') return null;
 
@@ -309,7 +325,6 @@ class EncryptedApiClient {
       const fingerprint = Cookies.get('device_fingerprint');
       if (fingerprint) return fingerprint;
 
-      // Generate simple fingerprint for MVP
       const components = [
         navigator.userAgent,
         navigator.language,
@@ -322,9 +337,8 @@ class EncryptedApiClient {
         .createHash('sha256')
         .update(components.join('|'))
         .digest('hex');
-      
-      // Store for 365 days
-      Cookies.set('device_fingerprint', newFingerprint, { 
+
+      Cookies.set('device_fingerprint', newFingerprint, {
         expires: 365,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -337,9 +351,6 @@ class EncryptedApiClient {
     }
   }
 
-  // ============================================
-  // TOKEN MANAGEMENT
-  // ============================================
   private setTokens(accessToken: string, refreshToken: string) {
     const cookieOptions = {
       expires: 7,
@@ -350,18 +361,25 @@ class EncryptedApiClient {
 
     Cookies.set('accessToken', accessToken, cookieOptions);
     Cookies.set('refreshToken', refreshToken, cookieOptions);
-    
+
     console.log('✅ Tokens updated in cookies');
   }
 
   private handleLogout() {
-    console.log('🚪 Logging out - clearing tokens');
-    
+    console.log('🚪 Logging out - clearing all sensitive data');
+
+    if (this.userSession.privateKey) {
+      this.userSession.privateKey = '';
+    }
+    this.userSession.channelKeys.clear();
+    this.userSession.userId = undefined;
+
     Cookies.remove('accessToken', { path: '/' });
     Cookies.remove('refreshToken', { path: '/' });
     Cookies.remove('user', { path: '/' });
 
-    // Only redirect if not already on auth page
+    console.log('✅ All sensitive data cleared from memory');
+
     if (typeof window !== 'undefined') {
       const currentPath = window.location.pathname;
       const authPaths = ['/sign-in', '/sign-up', '/verify', '/forgot-password', '/reset-password'];
@@ -373,9 +391,11 @@ class EncryptedApiClient {
     }
   }
 
-  // ============================================
+  clearSensitiveData(): void {
+    this.handleLogout();
+  }
+
   // HTTP METHODS
-  // ============================================
   async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return this.client.get(url, config);
   }
@@ -396,9 +416,6 @@ class EncryptedApiClient {
     return this.client.delete(url, config);
   }
 
-  // ============================================
-  // UTILITY METHODS
-  // ============================================
   getAccessToken(): string | undefined {
     return Cookies.get('accessToken');
   }

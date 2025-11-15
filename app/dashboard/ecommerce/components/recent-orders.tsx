@@ -251,7 +251,7 @@ const columns: ColumnDef<Order>[] = [
     accessorKey: "id",
     header: "ID",
     cell: ({ row }) => (
-      <Button variant="link" className="text-muted-foreground hover:text-primary h-auto p-0">
+      <Button variant="primary" className="text-muted-foreground hover:text-primary h-auto p-0">
         <Link href="#">#{row.getValue("id")}</Link>
       </Button>
     )

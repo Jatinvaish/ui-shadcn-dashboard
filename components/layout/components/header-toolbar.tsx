@@ -1,112 +1,88 @@
-
-// header-toolbar.tsx
-import {
-  Coffee,
-  MessageSquareCode,
-  Pin,
-  User,
-  Settings,
-  LogOut,
-  Sun,
-  Moon,
-  BellIcon,
-  ClockIcon,
-  BadgeCheck,
-  CreditCard,
-  Bell,
-  ChevronRightIcon,
-  Sparkles,
-} from "lucide-react";
+// components/layout/header-toolbar.tsx - COMPLETE WITH REAL DATA & LOGOUT
+import { useEffect, useState } from "react";
+import { Moon, Sun, LogOut, User, Settings, Bell, Sparkles, BadgeCheck, CreditCard, ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toAbsoluteUrl } from "@/lib/helpers";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-  AvatarIndicator,
-  AvatarStatus,
-} from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuGroup,
-} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { useTheme } from "next-themes";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import Link from "next/link";
-import { ThemeCustomizerPanel } from "@/components/theme-customizer";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { selectUser } from "@/store/slices/authSlice";
+import { useRouter } from "next/navigation";
+import { AuthService } from "@/lib/api/services/auth-service";
+import { toast } from "sonner";
 import Notifications from "./notifications";
-
-// Mock notifications data
-const notifications = [
-  {
-    avatar: "01.png",
-    title: "New message from John",
-    desc: "Hey, how are you doing today?",
-    date: "2 mins ago",
-    unread_message: true,
-    type: "message"
-  },
-  {
-    avatar: "02.png",
-    title: "Sarah sent you a friend request",
-    desc: "Accept or decline the request",
-    date: "1 hour ago",
-    unread_message: true,
-    type: "confirm"
-  },
-  {
-    avatar: "03.png",
-    title: "Project update",
-    desc: "New milestone achieved in the project",
-    date: "3 hours ago",
-    unread_message: false,
-    type: "message"
-  },
-];
+import { toAbsoluteUrl } from "@/lib/helpers";
 
 export function HeaderToolbar() {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const user = useAppSelector(selectUser);
+  const dispatch = useAppDispatch();
+  const router = useRouter();
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
+  useEffect(() => setMounted(true), []);
+
+  const toggleTheme = () => setTheme(theme === "light" ? "dark" : "light");
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await AuthService.logout();
+      toast.success('Logged out successfully');
+      router.push('/sign-in');
+    } catch (error: any) {
+      toast.error(error?.message || 'Logout failed');
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    if (email) {
+      return email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
+  const displayName = user?.firstName || 'User';
+  const displayEmail = user?.email || 'user@example.com';
+  const initials = getInitials(user?.firstName || user?.firstName, user?.email);
+
+  if (!mounted) return <div className="h-10 w-32" />;
 
   return (
     <nav className="flex items-center gap-2">
-      {/* Notifications */}
       <Notifications />
-      {/* Theme Toggle */}
+
       <Button mode="icon" variant="ghost" onClick={toggleTheme}>
         {theme === "light" ? <Moon /> : <Sun />}
       </Button>
 
-      <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+      <Separator orientation="vertical" className="mx-2 h-4" />
 
-      {/* User Menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Avatar className="cursor-pointer">
             <AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="User" />
-            <AvatarFallback>CH</AvatarFallback>
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-60" align="end">
           <DropdownMenuLabel className="p-0">
             <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
               <Avatar>
-                <AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} />
-                <AvatarFallback>CH</AvatarFallback>
+                <AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="User" />
+                <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">Chris Harris</span>
-                <span className="text-muted-foreground truncate text-xs">chris@example.com</span>
+                <span className="truncate font-semibold">{displayName}</span>
+                <span className="text-muted-foreground truncate text-xs">{displayEmail}</span>
               </div>
             </div>
           </DropdownMenuLabel>
@@ -114,10 +90,9 @@ export function HeaderToolbar() {
           <DropdownMenuSeparator />
 
           <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
-              <Link href="#">
-                <Sparkles /> Upgrade to Pro
-              </Link>
+            <DropdownMenuItem>
+              <Sparkles />
+              Upgrade to Pro
             </DropdownMenuItem>
           </DropdownMenuGroup>
 
@@ -145,9 +120,9 @@ export function HeaderToolbar() {
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
             <LogOut />
-            Log out
+            {isLoggingOut ? 'Logging out...' : 'Log out'}
           </DropdownMenuItem>
 
           <div className="bg-muted mt-1.5 rounded-md border">

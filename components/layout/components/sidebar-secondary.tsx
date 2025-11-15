@@ -1,312 +1,230 @@
-
-// ==================== sidebar-secondary.tsx ====================
-import { Separator } from "@/components/ui/separator";
+// components/layout/sidebar-secondary.tsx - COMPLETE WITH BLOCKED MENU HANDLING
 import { SidebarSearch } from "./sidebar-search";
-import { useLayout } from './context';
-import { Badge } from '@/components/ui/badge';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { useState } from "react";
-import {
-  ChartPieIcon,
-  ShoppingBagIcon,
-  BadgeDollarSignIcon,
-  ChartBarDecreasingIcon,
-  GaugeIcon,
-  FolderDotIcon,
-  FolderIcon,
-  WalletMinimalIcon,
-  GraduationCapIcon,
-  ActivityIcon,
-  Building2Icon,
-  CreditCardIcon,
-  SquareKanbanIcon,
-  StickyNoteIcon,
-  MessageSquareIcon,
-  MessageSquareHeartIcon,
-  MailIcon,
-  SquareCheckIcon,
-  ClipboardCheckIcon,
-  CalendarIcon,
-  ArchiveRestoreIcon,
-  KeyIcon,
-  CookieIcon,
-  BookAIcon,
-  BrainIcon,
-  BrainCircuitIcon,
-  ImagesIcon,
-  SpeechIcon,
-  UsersIcon,
-  UserIcon,
-  RedoDotIcon,
-  BrushCleaningIcon,
-  SettingsIcon,
-  FingerprintIcon,
-  ClipboardMinusIcon,
-  ComponentIcon,
-  ProportionsIcon,
-  GithubIcon,
-  ChevronRight,
-} from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { cn } from '@/lib/utils';
+import { Badge } from "@/components/ui/badge";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useMemo, useEffect } from "react";
+import { ChevronRight, ShieldAlertIcon, Shield, Key, Users, Menu as MenuIcon, ShieldCheck, UserCheck, LayoutDashboard, Loader2, LockIcon } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
+import { useMenuPermissions } from "@/hooks/use-menu-permissions";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-// Navigation data based on your provided structure
-const navItems = {
-  dashboards: {
-    title: "Dashboards",
-    items: [
-      { title: "Default", href: "/dashboard/default", icon: ChartPieIcon },
-      {
-        title: "E-commerce",
-        href: "#",
-        icon: ShoppingBagIcon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/ecommerce" },
-          { title: "Product List", href: "/dashboard/pages/products" },
-          { title: "Product Detail", href: "/dashboard/pages/products/1" },
-          { title: "Add Product", href: "/dashboard/pages/products/create" },
-          { title: "Order List", href: "/dashboard/pages/orders" },
-          { title: "Order Detail", href: "/dashboard/pages/orders/detail" }
-        ]
-      },
-      { title: "Sales", href: "/dashboard/sales", icon: BadgeDollarSignIcon },
-      { title: "CRM", href: "/dashboard/crm", icon: ChartBarDecreasingIcon },
-      { title: "Website Analytics", href: "/dashboard/website-analytics", icon: GaugeIcon },
-      {
-        title: "Project Management",
-        href: "/dashboard/project-management",
-        icon: FolderDotIcon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/project-management" },
-          { title: "Project List", href: "/dashboard/project-list" }
-        ]
-      },
-      { title: "File Manager", href: "/dashboard/file-manager", icon: FolderIcon },
-      { title: "Crypto", href: "/dashboard/crypto", icon: WalletMinimalIcon },
-      { title: "Academy/School", href: "/dashboard/academy", icon: GraduationCapIcon },
-      { title: "Hospital Management", href: "/dashboard/hospital-management", icon: ActivityIcon },
-      { title: "Hotel Dashboard", href: "/dashboard/hotel", icon: Building2Icon, isComing: true },
-      { title: "Finance Dashboard", href: "/dashboard/finance", icon: WalletMinimalIcon },
-      {
-        title: "Payment Dashboard",
-        href: "/dashboard/payment",
-        icon: CreditCardIcon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/payment" },
-          { title: "Transactions", href: "/dashboard/payment/transactions" }
-        ]
-      }
-    ]
-  },
-  apps: {
-    title: "Apps",
-    items: [
-      { title: "Kanban", href: "/dashboard/apps/kanban", icon: SquareKanbanIcon, isNew: true },
-      { title: "Notes", href: "/dashboard/apps/notes", icon: StickyNoteIcon, badge: "8" },
-      { title: "Chats", href: "/dashboard/apps/chat", icon: MessageSquareIcon, badge: "5" },
-      { title: "Social Media", href: "/dashboard/apps/social-media", icon: MessageSquareHeartIcon, isComing: true },
-      { title: "Mail", href: "/dashboard/apps/mail", icon: MailIcon },
-      { title: "Todo List App", href: "/dashboard/apps/todo-list-app", icon: SquareCheckIcon },
-      { title: "Tasks", href: "/dashboard/apps/tasks", icon: ClipboardCheckIcon },
-      { title: "Calendar", href: "/dashboard/apps/calendar", icon: CalendarIcon },
-      { title: "File Manager", href: "/dashboard/apps/file-manager", icon: ArchiveRestoreIcon, isNew: true },
-      { title: "Api Keys", href: "/dashboard/apps/api-keys", icon: KeyIcon },
-      { title: "POS App", href: "/dashboard/apps/pos-system", icon: CookieIcon },
-      { title: "Courses", href: "/dashboard/apps/courses", icon: BookAIcon, isComing: true }
-    ]
-  },
-  "ai-apps": {
-    title: "AI Apps",
-    items: [
-      { title: "AI Chat", href: "/dashboard/apps/ai-chat", icon: BrainIcon },
-      { title: "AI Chat V2", href: "/dashboard/apps/ai-chat-v2", icon: BrainCircuitIcon, isNew: true },
-      { title: "Image Generator", href: "/dashboard/apps/ai-image-generator", icon: ImagesIcon },
-      { title: "Text to Speech", href: "/dashboard/apps/text-to-speech", icon: SpeechIcon, isComing: true }
-    ]
-  },
-  pages: {
-    title: "Pages",
-    items: [
-      { title: "Users List", href: "/dashboard/pages/users", icon: UsersIcon },
-      { title: "Profile", href: "/dashboard/pages/profile", icon: UserIcon },
-      { title: "Onboarding Flow", href: "/dashboard/pages/onboarding-flow", icon: RedoDotIcon },
-      {
-        title: "Empty States",
-        href: "/dashboard/pages/empty-states/01",
-        icon: BrushCleaningIcon,
-        items: [
-          { title: "Empty States 01", href: "/dashboard/pages/empty-states/01" },
-          { title: "Empty States 02", href: "/dashboard/pages/empty-states/02" },
-          { title: "Empty States 03", href: "/dashboard/pages/empty-states/03" }
-        ]
-      },
-      {
-        title: "Settings",
-        href: "/dashboard/pages/settings",
-        icon: SettingsIcon,
-        items: [
-          { title: "Profile", href: "/dashboard/pages/settings" },
-          { title: "Account", href: "/dashboard/pages/settings/account" },
-          { title: "Billing", href: "/dashboard/pages/settings/billing" },
-          { title: "Appearance", href: "/dashboard/pages/settings/appearance" },
-          { title: "Notifications", href: "/dashboard/pages/settings/notifications" },
-          { title: "Display", href: "/dashboard/pages/settings/display" }
-        ]
-      },
-      {
-        title: "Pricing",
-        href: "#",
-        icon: BadgeDollarSignIcon,
-        items: [
-          { title: "Column Pricing", href: "/dashboard/pages/pricing/column" },
-          { title: "Table Pricing", href: "/dashboard/pages/pricing/table" },
-          { title: "Single Pricing", href: "/dashboard/pages/pricing/single" }
-        ]
-      },
-      {
-        title: "Authentication",
-        href: "/",
-        icon: FingerprintIcon,
-        items: [
-          { title: "Login v1", href: "/dashboard/login/v1" },
-          { title: "Login v2", href: "/dashboard/login/v2" },
-          { title: "Register v1", href: "/dashboard/register/v1" },
-          { title: "Register v2", href: "/dashboard/register/v2" },
-          { title: "Forgot Password", href: "/dashboard/forgot-password" }
-        ]
-      },
-      {
-        title: "Error Pages",
-        href: "/",
-        icon: FingerprintIcon,
-        items: [
-          { title: "404", href: "/dashboard/pages/error/404" },
-          { title: "500", href: "/dashboard/pages/error/500" },
-          { title: "403", href: "/dashboard/pages/error/403" }
-        ]
-      }
-    ]
-  },
-  others: {
-    title: "Others",
-    items: [
-      { title: "Download Shadcn UI Kit", href: "/pricing", icon: ClipboardMinusIcon, newTab: true },
-      { title: "Components", href: "/components", icon: ComponentIcon, newTab: true },
-      { title: "Blocks", href: "/blocks", icon: ComponentIcon, newTab: true },
-      { title: "Templates", href: "/templates", icon: ProportionsIcon, newTab: true },
-      { title: "Github", href: "https://github.com/bundui", icon: GithubIcon, newTab: true }
-    ]
-  }
+const ICON_MAP: Record<string, any> = {
+  Shield, Key, Users, Menu: MenuIcon, ShieldCheck, UserCheck, LayoutDashboard
 };
 
-interface MenuItemProps {
-  item: any;
-  pathname: string;
-}
+const MENU_STRUCTURE = [
+  {
+    key: 'dashboard',
+    title: 'Dashboard',
+    icon: 'LayoutDashboard',
+    path: '/dashboard',
+  },
+  {
+    key: 'access-control',
+    title: 'Access Control',
+    icon: 'Shield',
+    path: '/dashboard/access-control',
+    children: [
+      { key: 'access-control.roles', title: 'Roles', icon: 'Shield', path: '/dashboard/access-control/roles' },
+      { key: 'access-control.permissions', title: 'Permissions', icon: 'Key', path: '/dashboard/access-control/permissions' },
+      { key: 'access-control.role-permissions', title: 'Role Permissions', icon: 'ShieldCheck', path: '/dashboard/access-control/role-permissions' },
+      { key: 'access-control.user-roles', title: 'User Roles', icon: 'UserCheck', path: '/dashboard/access-control/user-roles' },
+      { key: 'access-control.menu-permissions', title: 'Menu Permissions', icon: 'Menu', path: '/dashboard/access-control/menu-permissions' },
+      { key: 'access-control.attributes', title: 'Attributes', icon: 'Shield', path: '/dashboard/access-control/attributes' },
+      { key: 'access-control.policies', title: 'Policies', icon: 'Shield', path: '/dashboard/access-control/policies' },
+      { key: 'access-control.policy-evaluation', title: 'Policy Evaluation', icon: 'Shield', path: '/dashboard/access-control/policy-evaluation' },
+      { key: 'access-control.resource-attributes', title: 'Resource Attributes', icon: 'Shield', path: '/dashboard/access-control/resource-attributes' },
+    ],
+  },
+];
 
-function MenuItem({ item, pathname }: MenuItemProps) {
+function MenuItem({ item, pathname, router, canAccessMenu, isBlocked, getBlockReason }: any) {
   const [isOpen, setIsOpen] = useState(false);
-  const hasSubmenu = item.items && item.items.length > 0;
-  const isActive = pathname === item.href;
+  
+  const accessibleChildren = useMemo(() => {
+    if (!item.children) return [];
+    return item.children.filter((child: any) => {
+      const hasAccess = canAccessMenu(child.key);
+      const blocked = isBlocked(child.key);
+      return hasAccess && !blocked;
+    });
+  }, [item.children, canAccessMenu, isBlocked]);
+
+  const hasSubmenu = accessibleChildren.length > 0;
+  const isActive = pathname === item.path;
+  const blocked = isBlocked(item.key);
+  const blockReason = getBlockReason(item.key);
+
+  useEffect(() => {
+    if (hasSubmenu && accessibleChildren.some((child: any) => pathname.startsWith(child.path))) {
+      setIsOpen(true);
+    }
+  }, [pathname, hasSubmenu, accessibleChildren]);
+
+  const IconComponent = ICON_MAP[item.icon] || Shield;
+
+  if (!canAccessMenu(item.key) && !hasSubmenu) return null;
+
+  const handleClick = (e: React.MouseEvent, path: string, key: string) => {
+    e.preventDefault();
+    if (isBlocked(key)) {
+      router.push('/dashboard/errors/403');
+      return;
+    }
+    if (canAccessMenu(key)) {
+      router.push(path);
+    }
+  };
 
   if (hasSubmenu) {
     return (
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="group/collapsible">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <button
-            className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors",
-              "hover:bg-primary/10 hover:text-foreground",
-              "text-foreground"
-            )}
-          >
-            {item.icon && <item.icon className="size-4 shrink-0" />}
+          <button className={cn("flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors hover:bg-primary/10 hover:text-foreground text-foreground")}>
+            <IconComponent className="size-4 shrink-0" />
             <span className="flex-1 text-left">{item.title}</span>
-            <ChevronRight className={cn(
-              "size-4 shrink-0 transition-transform duration-200",
-              isOpen && "rotate-90"
-            )} />
+            <ChevronRight className={cn("size-4 shrink-0 transition-transform duration-200", isOpen && "rotate-90")} />
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="pl-6 mt-1 space-y-1">
-          {item.items.map((subItem: any, index: number) => (
-            <Link
-              key={index}
-              href={subItem.href}
-              target={subItem.newTab ? "_blank" : undefined}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors",
-                "hover:bg-primary/10 hover:text-foreground",
-                pathname === subItem.href
-                  ? "bg-primary/10 text-foreground font-medium"
-                  : "text-muted-foreground"
-              )}
-            >
-              <span>{subItem.title}</span>
-            </Link>
+        <CollapsibleContent className="mt-1 space-y-1 pl-6">
+          {accessibleChildren.map((subItem: any, idx: number) => (
+            <MenuItem key={idx} item={subItem} pathname={pathname} router={router} canAccessMenu={canAccessMenu} isBlocked={isBlocked} getBlockReason={getBlockReason} />
           ))}
         </CollapsibleContent>
       </Collapsible>
     );
   }
 
+  if (blocked) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              disabled
+              className={cn("flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors text-muted-foreground cursor-not-allowed opacity-50")}
+            >
+              <IconComponent className="size-4 shrink-0" />
+              <span className="flex-1 text-left">{item.title}</span>
+              <LockIcon className="size-3 shrink-0" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="max-w-xs">
+            <p className="font-semibold text-xs mb-1">Access Restricted</p>
+            <p className="text-xs">{blockReason || 'Missing required permissions'}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   return (
-    <div className="relative flex items-center">
-      <Link
-        href={item.href}
-        target={item.newTab ? "_blank" : undefined}
-        className={cn(
-          "flex flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors",
-          "hover:bg-primary/10 hover:text-foreground",
-          isActive
-            ? "bg-primary/10 text-foreground font-medium"
-            : "text-foreground"
-        )}
-      >
-        {item.icon && <item.icon className="size-4 shrink-0" />}
-        <span className="flex-1">{item.title}</span>
-      </Link>
-      {item.isNew && (
-        <Badge variant="primary" size="sm" className="absolute right-2 border border-green-400 bg-green-50 text-green-600 text-[10px] px-1.5 py-0">
-          New
-        </Badge>
-      )}
-      {item.isComing && (
-        <Badge variant="secondary" size="sm" className="absolute right-2 opacity-50 text-[10px] px-1.5 py-0">
-          Soon
-        </Badge>
-      )}
-      {item.badge && (
-        <Badge variant="primary" size="sm" className="absolute right-2 bg-primary/20 text-foreground text-[10px] px-1.5 py-0">
-          {item.badge}
-        </Badge>
-      )}
-    </div>
+    <button
+      onClick={(e) => handleClick(e, item.path, item.key)}
+      className={cn("flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors hover:bg-primary/10 hover:text-foreground", isActive ? "bg-primary/10 text-foreground font-medium" : "text-foreground")}
+    >
+      <IconComponent className="size-4 shrink-0" />
+      <span className="flex-1 text-left">{item.title}</span>
+    </button>
   );
 }
 
 export function SidebarSecondary() {
-  const { activeSecondaryMenu } = useLayout();
   const pathname = usePathname();
+  const router = useRouter();
+  
+  const { loading, isInitialized, canAccessMenu, isSystemAdmin, accessibleMenus, blockedMenus } = useMenuPermissions();
 
-  const currentNav = navItems[activeSecondaryMenu as keyof typeof navItems] || navItems.dashboards;
+  const isBlocked = (menuKey: string) => {
+    return blockedMenus.some(blocked => {
+      const key = typeof blocked === 'string' ? blocked : blocked.menu_key;
+      return key === menuKey;
+    });
+  };
+
+  const getBlockReason = (menuKey: string) => {
+    const blocked = blockedMenus.find(b => {
+      const key = typeof b === 'string' ? b : b.menu_key;
+      return key === menuKey;
+    });
+    if (blocked && typeof blocked === 'object') {
+      return blocked.block_reason || blocked.missing_permissions;
+    }
+    return null;
+  };
+
+  const accessibleMenuStructure = useMemo(() => {
+    if (!isInitialized) return [];
+
+    return MENU_STRUCTURE.map(menu => {
+      const accessibleChildren = menu.children?.filter((child: any) => {
+        const hasAccess = canAccessMenu(child.key);
+        return hasAccess; // Show all accessible, blocked will be shown disabled
+      }) || [];
+
+      const hasParentAccess = canAccessMenu(menu.key);
+
+      if (hasParentAccess || accessibleChildren.length > 0) {
+        return { ...menu, children: accessibleChildren };
+      }
+      return null;
+    }).filter(Boolean);
+  }, [isInitialized, canAccessMenu]);
+
+  const currentMenuSection = useMemo(() => {
+    if (accessibleMenuStructure.length === 0) return null;
+    const accessControl = accessibleMenuStructure.find((m: any) => m?.key === 'access-control');
+    return accessControl || accessibleMenuStructure[0];
+  }, [accessibleMenuStructure]);
+
+  if (loading || !isInitialized) {
+    return (
+      <div className="flex h-full flex-1 flex-col overflow-hidden">
+        <div className="shrink-0 pt-2.5"><SidebarSearch /></div>
+        <div className="flex-1 overflow-y-auto py-2.5">
+          <div className="space-y-2 px-2.5">
+            {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-9 w-full" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentMenuSection) {
+    return (
+      <div className="flex h-full flex-1 flex-col overflow-hidden">
+        <div className="shrink-0 pt-2.5"><SidebarSearch /></div>
+        <div className="flex-1 overflow-y-auto py-2.5">
+          <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+            <ShieldAlertIcon className="size-12 text-muted-foreground mb-4" />
+            <p className="text-sm text-muted-foreground mb-2">No accessible menus</p>
+            <p className="text-xs text-muted-foreground">Contact administrator</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col flex-1 h-full overflow-hidden">
-      <div className="shrink-0 pt-2.5">
-        <SidebarSearch />
-      </div>
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 pt-2.5"><SidebarSearch /></div>
       <div className="flex-1 overflow-y-auto py-2.5">
-        <div className="px-2.5 space-y-1">
-          <div className="text-xs font-normal text-muted-foreground mb-3 px-2.5">
-            {currentNav.title}
+        <div className="space-y-1 px-2.5">
+          <div className="text-muted-foreground mb-3 px-2.5 text-xs font-normal flex items-center justify-between">
+            <span>{currentMenuSection.title}</span>
+            {isSystemAdmin && <Badge variant="outline" size="sm" className="text-[10px]">Admin</Badge>}
           </div>
-          <div className="space-y-1">
-            {currentNav.items.map((item: any, index: number) => (
-              <MenuItem key={index} item={item} pathname={pathname} />
-            ))}
-          </div>
+          {currentMenuSection.children ? (
+            <div className="space-y-1">
+              {currentMenuSection.children.map((item: any, idx: number) => (
+                <MenuItem key={idx} item={item} pathname={pathname} router={router} canAccessMenu={canAccessMenu} isBlocked={isBlocked} getBlockReason={getBlockReason} />
+              ))}
+            </div>
+          ) : (
+            <MenuItem item={currentMenuSection} pathname={pathname} router={router} canAccessMenu={canAccessMenu} isBlocked={isBlocked} getBlockReason={getBlockReason} />
+          )}
         </div>
       </div>
     </div>
