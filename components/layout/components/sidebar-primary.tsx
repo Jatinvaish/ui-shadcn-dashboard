@@ -1,21 +1,7 @@
-
-// ==================== sidebar-primary.tsx ====================
+// components/layout/sidebar-primary.tsx - COMPLETE WITH REAL DATA
 import { useEffect, useState } from 'react';
-import { toAbsoluteUrl } from '@/lib/helpers';
 import { cn } from '@/lib/utils';
 import {
-  BarChart3,
-  Bell,
-  CheckSquare,
-  FolderCode,
-  Mails,
-  NotepadText,
-  ScrollText,
-  Settings,
-  ShieldUser,
-  UserCircle,
-  Users,
-  User,
   Clock,
   Shield,
   Building2,
@@ -30,6 +16,12 @@ import {
   BrainIcon,
   UsersIcon,
   ClipboardMinusIcon,
+  User,
+  Settings,
+  Users,
+  Mails,
+  NotepadText,
+  Bell,
 } from 'lucide-react';
 import {
   Avatar,
@@ -56,16 +48,28 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useLayout } from './context';
+import { useAppSelector } from '@/store/hooks';
+import { selectUser } from '@/store/slices/authSlice';
+import { AuthService } from '@/lib/api/services/auth-service';
+import { toast } from 'sonner';
+import { toAbsoluteUrl } from '@/lib/helpers';
 
 const menuItems = [
   {
     id: 'dashboards',
     icon: ChartPieIcon,
     tooltip: 'Dashboards',
-    path: '/layout-14',
-    rootPath: '/layout-14'
+    path: '/dashboard',
+    rootPath: '/dashboard'
+  },
+  {
+    id: 'access-control',
+    icon: Shield,
+    tooltip: 'Access Control',
+    path: '/dashboard/access-control',
+    rootPath: '/dashboard/access-control',
   },
   {
     id: 'apps',
@@ -89,13 +93,6 @@ const menuItems = [
     rootPath: '#',
   },
   {
-    id: 'others',
-    icon: ClipboardMinusIcon,
-    tooltip: 'Others',
-    path: '#',
-    rootPath: '#',
-  },
-  {
     id: 'chat',
     icon: MessageSquareIcon,
     tooltip: 'Chat',
@@ -106,8 +103,11 @@ const menuItems = [
 
 export function SidebarPrimary() {
   const pathname = usePathname();
+  const router = useRouter();
   const { activeSecondaryMenu, setActiveSecondaryMenu } = useLayout();
   const [selectedMenuItem, setSelectedMenuItem] = useState(menuItems[0]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const user = useAppSelector(selectUser);
 
   useEffect(() => {
     menuItems.forEach((item) => {
@@ -125,6 +125,34 @@ export function SidebarPrimary() {
     setSelectedMenuItem(item);
     setActiveSecondaryMenu(item.id);
   };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await AuthService.logout();
+      toast.success('Logged out successfully');
+      router.push('/sign-in');
+    } catch (error: any) {
+      toast.error(error?.message || 'Logout failed');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    if (email) {
+      return email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
+  const displayName = user?.firstName   || 'User';
+  const displayEmail = user?.email || 'user@example.com';
+  const initials = getInitials(user?.firstName || user?.firstName, user?.email);
+  const userRole = user?.userType || user?.user_type || 'User';
 
   return (
     <div className="flex flex-col items-center justify-center shrink-0 px-2.5 py-2.5 gap-5 lg:w-[var(--sidebar-collapsed-width)] border-0 border-input bg-muted">
@@ -173,8 +201,8 @@ export function SidebarPrimary() {
         <DropdownMenu>
           <DropdownMenuTrigger className="cursor-pointer mb-2.5">
             <Avatar className="size-7">
-              <AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="@reui" />
-              <AvatarFallback>CH</AvatarFallback>
+            <AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="User" />
+              <AvatarFallback>{initials}</AvatarFallback>
               <AvatarIndicator className="-end-2 -top-2">
                 <AvatarStatus variant="online" className="size-2.5" />
               </AvatarIndicator>
@@ -183,16 +211,16 @@ export function SidebarPrimary() {
           <DropdownMenuContent className="w-64 mb-4" side="right" align="start" sideOffset={11}>
             <div className="flex items-center gap-3 px-3 py-2">
               <Avatar>
-                <AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="@reui" />
-                <AvatarFallback>CH</AvatarFallback>
+            <AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="User" />
+                <AvatarFallback>{initials}</AvatarFallback>
                 <AvatarIndicator className="-end-1.5 -top-1.5">
                   <AvatarStatus variant="online" className="size-2.5" />
                 </AvatarIndicator>
               </Avatar>
               <div className="flex flex-col items-start">
-                <span className="text-sm font-semibold text-foreground">Chris Harris</span>
-                <span className="text-xs text-muted-foreground">Senior Developer</span>
-                <Badge variant="success" appearance="outline" size="sm" className="mt-1">Pro Plan</Badge>
+                <span className="text-sm font-semibold text-foreground">{displayName}</span>
+                <span className="text-xs text-muted-foreground truncate max-w-[160px]">{displayEmail}</span>
+                <Badge variant="success" appearance="outline" size="sm" className="mt-1">{userRole}</Badge>
               </div>
             </div>
             
@@ -258,9 +286,9 @@ export function SidebarPrimary() {
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
               <LogOut/>
-              <span>Sign out</span>
+              <span>{isLoggingOut ? 'Signing out...' : 'Sign out'}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

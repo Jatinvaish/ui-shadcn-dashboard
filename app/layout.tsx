@@ -1,14 +1,16 @@
+// app/layout.tsx - Fix hydration + Provider order
+
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Provider } from "react-redux";
 import { store } from "@/store/store";
-import { useAppDispatch } from "@/store/hooks";
-import { loadUserFromCookies } from "@/store/slices/authSlice";
-import { fetchMyAccessibleMenus } from "@/store/slices/menu-permissions.slice";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { loadUserFromCookies, selectAuthInitialized, selectIsAuthenticated } from "@/store/slices/authSlice";
+import { fetchMyAccessibleMenus, selectMenuPermissionsInitialized } from "@/store/slices/menu-permissions.slice";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
-import GoogleAnalyticsInit from "@/lib/ga";
 import { fontVariables } from "@/lib/fonts";
 import NextTopLoader from "nextjs-toploader";
 import { ActiveThemeProvider } from "@/components/active-theme";
@@ -16,30 +18,86 @@ import { DEFAULT_THEME } from "@/lib/themes";
 import "./globals.css";
 import { Toaster } from "sonner";
 import ToasterProvider from "@/components/guards/reactToast";
-import '../lib/axios-interceptor'; // Import at the top
+import '../lib/axios-interceptor';
 
-// ---------------- AUTH INITIALIZER ----------------
+const PUBLIC_ROUTES = [
+  '/sign-in', '/', '/sign-up', '/login', '/register',
+  '/forgot-password', '/reset-password', '/verify',
+  '/verify-email', '/auth', '/errors', '/_next', '/api',
+];
+
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+}
+
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
+  const pathname = usePathname();
+  const authInitialized = useAppSelector(selectAuthInitialized);
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
+  const permissionsInitialized = useAppSelector(selectMenuPermissionsInitialized);
+  const [mounted, setMounted] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const initStartedRef = useRef(false);
+  const isPublic = isPublicRoute(pathname);
 
   useEffect(() => {
-    dispatch(loadUserFromCookies()).then((result) => {
-      if (result.meta.requestStatus === "fulfilled") {
-        dispatch(fetchMyAccessibleMenus());
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (initStartedRef.current) return;
+    
+    if (isPublic) {
+      setIsInitializing(false);
+      return;
+    }
+
+    const initAuth = async () => {
+      initStartedRef.current = true;
+      
+      try {
+        const userResult = await dispatch(loadUserFromCookies()).unwrap();
+        if (!userResult?.user) {
+          setIsInitializing(false);
+          return;
+        }
+        
+        await dispatch(fetchMyAccessibleMenus()).unwrap();
+      } catch (error) {
+        console.error('Init error:', error);
+      } finally {
+        setIsInitializing(false);
       }
-    });
-  }, [dispatch]);
+    };
+
+    initAuth();
+  }, [dispatch, isPublic]);
+
+  if (!mounted) return null;
+  if (isPublic) return <>{children}</>;
+
+  if (isInitializing) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!authInitialized) return null;
+  if (isAuthenticated && !permissionsInitialized) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
 
-// ---------------- CLIENT ROOT LAYOUT ----------------
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Retrieve cookies for theme settings (runs client-side here)
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   const themeSettings = {
     preset: DEFAULT_THEME.preset,
     scale: DEFAULT_THEME.scale,
@@ -47,46 +105,20 @@ export default function RootLayout({
     contentLayout: DEFAULT_THEME.contentLayout,
   };
 
-  const bodyAttributes = Object.fromEntries(
-    Object.entries(themeSettings)
-      .filter(([_, value]) => value)
-      .map(([key, value]) => [
-        `data-theme-${key.replace(/([A-Z])/g, "-$1").toLowerCase()}`,
-        value,
-      ])
-  );
-
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        suppressHydrationWarning
-        className={cn("bg-background group/layout font-sans", fontVariables)}
-        {...bodyAttributes}
-      >
+      <body suppressHydrationWarning className={cn("bg-background group/layout font-sans", fontVariables)}>
         <Provider store={store}>
-          <AuthInitializer>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="light"
-              enableSystem
-              disableTransitionOnChange
-            >
-              <ActiveThemeProvider initialTheme={themeSettings}>
-                <NextTopLoader
-                  color="var(--primary)"
-                  showSpinner={false}
-                  height={2}
-                  shadow-sm="none"
-                />
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+            <ActiveThemeProvider initialTheme={themeSettings}>
+              <AuthInitializer>
+                <NextTopLoader color="var(--primary)" showSpinner={false} height={2} />
                 {children}
                 <Toaster />
                 <ToasterProvider />
-                {process.env.NODE_ENV === "production" ? (
-                  <GoogleAnalyticsInit />
-                ) : null}
-              </ActiveThemeProvider>
-            </ThemeProvider>
-          </AuthInitializer>
+              </AuthInitializer>
+            </ActiveThemeProvider>
+          </ThemeProvider>
         </Provider>
       </body>
     </html>
