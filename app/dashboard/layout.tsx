@@ -1,29 +1,19 @@
-'use client';
+// app/dashboard/layout.tsx - STREAMLINED VERSION
+"use client";
 
-import { Layout14 } from '@/components/layout';
-import { ReactNode, useEffect, useState } from 'react';
+import React from "react";
+import { RouteGuard } from "@/components/guards/route-guard";
+import { Layout14 } from "@/components/layout";
 
-import { ScreenLoader } from '@/components/screen-loader';
-
-export default function Layout({children}: {children: ReactNode}) {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate short loading time
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000); // 1 second loading time
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (isLoading) {
-    return <ScreenLoader />;
-  }
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // No initialization logic here - parent handles it
+  // Just wrap in layout and route guard
   
   return (
     <Layout14>
-      {children}
+      <RouteGuard>
+        {children}
+      </RouteGuard>
     </Layout14>
   );
 }
