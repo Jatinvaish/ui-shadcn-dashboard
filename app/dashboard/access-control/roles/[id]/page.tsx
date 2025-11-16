@@ -1,13 +1,13 @@
-// app/(dashboard)/dashboard/access-control/roles/[id]/page.tsx
+// app/dashboard/access-control/role-permissions/[id]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Shield, Users, Edit, Settings } from 'lucide-react';
+import { Shield, Check, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -16,61 +16,54 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
-  fetchRoleById,
+  fetchRoles,
   fetchRolePermissionsTree,
   bulkAssignRolePermissions,
-  selectCurrentRole,
+  selectRoles,
   selectPermissionsTree,
-  selectRolesLoading,
-  clearCurrentRole,
 } from '@/store/slices/roles.slice';
-import { IfHasAccess } from '@/components/guards/if-has-access';
 import { ProtectedBreadcrumb } from '@/components/guards/protected-breadcrumb';
+import { useParams } from 'next/navigation';
 
-const RoleDetailsPage = () => {
-  const params = useParams();
-  const router = useRouter();
+const RolePermissionsPage = () => {
   const dispatch = useAppDispatch();
-  const roleId = Number(params.id);
+  const params = useParams();
 
-  const role = useAppSelector(selectCurrentRole);
+  const selectedRoleId = Number(params.id);
+
+  const roles = useAppSelector(selectRoles);
   const tree = useAppSelector(selectPermissionsTree);
-  const isLoading = useAppSelector(selectRolesLoading);
 
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [permissionChanges, setPermissionChanges] = useState<Map<number, 'I' | 'D'>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
   useEffect(() => {
-    if (roleId) {
-      dispatch(fetchRoleById(roleId));
-      dispatch(fetchRolePermissionsTree(roleId));
-    }
+    dispatch(fetchRoles({ page: 1, limit: 1000 }));
+  }, [dispatch]);
 
-    return () => {
-      dispatch(clearCurrentRole());
-    };
-  }, [dispatch, roleId]);
+  useEffect(() => {
+    if (selectedRoleId) {
+      dispatch(fetchRolePermissionsTree(selectedRoleId));
+      setPermissionChanges(new Map());
+    }
+  }, [dispatch, selectedRoleId]);
+
+  useEffect(() => {
+    if (tree && tree.permissions_tree.length > 0 && expandedCategories.length === 0) {
+      setExpandedCategories([tree.permissions_tree[0].category]);
+    }
+  }, [tree]);
 
   const handlePermissionToggle = (permissionId: number, currentlyChecked: boolean) => {
     const newChanges = new Map(permissionChanges);
-
-    if (currentlyChecked) {
-      newChanges.set(permissionId, 'D');
-    } else {
-      newChanges.set(permissionId, 'I');
-    }
-
+    newChanges.set(permissionId, currentlyChecked ? 'D' : 'I');
     setPermissionChanges(newChanges);
   };
+
   const getEffectiveState = (permissionId: number, originalState: boolean) => {
     const change = permissionChanges.get(permissionId);
     if (change === 'I') return true;
@@ -79,7 +72,7 @@ const RoleDetailsPage = () => {
   };
 
   const handleSaveChanges = async () => {
-    if (permissionChanges.size === 0) {
+    if (!selectedRoleId || permissionChanges.size === 0) {
       toast.info('No changes to save');
       return;
     }
@@ -91,13 +84,10 @@ const RoleDetailsPage = () => {
         permissionId,
       }));
 
-      const result = await dispatch(bulkAssignRolePermissions({ roleId, changes })).unwrap();
-      toast.success(`Updated ${result.total_changes} permissions successfully`);
+      await dispatch(bulkAssignRolePermissions({ roleId: selectedRoleId, changes })).unwrap();
+      toast.success('Permissions updated successfully');
       setPermissionChanges(new Map());
-
-      // Refresh data
-      dispatch(fetchRoleById(roleId));
-      dispatch(fetchRolePermissionsTree(roleId));
+      dispatch(fetchRolePermissionsTree(selectedRoleId));
     } catch (error: any) {
       toast.error(error || 'Failed to update permissions');
     } finally {
@@ -110,257 +100,178 @@ const RoleDetailsPage = () => {
     toast.info('Changes discarded');
   };
 
-  if (isLoading && !role) {
-    return (
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
+  const filteredTree = tree?.permissions_tree
+    .map((category) => {
+      const filteredPerms = category.permissions.filter((perm) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          perm.permission_key.toLowerCase().includes(q) ||
+          perm.resource.toLowerCase().includes(q) ||
+          perm.action.toLowerCase().includes(q)
+        );
+      });
 
-  if (!role || !tree) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold">Role not found</h3>
-          <Button onClick={() => router.back()} variant="outline" className="mt-4">
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
+      return { ...category, permissions: filteredPerms };
+    })
+    .filter((cat) => cat.permissions.length > 0);
+
+  const selectedRole = roles.find((r) => r.id === selectedRoleId);
 
   return (
     <div className="flex flex-col gap-6">
       <ProtectedBreadcrumb
         items={[
           { label: 'Access Control', menuKey: 'access-control', href: '/dashboard/access-control' },
-          { label: 'Roles', menuKey: 'access-control.roles', href: '/dashboard/access-control/roles' },
-          { label: role.display_name, menuKey: 'access-control.roles', href: `/dashboard/access-control/roles/${roleId}`, isCurrent: true },
+          { label: 'Role Permissions', menuKey: 'access-control.role-permissions', href: `/dashboard/access-control/role-permissions/${selectedRoleId}`, isCurrent: true },
         ]}
       />
 
-      {/* Role Header */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
+      <div>
+        <h1 className="text-2xl font-bold">Role Permissions</h1>
+
+        {selectedRole && (
+          <p className="text-muted-foreground mt-1">
+            Managing permissions for <strong>{selectedRole.display_name || selectedRole.name}</strong>
+          </p>
+        )}
+      </div>
+
+      {/* Changes Bar */}
+      {permissionChanges.size > 0 && (
+        <Card className="border-primary">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="primary">{permissionChanges.size} changes</Badge>
+                <span className="text-sm text-muted-foreground">Unsaved changes</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleDiscardChanges} disabled={isSaving}>
+                  <X className="h-4 w-4" />
+                  Discard
+                </Button>
+                <Button onClick={handleSaveChanges} disabled={isSaving}>
+                  <Check className="h-4 w-4" />
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary */}
+      {tree && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-2xl font-bold">{tree.summary.total_permissions}</div>
+                <div className="text-sm text-muted-foreground">Total Permissions</div>
               </div>
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h1 className="text-2xl font-bold">{role.display_name}</h1>
-                  <Badge variant={role.is_system_role ? 'primary' : 'secondary'}>
-                    {role.is_system_role ? 'System' : 'Custom'}
-                  </Badge>
-                  <Badge variant="outline">Level {role.hierarchy_level}</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">{role.description || 'No description'}</p>
-                <div className="flex items-center gap-4 mt-2">
-                  <div className="flex items-center gap-1 text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{role.users_count || 0} users</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-sm">
-                    <Shield className="h-4 w-4 text-muted-foreground" />
-                    <span>{role.permissions_count || 0} permissions</span>
-                  </div>
-                </div>
+                <div className="text-2xl font-bold text-primary">{tree.summary.assigned_permissions}</div>
+                <div className="text-sm text-muted-foreground">Assigned</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{tree.summary.total_categories}</div>
+                <div className="text-sm text-muted-foreground">Categories</div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <IfHasAccess menuKey="access-control.roles.edit">
-                <Button
-                  variant="outline"
-                  onClick={() => router.push(`/dashboard/access-control/roles/${roleId}/edit`)}
-                  disabled={role.is_system_role}
-                >
-                  <Edit className="h-4 w-4" />
-                  Edit
-                </Button>
-              </IfHasAccess>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/access-control/roles/${roleId}/settings`)}
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      <Tabs defaultValue="permissions" className="w-full">
-        <TabsList>
-          <TabsTrigger value="permissions">Permissions</TabsTrigger>
-          <TabsTrigger value="users">Users ({role.users_count || 0})</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-        </TabsList>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search permissions..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
 
-        <TabsContent value="permissions" className="space-y-4">
-          {/* Save/Discard Bar */}
-          {permissionChanges.size > 0 && (
-            <Card className="border-primary">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="primary">{permissionChanges.size} changes</Badge>
-                    <span className="text-sm text-muted-foreground">
-                      You have unsaved permission changes
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={handleDiscardChanges}
-                      disabled={isSaving}
-                    >
-                      Discard
-                    </Button>
-                    <Button
-                      onClick={handleSaveChanges}
-                      disabled={isSaving}
-                    >
-                      {isSaving ? 'Saving...' : 'Save Changes'}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+      {/* Permissions List */}
+      {tree && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Permissions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Accordion type="multiple" value={expandedCategories} onValueChange={setExpandedCategories}>
+              {filteredTree?.map((category) => {
+                const assignedCount = category.permissions.filter((p) =>
+                  getEffectiveState(p.id, p.is_checked)
+                ).length;
 
-          {/* Permissions Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Permission Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <div className="text-2xl font-bold">{tree.summary.total_permissions}</div>
-                  <div className="text-sm text-muted-foreground">Total Permissions</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-2xl font-bold text-primary">
-                    {tree.summary.assigned_permissions}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Assigned</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-2xl font-bold">{tree.summary.total_categories}</div>
-                  <div className="text-sm text-muted-foreground">Categories</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                return (
+                  <AccordionItem key={category.category} value={category.category}>
+                    <AccordionTrigger>
+                      <div className="flex items-center justify-between w-full pr-4">
+                        <span className="font-medium">{category.category}</span>
+                        <Badge variant="secondary">
+                          {assignedCount}/{category.permissions.length}
+                        </Badge>
+                      </div>
+                    </AccordionTrigger>
 
-          {/* Permissions Tree */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Manage Permissions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Accordion type="multiple" value={expandedCategories} onValueChange={setExpandedCategories}>
-                {tree.permissions_tree.map((category: any) => {
-                  const categoryPermissions = category.permissions;
-                  const assignedCount = categoryPermissions.filter((p: any) =>
-                    getEffectiveState(p.id, p.is_checked)
-                  ).length;
+                    <AccordionContent>
+                      <div className="space-y-2 pt-2">
+                        {category.permissions.map((perm) => {
+                          const effectiveState = getEffectiveState(perm.id, perm.is_checked);
+                          const hasChange = permissionChanges.has(perm.id);
 
-                  return (
-                    <AccordionItem key={category.category} value={category.category}>
-                      <AccordionTrigger>
-                        <div className="flex items-center justify-between w-full pr-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{category.category}</span>
-                            <Badge variant="secondary">
-                              {assignedCount}/{categoryPermissions.length}
-                            </Badge>
-                          </div>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-2 pt-2">
-                          {categoryPermissions.map((permission: any) => {
-                            const effectiveState = getEffectiveState(permission.id, permission.is_checked);
-                            const hasChange = permissionChanges.has(permission.id);
+                          return (
+                            <div
+                              key={perm.id}
+                              className={`flex items-start gap-3 p-3 rounded border ${
+                                hasChange ? 'bg-primary/5 border-primary' : 'hover:bg-muted/50'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={effectiveState}
+                                onCheckedChange={() =>
+                                  handlePermissionToggle(perm.id, perm.is_checked)
+                                }
+                              />
 
-                            return (
-                              <div
-                                key={permission.id}
-                                className={`flex items-start gap-3 p-3 rounded-md border transition-colors ${hasChange ? 'bg-primary/5 border-primary' : 'hover:bg-muted/50'
-                                  }`}
-                              >
-                                <Checkbox
-                                  checked={effectiveState}
-                                  onCheckedChange={() => handlePermissionToggle(permission.id, permission.is_checked)}
-                                  disabled={role.is_system_role}
-                                />
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-sm">
-                                      {permission.resource}:{permission.action}
-                                    </span>
-                                    {permission.is_system_permission && (
-                                      <Badge variant="outline" className="text-xs">System</Badge>
-                                    )}
-                                    {hasChange && (
-                                      <Badge variant="primary" className="text-xs">
-                                        {permissionChanges.get(permission.id) === 'I' ? 'Adding' : 'Removing'}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {permission.description && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {permission.description}
-                                    </p>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">
+                                    {perm.resource}:{perm.action}
+                                  </span>
+
+                                  {hasChange && (
+                                    <Badge variant="primary" className="text-xs">
+                                      {permissionChanges.get(perm.id) === 'I'
+                                        ? 'Adding'
+                                        : 'Removing'}
+                                    </Badge>
                                   )}
                                 </div>
+
+                                {perm.description && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {perm.description}
+                                  </p>
+                                )}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle>Users with this role</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                No users assigned to this role yet
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="activity">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                No activity to display
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
 
-export default RoleDetailsPage;
+export default RolePermissionsPage;
