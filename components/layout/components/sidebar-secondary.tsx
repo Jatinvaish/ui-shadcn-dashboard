@@ -1,55 +1,216 @@
-// components/layout/sidebar-secondary.tsx - COMPLETE WITH BLOCKED MENU HANDLING
+// components/layout/sidebar-secondary.tsx - DYNAMIC WITH MENU SWITCHING
 import { SidebarSearch } from "./sidebar-search";
 import { Badge } from "@/components/ui/badge";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useMemo, useEffect } from "react";
-import { ChevronRight, ShieldAlertIcon, Shield, Key, Users, Menu as MenuIcon, ShieldCheck, UserCheck, LayoutDashboard, Loader2, LockIcon } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, memo } from "react";
+import { 
+  ChevronRight, ShieldAlertIcon, Shield, Key, Users, Menu as MenuIcon, 
+  ShieldCheck, UserCheck, LayoutDashboard, LockIcon, Settings,
+  ChartPie, Building2, Package, FolderKanban, MessageSquare, Brain
+} from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { useMenuPermissions } from "@/hooks/use-menu-permissions";
+import { usePermissionContext } from "@/contexts/permission-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useLayout } from "./context";
 
 const ICON_MAP: Record<string, any> = {
-  Shield, Key, Users, Menu: MenuIcon, ShieldCheck, UserCheck, LayoutDashboard
+  Shield, Key, Users, Menu: MenuIcon, ShieldCheck, UserCheck, LayoutDashboard,
+  Settings, ChartPie, Building2, Package, FolderKanban, MessageSquare, Brain
 };
 
-const MENU_STRUCTURE = [
-  {
-    key: 'dashboard',
-    title: 'Dashboard',
-    icon: 'LayoutDashboard',
-    path: '/dashboard',
-  },
-  {
-    key: 'access-control',
-    title: 'Access Control',
-    icon: 'Shield',
-    path: '/dashboard/access-control',
-    children: [
-      { key: 'access-control.roles', title: 'Roles', icon: 'Shield', path: '/dashboard/access-control/roles' },
-      { key: 'access-control.permissions', title: 'Permissions', icon: 'Key', path: '/dashboard/access-control/permissions' },
-      { key: 'access-control.role-permissions', title: 'Role Permissions', icon: 'ShieldCheck', path: '/dashboard/access-control/role-permissions' },
-      { key: 'access-control.user-roles', title: 'User Roles', icon: 'UserCheck', path: '/dashboard/access-control/user-roles' },
-      { key: 'access-control.menu-permissions', title: 'Menu Permissions', icon: 'Menu', path: '/dashboard/access-control/menu-permissions' },
-      { key: 'access-control.attributes', title: 'Attributes', icon: 'Shield', path: '/dashboard/access-control/attributes' },
-      { key: 'access-control.policies', title: 'Policies', icon: 'Shield', path: '/dashboard/access-control/policies' },
-      { key: 'access-control.policy-evaluation', title: 'Policy Evaluation', icon: 'Shield', path: '/dashboard/access-control/policy-evaluation' },
-      { key: 'access-control.resource-attributes', title: 'Resource Attributes', icon: 'Shield', path: '/dashboard/access-control/resource-attributes' },
-    ],
-  },
-];
+// Define all menu structures for different sections
+const MENU_STRUCTURES: Record<string, any[]> = {
+  'dashboard': [
+    {
+      key: 'dashboard',
+      title: 'Overview',
+      icon: 'ChartPie',
+      path: '/dashboard',
+    },
+    {
+      key: 'dashboards.analytics',
+      title: 'Analytics',
+      icon: 'ChartPie',
+      path: '/dashboard/analytics',
+    },
+    {
+      key: 'dashboards.ecommerce',
+      title: 'E-Commerce',
+      icon: 'Package',
+      path: '/dashboard/ecommerce',
+    },
+  ],
+  
+  'access-control': [
+    {
+      key: 'access-control',
+      title: 'Overview',
+      icon: 'Shield',
+      path: '/dashboard/access-control',
+    },
+    {
+      key: 'access-control.users',
+      title: 'User Management',
+      icon: 'Users',
+      children: [
+        { 
+          key: 'access-control.users.list', 
+          title: 'All Users', 
+          icon: 'Users', 
+          path: '/dashboard/access-control/users' 
+        },
+        { 
+          key: 'access-control.user-roles', 
+          title: 'User Roles', 
+          icon: 'UserCheck', 
+          path: '/dashboard/access-control/user-roles' 
+        },
+      ],
+    },
+    {
+      key: 'access-control.permissions-management',
+      title: 'Permissions',
+      icon: 'Key',
+      children: [
+        { 
+          key: 'access-control.permissions', 
+          title: 'All Permissions', 
+          icon: 'Key', 
+          path: '/dashboard/access-control/permissions' 
+        },
+        { 
+          key: 'access-control.role-permissions', 
+          title: 'Role Permissions', 
+          icon: 'ShieldCheck', 
+          path: '/dashboard/access-control/role-permissions' 
+        },
+        { 
+          key: 'access-control.menu-permissions', 
+          title: 'Menu Permissions', 
+          icon: 'Menu', 
+          path: '/dashboard/access-control/menu-permissions' 
+        },
+      ],
+    },
+    {
+      key: 'access-control.roles',
+      title: 'Roles',
+      icon: 'Shield',
+      path: '/dashboard/access-control/roles',
+    },
+    {
+      key: 'access-control.advanced',
+      title: 'Advanced',
+      icon: 'Settings',
+      children: [
+        { 
+          key: 'access-control.attributes', 
+          title: 'Attributes', 
+          icon: 'Shield', 
+          path: '/dashboard/access-control/attributes' 
+        },
+        { 
+          key: 'access-control.policies', 
+          title: 'Policies', 
+          icon: 'Shield', 
+          path: '/dashboard/access-control/policies' 
+        },
+        { 
+          key: 'access-control.policy-evaluation', 
+          title: 'Policy Evaluation', 
+          icon: 'Shield', 
+          path: '/dashboard/access-control/policy-evaluation' 
+        },
+        { 
+          key: 'access-control.resource-attributes', 
+          title: 'Resource Attributes', 
+          icon: 'Shield', 
+          path: '/dashboard/access-control/resource-attributes' 
+        },
+      ],
+    },
+  ],
 
-function MenuItem({ item, pathname, router, canAccessMenu, isBlocked, getBlockReason }: any) {
+  'apps': [
+    {
+      key: 'apps.kanban',
+      title: 'Kanban Board',
+      icon: 'FolderKanban',
+      path: '/dashboard/apps/kanban',
+    },
+    {
+      key: 'apps.calendar',
+      title: 'Calendar',
+      icon: 'ChartPie',
+      path: '/dashboard/apps/calendar',
+    },
+    {
+      key: 'apps.mail',
+      title: 'Mail',
+      icon: 'MessageSquare',
+      path: '/dashboard/apps/mail',
+    },
+  ],
+
+  'ai-apps': [
+    {
+      key: 'ai-apps.chat',
+      title: 'AI Chat',
+      icon: 'Brain',
+      path: '/dashboard/apps/ai-chat',
+    },
+    {
+      key: 'ai-apps.image-generator',
+      title: 'Image Generator',
+      icon: 'Brain',
+      path: '/dashboard/apps/ai-image-generator',
+    },
+  ],
+
+  'pages': [
+    {
+      key: 'pages.profile',
+      title: 'Profile',
+      icon: 'Users',
+      path: '/dashboard/pages/profile',
+    },
+    {
+      key: 'pages.settings',
+      title: 'Settings',
+      icon: 'Settings',
+      path: '/dashboard/pages/settings',
+    },
+  ],
+};
+
+const MenuItem = memo(function MenuItem({ item, pathname, router, canAccessMenu, blockedMenus }: any) {
   const [isOpen, setIsOpen] = useState(false);
   
+  const isBlocked = useCallback((menuKey: string) => {
+    return blockedMenus.some((blocked: any) => {
+      const key = typeof blocked === 'string' ? blocked : blocked?.menu_key;
+      return key === menuKey;
+    });
+  }, [blockedMenus]);
+
+  const getBlockReason = useCallback((menuKey: string) => {
+    const blocked = blockedMenus.find((b: any) => {
+      const key = typeof b === 'string' ? b : b?.menu_key;
+      return key === menuKey;
+    });
+    if (blocked && typeof blocked === 'object') {
+      return blocked.block_reason || blocked.missing_permissions;
+    }
+    return null;
+  }, [blockedMenus]);
+
   const accessibleChildren = useMemo(() => {
     if (!item.children) return [];
-    return item.children.filter((child: any) => {
-      const hasAccess = canAccessMenu(child.key);
-      const blocked = isBlocked(child.key);
-      return hasAccess && !blocked;
-    });
+    return item.children.filter((child: any) => 
+      canAccessMenu(child.key) && !isBlocked(child.key)
+    );
   }, [item.children, canAccessMenu, isBlocked]);
 
   const hasSubmenu = accessibleChildren.length > 0;
@@ -65,18 +226,18 @@ function MenuItem({ item, pathname, router, canAccessMenu, isBlocked, getBlockRe
 
   const IconComponent = ICON_MAP[item.icon] || Shield;
 
-  if (!canAccessMenu(item.key) && !hasSubmenu) return null;
-
-  const handleClick = (e: React.MouseEvent, path: string, key: string) => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    if (isBlocked(key)) {
+    if (blocked) {
       router.push('/dashboard/errors/403');
       return;
     }
-    if (canAccessMenu(key)) {
-      router.push(path);
+    if (canAccessMenu(item.key)) {
+      router.push(item.path);
     }
-  };
+  }, [blocked, canAccessMenu, item.key, item.path, router]);
+
+  if (!canAccessMenu(item.key) && !hasSubmenu) return null;
 
   if (hasSubmenu) {
     return (
@@ -89,8 +250,15 @@ function MenuItem({ item, pathname, router, canAccessMenu, isBlocked, getBlockRe
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-1 space-y-1 pl-6">
-          {accessibleChildren.map((subItem: any, idx: number) => (
-            <MenuItem key={idx} item={subItem} pathname={pathname} router={router} canAccessMenu={canAccessMenu} isBlocked={isBlocked} getBlockReason={getBlockReason} />
+          {accessibleChildren.map((subItem: any) => (
+            <MenuItem 
+              key={subItem.key}
+              item={subItem} 
+              pathname={pathname} 
+              router={router} 
+              canAccessMenu={canAccessMenu}
+              blockedMenus={blockedMenus}
+            />
           ))}
         </CollapsibleContent>
       </Collapsible>
@@ -122,47 +290,40 @@ function MenuItem({ item, pathname, router, canAccessMenu, isBlocked, getBlockRe
 
   return (
     <button
-      onClick={(e) => handleClick(e, item.path, item.key)}
+      onClick={handleClick}
       className={cn("flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-normal transition-colors hover:bg-primary/10 hover:text-foreground", isActive ? "bg-primary/10 text-foreground font-medium" : "text-foreground")}
     >
       <IconComponent className="size-4 shrink-0" />
       <span className="flex-1 text-left">{item.title}</span>
     </button>
   );
-}
+});
 
 export function SidebarSecondary() {
   const pathname = usePathname();
   const router = useRouter();
+  const { activeSecondaryMenu } = useLayout();
   
-  const { loading, isInitialized, canAccessMenu, isSystemAdmin, accessibleMenus, blockedMenus } = useMenuPermissions();
+  const { 
+    isLoading, 
+    canAccessMenu, 
+    isSystemAdmin,
+    blockedMenus,
+  } = usePermissionContext();
 
-  const isBlocked = (menuKey: string) => {
-    return blockedMenus.some(blocked => {
-      const key = typeof blocked === 'string' ? blocked : blocked.menu_key;
-      return key === menuKey;
-    });
-  };
+  // Get current menu structure based on active primary menu
+  const currentMenuStructure = useMemo(() => {
+    return MENU_STRUCTURES[activeSecondaryMenu] || [];
+  }, [activeSecondaryMenu]);
 
-  const getBlockReason = (menuKey: string) => {
-    const blocked = blockedMenus.find(b => {
-      const key = typeof b === 'string' ? b : b.menu_key;
-      return key === menuKey;
-    });
-    if (blocked && typeof blocked === 'object') {
-      return blocked.block_reason || blocked.missing_permissions;
-    }
-    return null;
-  };
-
+  // Build accessible menu structure
   const accessibleMenuStructure = useMemo(() => {
-    if (!isInitialized) return [];
+    if (isLoading) return [];
 
-    return MENU_STRUCTURE.map(menu => {
-      const accessibleChildren = menu.children?.filter((child: any) => {
-        const hasAccess = canAccessMenu(child.key);
-        return hasAccess; // Show all accessible, blocked will be shown disabled
-      }) || [];
+    return currentMenuStructure.map(menu => {
+      const accessibleChildren = menu.children?.filter((child: any) => 
+        canAccessMenu(child.key)
+      ) || [];
 
       const hasParentAccess = canAccessMenu(menu.key);
 
@@ -171,20 +332,34 @@ export function SidebarSecondary() {
       }
       return null;
     }).filter(Boolean);
-  }, [isInitialized, canAccessMenu]);
+  }, [isLoading, canAccessMenu, currentMenuStructure]);
 
-  const currentMenuSection = useMemo(() => {
-    if (accessibleMenuStructure.length === 0) return null;
-    const accessControl = accessibleMenuStructure.find((m: any) => m?.key === 'access-control');
-    return accessControl || accessibleMenuStructure[0];
-  }, [accessibleMenuStructure]);
+  // Get section title
+  const sectionTitle = useMemo(() => {
+    const titles: Record<string, string> = {
+      'dashboard': 'Dashboards',
+      'access-control': 'Access Control',
+      'apps': 'Applications',
+      'ai-apps': 'AI Tools',
+      'pages': 'Pages',
+      'chat': 'Messages',
+    };
+    return titles[activeSecondaryMenu] || 'Menu';
+  }, [activeSecondaryMenu]);
 
-  if (loading || !isInitialized) {
+  // Hide sidebar for chat
+  if (activeSecondaryMenu === 'chat') {
+    return null;
+  }
+
+  // Show loading skeleton
+  if (isLoading) {
     return (
       <div className="flex h-full flex-1 flex-col overflow-hidden">
         <div className="shrink-0 pt-2.5"><SidebarSearch /></div>
         <div className="flex-1 overflow-y-auto py-2.5">
           <div className="space-y-2 px-2.5">
+            <Skeleton className="h-6 w-32 mb-4" />
             {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-9 w-full" />)}
           </div>
         </div>
@@ -192,7 +367,8 @@ export function SidebarSecondary() {
     );
   }
 
-  if (!currentMenuSection) {
+  // Show empty state if no accessible menus
+  if (accessibleMenuStructure.length === 0) {
     return (
       <div className="flex h-full flex-1 flex-col overflow-hidden">
         <div className="shrink-0 pt-2.5"><SidebarSearch /></div>
@@ -207,24 +383,28 @@ export function SidebarSecondary() {
     );
   }
 
+  // Render menu
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
       <div className="shrink-0 pt-2.5"><SidebarSearch /></div>
       <div className="flex-1 overflow-y-auto py-2.5">
         <div className="space-y-1 px-2.5">
           <div className="text-muted-foreground mb-3 px-2.5 text-xs font-normal flex items-center justify-between">
-            <span>{currentMenuSection.title}</span>
-            {isSystemAdmin && <Badge variant="outline" size="sm" className="text-[10px]">Admin</Badge>}
+            {/* <span>{sectionTitle}</span>
+            {isSystemAdmin && <Badge variant="outline" size="sm" className="text-[10px]">Admin</Badge>} */}
           </div>
-          {currentMenuSection.children ? (
-            <div className="space-y-1">
-              {currentMenuSection.children.map((item: any, idx: number) => (
-                <MenuItem key={idx} item={item} pathname={pathname} router={router} canAccessMenu={canAccessMenu} isBlocked={isBlocked} getBlockReason={getBlockReason} />
-              ))}
-            </div>
-          ) : (
-            <MenuItem item={currentMenuSection} pathname={pathname} router={router} canAccessMenu={canAccessMenu} isBlocked={isBlocked} getBlockReason={getBlockReason} />
-          )}
+          <div className="space-y-1">
+            {accessibleMenuStructure.map((item: any) => (
+              <MenuItem 
+                key={item.key}
+                item={item} 
+                pathname={pathname} 
+                router={router} 
+                canAccessMenu={canAccessMenu}
+                blockedMenus={blockedMenus}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -1,20 +1,26 @@
-// store/slices/menu-permissions.slice.ts - FIXED & ALIGNED WITH BACKEND
+// store/slices/menu-permissions.slice.ts - FIXED WITH BETTER ERROR HANDLING
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '@/store/store';
 import { RbacService } from '@/lib/api';
 
 // ==================== TYPE DEFINITIONS ====================
-export interface UserPermission {
+interface BlockedMenu {
+  menu_key: string;
+  missing_permissions?: string;
+  block_reason?: string;
+}
+
+interface UserPermission {
   id: number;
   permission_key: string;
   resource: string;
   action: string;
-  category: string;
+  category?: string;
   description?: string;
   is_super_admin?: boolean;
 }
 
-export interface MenuPermission {
+interface MenuPermission {
   id: number;
   menu_key: string;
   permission_id: number;
@@ -23,27 +29,40 @@ export interface MenuPermission {
   action?: string;
   category?: string;
   is_required: boolean;
+  is_system_permission: boolean;
+  created_at: string;
+  updated_at?: string;
+  created_by?: number;
+}
+
+interface Permission {
+  id: number;
+  permission_key: string;
+  resource: string;
+  action: string;
+  description?: string;
+  category?: string;
+  is_system_permission: boolean;
   created_at: string;
   updated_at?: string;
 }
 
-export interface BlockedMenu {
-  menu_key: string;
-  missing_permissions: string;
-  block_reason: string;
+interface PaginationMeta {
+  currentPage: number;
+  itemsPerPage: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 interface MenuPermissionsState {
-  // User's accessible menus (for navigation/routing)
   accessibleMenus: string[];
   userPermissions: UserPermission[];
   blockedMenus: any[];
-  
-  // Menu permission management (CRUD)
   menuPermissions: MenuPermission[];
-  allPermissions: any[];
-  
-  // Loading states
+  allPermissions: Permission[];
+  pagination: PaginationMeta | null;
   loading: boolean;
   crudLoading: boolean;
   error: string | null;
@@ -56,6 +75,7 @@ const initialState: MenuPermissionsState = {
   blockedMenus: [],
   menuPermissions: [],
   allPermissions: [],
+  pagination: null,
   loading: false,
   crudLoading: false,
   error: null,
@@ -65,13 +85,43 @@ const initialState: MenuPermissionsState = {
 // ==================== HELPER FUNCTIONS ====================
 function getActualAccessibleMenus(
   accessibleMenus: string[],
-  blockedMenus: string[]
+  blockedMenus: BlockedMenu[]
 ): string[] {
-  if (!blockedMenus || blockedMenus.length === 0) {
-    return accessibleMenus;
-  }
-  const blockedSet = new Set(blockedMenus);
+  const blockedSet = new Set(blockedMenus.map(bm => bm.menu_key));
   return accessibleMenus.filter(menu => !blockedSet.has(menu));
+}
+
+function extractResponseData(response: any): any {
+  console.log('🔍 Extracting response data:', response);
+  
+  // If response is null/undefined, return empty object
+  if (!response) {
+    console.warn('⚠️ Response is null/undefined');
+    return {};
+  }
+
+  // Try different response structures
+  let data = response;
+  
+  // Check for response.data
+  if (response.data) {
+    data = response.data;
+    console.log('📦 Found response.data:', data);
+  }
+  
+  // Check for nested data.data
+  if (data?.data) {
+    data = data.data;
+    console.log('📦 Found data.data:', data);
+  }
+
+  // Check for success wrapper
+  if (data?.success && data?.data) {
+    data = data.data;
+    console.log('📦 Found success wrapper:', data);
+  }
+
+  return data || {};
 }
 
 // ==================== THUNKS ====================
@@ -83,62 +133,74 @@ export const fetchMyAccessibleMenus = createAsyncThunk(
   'menuPermissions/fetchMyAccessibleMenus',
   async (_, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching my accessible menus...');
+      console.log('🔄 API: Fetching my accessible menus...');
       
-      const response:any = await RbacService.getMyAccessibleMenus();
+      const response = await RbacService.getMyAccessibleMenus();
+      console.log('📦 Raw Response:', response);
       
-      if (!response?.data) {
-        throw new Error('Invalid API response');
-      }
+      const data = extractResponseData(response);
+      console.log('📦 Extracted Data:', data);
+      
+      // Extract arrays with multiple fallback strategies
+      const rawAccessibleMenus = 
+        Array.isArray(data?.accessibleMenus) ? data.accessibleMenus :
+        Array.isArray(data?.accessible_menus) ? data.accessible_menus :
+        Array.isArray(data?.menus) ? data.menus :
+        Array.isArray(data) ? data :
+        [];
+          
+      const rawBlockedMenus = 
+        Array.isArray(data?.blockedMenus) ? data.blockedMenus :
+        Array.isArray(data?.blocked_menus) ? data.blocked_menus :
+        [];
+        
+      const userPermissions = 
+        Array.isArray(data?.userPermissions) ? data.userPermissions :
+        Array.isArray(data?.user_permissions) ? data.user_permissions :
+        Array.isArray(data?.permissions) ? data.permissions :
+        [];
 
-      const data = response.data;
-      
-      // Extract data from response
-      const userPermissions = Array.isArray(data.userPermissions) 
-        ? data.userPermissions 
-        : [];
-      
-      const rawAccessibleMenus = Array.isArray(data.accessibleMenus) 
-        ? data.accessibleMenus 
-        : [];
-      
-      const blockedMenusData = Array.isArray(data.blockedMenus) 
-        ? data.blockedMenus 
-        : [];
-
-      // Extract blocked menu keys
-      const blockedMenuKeys = blockedMenusData.map((bm: any) => 
-        typeof bm === 'string' ? bm : bm.menu_key
-      );
-
-      // Calculate actual accessible menus
+      // Filter out blocked menus
       const actualAccessibleMenus = getActualAccessibleMenus(
-        rawAccessibleMenus,
-        blockedMenuKeys
+        rawAccessibleMenus, 
+        rawBlockedMenus
       );
 
       const result = {
         accessibleMenus: actualAccessibleMenus,
         userPermissions: userPermissions,
-        blockedMenus: blockedMenuKeys,
+        blockedMenus: rawBlockedMenus.map((bm: any) => 
+          typeof bm === 'string' ? bm : bm.menu_key
+        ),
       };
 
-      console.log('✅ My accessible menus fetched:', {
+      console.log('✅ API: My accessible menus processed:', {
         accessible: result.accessibleMenus.length,
         permissions: result.userPermissions.length,
         blocked: result.blockedMenus.length,
+        rawData: data,
       });
 
       return result;
     } catch (error: any) {
-      console.error('❌ Fetch error:', error);
+      console.error('❌ API error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
       
-      if (error.response?.status === 401) {
+      // If not authenticated, return empty but don't fail
+      if (error.response?.status === 401 || error.message?.includes('401')) {
+        console.log('⚠️ Not authenticated, returning empty permissions');
         return rejectWithValue('Not authenticated');
       }
       
+      // For other errors, still reject but with details
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to fetch menus'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch accessible menus'
       );
     }
   }
@@ -150,27 +212,36 @@ export const fetchMyAccessibleMenus = createAsyncThunk(
 export const fetchMenuPermissions = createAsyncThunk(
   'menuPermissions/fetchMenuPermissions',
   async (
-    params: { page?: number; limit?: number; menuKey?: string; search?: string },
+    params: { page?: number; limit?: number; menuKey?: string; name?: string } = {},
     { rejectWithValue }
   ) => {
     try {
-      console.log('🔄 Fetching menu permissions list...', params);
+      console.log('🔄 API: Fetching menu permissions list...', params);
       
-      const response:any = await RbacService.listMenuPermissions(params);
+      const response = await RbacService.listMenuPermissions(params);
+      const data = extractResponseData(response);
       
-      if (!response?.data) {
-        throw new Error('Invalid API response');
-      }
+      const menuPermissions = Array.isArray(data) 
+        ? data 
+        : Array.isArray(data?.menuPermissions)
+          ? data.menuPermissions
+          : Array.isArray(data?.data) 
+            ? data.data 
+            : [];
+          
+      const pagination = data?.pagination || null;
 
-      const menuPermissions = response.data.menuPermissionsList || [];
+      console.log('✅ API: Menu permissions list fetched:', {
+        count: menuPermissions.length,
+      });
 
-      console.log('✅ Menu permissions list fetched:', menuPermissions.length);
-
-      return { menuPermissions };
+      return { menuPermissions, pagination };
     } catch (error: any) {
-      console.error('❌ API error:', error);
+      console.error('❌ API error:', error.message);
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to fetch menu permissions'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch menu permissions'
       );
     }
   }
@@ -183,53 +254,58 @@ export const fetchMenuPermissionsByKey = createAsyncThunk(
   'menuPermissions/fetchMenuPermissionsByKey',
   async (menuKey: string, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching permissions for menu:', menuKey);
+      console.log('🔄 API: Fetching permissions for menu:', menuKey);
       
       const response = await RbacService.getMenuPermissions(menuKey);
-      
-      if (!response?.data) {
-        throw new Error('Invalid API response');
-      }
+      const data = extractResponseData(response);
 
-      console.log('✅ Menu permissions fetched for:', menuKey);
+      console.log('✅ API: Menu permissions fetched for:', menuKey);
 
-      return response.data;
+      return data;
     } catch (error: any) {
-      console.error('❌ API error:', error);
+      console.error('❌ API error:', error.message);
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to fetch menu permissions'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch menu permissions'
       );
     }
   }
 );
 
 /**
- * Fetch all permissions (for dropdown in link dialog)
+ * Fetch all permissions
  */
 export const fetchAllPermissions = createAsyncThunk(
   'menuPermissions/fetchAllPermissions',
   async (_, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching all permissions...');
+      console.log('🔄 API: Fetching all permissions...');
       
-      const response:any = await RbacService.listPermissions({
+      const response = await RbacService.listPermissions({
         page: 1,
-        limit: 100,
+        limit: 1000,
       });
       
-      if (!response?.data) {
-        throw new Error('Invalid API response');
-      }
+      const data = extractResponseData(response);
+      
+      const permissions = Array.isArray(data) 
+        ? data 
+        : Array.isArray(data?.permissions)
+          ? data.permissions
+          : Array.isArray(data?.data) 
+            ? data.data 
+            : [];
 
-      const permissions = response.data.permissionsList || [];
-
-      console.log('✅ All permissions fetched:', permissions.length);
+      console.log('✅ API: All permissions fetched:', permissions.length);
 
       return permissions;
     } catch (error: any) {
-      console.error('❌ API error:', error);
+      console.error('❌ API error:', error.message);
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to fetch permissions'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch permissions'
       );
     }
   }
@@ -245,21 +321,20 @@ export const linkMenuPermission = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      console.log('🔄 Linking menu permission...', payload);
+      console.log('🔄 API: Linking menu permission...', payload);
       
       const response = await RbacService.linkMenuPermission(payload);
-      
-      if (!response?.data) {
-        throw new Error('Invalid API response');
-      }
+      const data = extractResponseData(response);
 
-      console.log('✅ Menu permission linked');
+      console.log('✅ API: Menu permission linked');
 
-      return response.data;
+      return data;
     } catch (error: any) {
-      console.error('❌ API error:', error);
+      console.error('❌ API error:', error.message);
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to link permission'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to link permission'
       );
     }
   }
@@ -281,21 +356,19 @@ export const bulkLinkMenuPermissions = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      console.log('🔄 Bulk linking menu permissions...', payload);
+      console.log('🔄 API: Bulk linking menu permissions...', payload);
       
       const response = await RbacService.bulkLinkMenuPermissions(payload);
-      
-      if (!response?.success) {
-        throw new Error('Invalid API response');
-      }
 
-      console.log('✅ Menu permissions bulk linked');
+      console.log('✅ API: Menu permissions bulk linked');
 
       return response;
     } catch (error: any) {
-      console.error('❌ API error:', error);
+      console.error('❌ API error:', error.message);
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to bulk link permissions'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to bulk link permissions'
       );
     }
   }
@@ -311,21 +384,19 @@ export const unlinkMenuPermission = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      console.log('🔄 Unlinking menu permission...', payload);
+      console.log('🔄 API: Unlinking menu permission...', payload);
       
       const response = await RbacService.unlinkMenuPermission(payload);
-      
-      if (!response?.success) {
-        throw new Error('Invalid API response');
-      }
 
-      console.log('✅ Menu permission unlinked');
+      console.log('✅ API: Menu permission unlinked');
 
       return { menuKey: payload.menuKey, permissionId: payload.permissionId };
     } catch (error: any) {
-      console.error('❌ API error:', error);
+      console.error('❌ API error:', error.message);
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to unlink permission'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to unlink permission'
       );
     }
   }
@@ -338,21 +409,104 @@ export const checkMenuAccess = createAsyncThunk(
   'menuPermissions/checkMenuAccess',
   async (menuKey: string, { rejectWithValue }) => {
     try {
-      console.log('🔄 Checking menu access for:', menuKey);
+      console.log('🔄 API: Checking menu access for:', menuKey);
       
-      const response:any = await RbacService.checkMenuAccess(menuKey);
+      const response = await RbacService.checkMenuAccess(menuKey);
       
-      if (!response?.data) {
-        throw new Error('Invalid API response');
-      }
+      const hasAccess = response?.hasAccess ?? false;
 
-      console.log('✅ Menu access checked:', response.data.hasAccess);
+      console.log('✅ API: Menu access checked:', hasAccess);
 
-      return { menuKey, hasAccess: response.data.canAccess };
+      return { menuKey, hasAccess };
     } catch (error: any) {
-      console.error('❌ API error:', error);
+      console.error('❌ API error:', error.message);
       return rejectWithValue(
-        error.response?.data?.message || error.message || 'Failed to check menu access'
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to check menu access'
+      );
+    }
+  }
+);
+
+/**
+ * Get user accessible menus (for specific user - admin use)
+ */
+export const fetchUserAccessibleMenus = createAsyncThunk(
+  'menuPermissions/fetchUserAccessibleMenus',
+  async (userId?: number, { rejectWithValue }) => {
+    try {
+      console.log('🔄 API: Fetching accessible menus for user:', userId);
+      
+      const response = await RbacService.getUserAccessibleMenus(userId);
+      const data = extractResponseData(response);
+
+      console.log('✅ API: User accessible menus fetched');
+
+      return data;
+    } catch (error: any) {
+      console.error('❌ API error:', error.message);
+      return rejectWithValue(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch user accessible menus'
+      );
+    }
+  }
+);
+
+/**
+ * Get blocked menus for current user
+ */
+export const fetchBlockedMenus = createAsyncThunk(
+  'menuPermissions/fetchBlockedMenus',
+  async (userId?: number, { rejectWithValue }) => {
+    try {
+      console.log('🔄 API: Fetching blocked menus...');
+      
+      const response = await RbacService.getBlockedMenus({ userId });
+      const data = extractResponseData(response);
+      
+      const blockedMenus = Array.isArray(data) ? data : [];
+
+      console.log('✅ API: Blocked menus fetched');
+
+      return blockedMenus;
+    } catch (error: any) {
+      console.error('❌ API error:', error.message);
+      return rejectWithValue(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch blocked menus'
+      );
+    }
+  }
+);
+
+/**
+ * Get menu hierarchy with access info
+ */
+export const fetchMenuHierarchyWithAccess = createAsyncThunk(
+  'menuPermissions/fetchMenuHierarchyWithAccess',
+  async (
+    params: { userId?: number; includeBlockedReasons?: boolean } = {},
+    { rejectWithValue }
+  ) => {
+    try {
+      console.log('🔄 API: Fetching menu hierarchy with access...');
+      
+      const response = await RbacService.getMenuHierarchyWithAccess(params);
+      const data = extractResponseData(response);
+
+      console.log('✅ API: Menu hierarchy fetched');
+
+      return data;
+    } catch (error: any) {
+      console.error('❌ API error:', error.message);
+      return rejectWithValue(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch menu hierarchy'
       );
     }
   }
@@ -363,20 +517,17 @@ const menuPermissionsSlice = createSlice({
   name: 'menuPermissions',
   initialState,
   reducers: {
-    setMenuAccess: (
-      state,
-      action: PayloadAction<{
-        accessibleMenus: string[];
-        userPermissions: UserPermission[];
-        blockedMenus?: string[];
-      }>
-    ) => {
+    setMenuAccess: (state, action: PayloadAction<{
+      accessibleMenus: string[];
+      userPermissions: UserPermission[];
+      blockedMenus?: string[];
+    }>) => {
       let finalAccessibleMenus = action.payload.accessibleMenus;
       
       if (action.payload.blockedMenus?.length) {
-        finalAccessibleMenus = getActualAccessibleMenus(
-          action.payload.accessibleMenus,
-          action.payload.blockedMenus
+        const blockedSet = new Set(action.payload.blockedMenus);
+        finalAccessibleMenus = action.payload.accessibleMenus.filter(
+          menu => !blockedSet.has(menu)
         );
       }
       
@@ -400,24 +551,15 @@ const menuPermissionsSlice = createSlice({
       state.menuPermissions.unshift(action.payload);
     },
 
-    removeMenuPermission: (
-      state,
-      action: PayloadAction<{ menuKey: string; permissionId: number }>
-    ) => {
+    removeMenuPermission: (state, action: PayloadAction<{ menuKey: string; permissionId: number }>) => {
       state.menuPermissions = state.menuPermissions.filter(
-        (mp) =>
-          !(
-            mp.menu_key === action.payload.menuKey &&
-            mp.permission_id === action.payload.permissionId
-          )
+        mp => !(mp.menu_key === action.payload.menuKey && mp.permission_id === action.payload.permissionId)
       );
     },
 
     updateMenuPermission: (state, action: PayloadAction<MenuPermission>) => {
       const index = state.menuPermissions.findIndex(
-        (mp) =>
-          mp.menu_key === action.payload.menu_key &&
-          mp.permission_id === action.payload.permission_id
+        mp => mp.menu_key === action.payload.menu_key && mp.permission_id === action.payload.permission_id
       );
       if (index !== -1) {
         state.menuPermissions[index] = action.payload;
@@ -431,7 +573,7 @@ const menuPermissionsSlice = createSlice({
       .addCase(fetchMyAccessibleMenus.pending, (state) => {
         state.loading = true;
         state.error = null;
-        console.log('⏳ Fetching my accessible menus...');
+        console.log('⏳ Redux: Fetching my accessible menus...');
       })
       .addCase(fetchMyAccessibleMenus.fulfilled, (state, action) => {
         state.loading = false;
@@ -441,7 +583,7 @@ const menuPermissionsSlice = createSlice({
         state.initialized = true;
         state.error = null;
         
-        console.log('✅ My accessible menus stored:', {
+        console.log('✅ Redux: My accessible menus stored:', {
           accessible: state.accessibleMenus.length,
           permissions: state.userPermissions.length,
           blocked: state.blockedMenus.length,
@@ -451,30 +593,33 @@ const menuPermissionsSlice = createSlice({
         state.loading = false;
         const errorMessage = action.payload as string;
         
+        // Always set initialized to true, even on error
+        // This allows the app to continue (user might be super admin)
+        state.initialized = true;
+        
+        // Only set error if it's not an auth error
         if (errorMessage !== 'Not authenticated') {
           state.error = errorMessage;
         }
         
-        state.initialized = true;
-        console.log('❌ My accessible menus rejected:', errorMessage);
+        console.log('❌ Redux: My accessible menus rejected:', errorMessage);
       })
 
-      // ==================== fetchMenuPermissions ====================
+      // ==================== Other reducers ====================
       .addCase(fetchMenuPermissions.pending, (state) => {
         state.crudLoading = true;
         state.error = null;
       })
       .addCase(fetchMenuPermissions.fulfilled, (state, action) => {
         state.crudLoading = false;
-        state.menuPermissions = action.payload.menuPermissions;
+        state.menuPermissions = action.payload.menuPermissions as any;
+        state.pagination = action.payload.pagination;
         state.error = null;
       })
       .addCase(fetchMenuPermissions.rejected, (state, action) => {
         state.crudLoading = false;
         state.error = action.payload as string;
       })
-
-      // ==================== fetchMenuPermissionsByKey ====================
       .addCase(fetchMenuPermissionsByKey.pending, (state) => {
         state.crudLoading = true;
         state.error = null;
@@ -487,23 +632,19 @@ const menuPermissionsSlice = createSlice({
         state.crudLoading = false;
         state.error = action.payload as string;
       })
-
-      // ==================== fetchAllPermissions ====================
       .addCase(fetchAllPermissions.pending, (state) => {
         state.crudLoading = true;
         state.error = null;
       })
       .addCase(fetchAllPermissions.fulfilled, (state, action) => {
         state.crudLoading = false;
-        state.allPermissions = action.payload;
+        state.allPermissions = action.payload as any;
         state.error = null;
       })
       .addCase(fetchAllPermissions.rejected, (state, action) => {
         state.crudLoading = false;
         state.error = action.payload as string;
       })
-
-      // ==================== linkMenuPermission ====================
       .addCase(linkMenuPermission.pending, (state) => {
         state.crudLoading = true;
         state.error = null;
@@ -516,8 +657,6 @@ const menuPermissionsSlice = createSlice({
         state.crudLoading = false;
         state.error = action.payload as string;
       })
-
-      // ==================== bulkLinkMenuPermissions ====================
       .addCase(bulkLinkMenuPermissions.pending, (state) => {
         state.crudLoading = true;
         state.error = null;
@@ -530,8 +669,6 @@ const menuPermissionsSlice = createSlice({
         state.crudLoading = false;
         state.error = action.payload as string;
       })
-
-      // ==================== unlinkMenuPermission ====================
       .addCase(unlinkMenuPermission.pending, (state) => {
         state.crudLoading = true;
         state.error = null;
@@ -539,21 +676,14 @@ const menuPermissionsSlice = createSlice({
       .addCase(unlinkMenuPermission.fulfilled, (state, action) => {
         state.crudLoading = false;
         state.error = null;
-        // Remove the unlinked item from the list
         state.menuPermissions = state.menuPermissions.filter(
-          (mp) =>
-            !(
-              mp.menu_key === action.payload.menuKey &&
-              mp.permission_id === action.payload.permissionId
-            )
+          mp => !(mp.menu_key === action.payload.menuKey && mp.permission_id === action.payload.permissionId)
         );
       })
       .addCase(unlinkMenuPermission.rejected, (state, action) => {
         state.crudLoading = false;
         state.error = action.payload as string;
       })
-
-      // ==================== checkMenuAccess ====================
       .addCase(checkMenuAccess.pending, (state) => {
         state.crudLoading = true;
         state.error = null;
@@ -565,55 +695,79 @@ const menuPermissionsSlice = createSlice({
       .addCase(checkMenuAccess.rejected, (state, action) => {
         state.crudLoading = false;
         state.error = action.payload as string;
+      })
+      .addCase(fetchUserAccessibleMenus.pending, (state) => {
+        state.crudLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchUserAccessibleMenus.fulfilled, (state) => {
+        state.crudLoading = false;
+        state.error = null;
+      })
+      .addCase(fetchUserAccessibleMenus.rejected, (state, action) => {
+        state.crudLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchBlockedMenus.pending, (state) => {
+        state.crudLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchBlockedMenus.fulfilled, (state, action) => {
+        state.crudLoading = false;
+        state.blockedMenus = action.payload as string[];
+        state.error = null;
+      })
+      .addCase(fetchBlockedMenus.rejected, (state, action) => {
+        state.crudLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchMenuHierarchyWithAccess.pending, (state) => {
+        state.crudLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchMenuHierarchyWithAccess.fulfilled, (state) => {
+        state.crudLoading = false;
+        state.error = null;
+      })
+      .addCase(fetchMenuHierarchyWithAccess.rejected, (state, action) => {
+        state.crudLoading = false;
+        state.error = action.payload as string;
       });
   },
 });
 
 // ==================== EXPORTS ====================
-export const {
-  setMenuAccess,
-  clearMenuPermissions,
+export const { 
+  setMenuAccess, 
+  clearMenuPermissions, 
   clearMenuError,
   addMenuPermission,
   removeMenuPermission,
   updateMenuPermission,
 } = menuPermissionsSlice.actions;
 
-// Selectors for user's accessible menus (routing/navigation)
-export const selectAccessibleMenus = (state: RootState) =>
-  state.menuPermissions.accessibleMenus;
-export const selectUserPermissions = (state: RootState) =>
-  state.menuPermissions.userPermissions;
-export const selectBlockedMenus = (state: RootState) =>
-  state.menuPermissions.blockedMenus;
-export const selectMenuPermissionsInitialized = (state: RootState) =>
-  state.menuPermissions.initialized;
-
-// Selectors for menu permission management (CRUD page)
-export const selectMenuPermissions = (state: RootState) =>
-  state.menuPermissions.menuPermissions;
-export const selectAllPermissions = (state: RootState) =>
-  state.menuPermissions.allPermissions;
-export const selectMenuPermissionsLoading = (state: RootState) =>
-  state.menuPermissions.crudLoading;
-
-// General selectors
-export const selectMenuPermissionsError = (state: RootState) =>
-  state.menuPermissions.error;
-export const selectMenuPermissionsLoadingAny = (state: RootState) =>
+// Selectors
+export const selectAccessibleMenus = (state: RootState) => state.menuPermissions.accessibleMenus;
+export const selectUserPermissions = (state: RootState) => state.menuPermissions.userPermissions;
+export const selectBlockedMenus = (state: RootState) => state.menuPermissions.blockedMenus;
+export const selectMenuPermissionsInitialized = (state: RootState) => state.menuPermissions.initialized;
+export const selectMenuPermissions = (state: RootState) => state.menuPermissions.menuPermissions;
+export const selectAllPermissions = (state: RootState) => state.menuPermissions.allPermissions;
+export const selectMenuPermissionsLoading = (state: RootState) => state.menuPermissions.crudLoading;
+export const selectMenuPermissionsPagination = (state: RootState) => state.menuPermissions.pagination;
+export const selectMenuPermissionsError = (state: RootState) => state.menuPermissions.error;
+export const selectMenuPermissionsLoadingAny = (state: RootState) => 
   state.menuPermissions.loading || state.menuPermissions.crudLoading;
 
-// Helper selector: Check if user can access a specific menu
+// Helper selectors
 export const selectCanAccessMenu = (menuKey: string) => (state: RootState) => {
   return state.menuPermissions.accessibleMenus.includes(menuKey);
 };
 
-// Helper selector: Check if user has a specific permission
-export const selectHasPermission =
-  (permissionKey: string) => (state: RootState) => {
-    return state.menuPermissions.userPermissions.some(
-      (perm) => perm.permission_key === permissionKey
-    );
-  };
+export const selectHasPermission = (permissionKey: string) => (state: RootState) => {
+  return state.menuPermissions.userPermissions.some(
+    perm => perm.permission_key === permissionKey
+  );
+};
 
 export default menuPermissionsSlice.reducer;
