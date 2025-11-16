@@ -1,56 +1,25 @@
-// components/guards/route-guard.tsx - FIXED ACCESS CONTROL
+// components/guards/route-guard.tsx - SIMPLIFIED
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { useMenuPermissions } from '@/hooks/use-menu-permissions';
+import { usePermissionContext } from '@/contexts/permission-context';
 
 interface RouteGuardProps {
   children: React.ReactNode;
 }
 
-const PUBLIC_ROUTES = [
-  '/', '/login', '/register', '/forgot-password', 
-  '/verify-email', '/sign-in', '/sign-up', '/errors'
-];
-
 export function RouteGuard({ children }: RouteGuardProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  
-  const { 
-    canAccessRoute, 
-    isInitialized, 
-    loading,
-    isSystemAdmin,
-    blockedMenus
-  } = useMenuPermissions();
+  const { isLoading } = usePermissionContext();
 
-  useEffect(() => {
-    if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) return;
-    if (!isInitialized || loading) return;
-    if (isSystemAdmin) return;
-
-    // Check blocked menus first
-    const isBlocked = blockedMenus.some(blocked => {
-      const menuKey = typeof blocked === 'string' ? blocked : blocked.menu_key;
-      return pathname.includes(menuKey.replace(/\./g, '/'));
-    });
-
-    if (isBlocked) {
-      console.warn('❌ Blocked menu access:', pathname);
-      router.replace('/dashboard/errors/403');
-      return;
-    }
-
-    // Check route access
-    const hasAccess = canAccessRoute(pathname);
-    if (!hasAccess) {
-      console.warn('❌ No route access:', pathname);
-      router.replace('/dashboard/errors/403');
-      return;
-    }
-  }, [pathname, isInitialized, loading, canAccessRoute, isSystemAdmin, blockedMenus, router]);
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="text-sm text-muted-foreground">Checking permissions...</p>
+        </div>
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }

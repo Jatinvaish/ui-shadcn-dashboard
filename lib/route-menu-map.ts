@@ -1,4 +1,4 @@
-// lib/route-menu-map.ts - PRODUCTION READY
+// lib/route-menu-map.ts - PRODUCTION READY WITH FIX
 
 /**
  * Mapping of routes to menu keys for access control
@@ -100,8 +100,9 @@ export function getMenuKeyFromRoute(pathname: string): string | null {
   // Remove trailing slash
   const cleanPath = pathname.replace(/\/$/, '');
   
-  // Check for exact match
+  // Check for exact match first
   if (ROUTE_MENU_MAP[cleanPath]) {
+    console.log('🔍 Exact match:', cleanPath, '->', ROUTE_MENU_MAP[cleanPath]);
     return ROUTE_MENU_MAP[cleanPath];
   }
 
@@ -111,7 +112,8 @@ export function getMenuKeyFromRoute(pathname: string): string | null {
     .sort(([a], [b]) => b.length - a.length);
 
   for (const [route, menuKey] of sortedRoutes) {
-    if (cleanPath.startsWith(route + '/')) {
+    if (cleanPath.startsWith(route + '/') || cleanPath === route) {
+      console.log('🔍 Prefix match:', cleanPath, '->', menuKey, 'via', route);
       return menuKey;
     }
   }
@@ -120,9 +122,12 @@ export function getMenuKeyFromRoute(pathname: string): string | null {
   const pathParts = cleanPath.split('/').filter(Boolean);
   if (pathParts.length > 1 && pathParts[0] === 'dashboard') {
     // Convert /dashboard/access-control/roles to access-control.roles
-    return pathParts.slice(1).join('.');
+    const derivedKey = pathParts.slice(1).join('.');
+    console.log('🔍 Derived key:', cleanPath, '->', derivedKey);
+    return derivedKey;
   }
 
+  console.warn('⚠️ No menu key found for:', cleanPath);
   return null;
 }
 
@@ -136,14 +141,15 @@ export function getParentMenuKey(menuKey: string): string | null {
 }
 
 /**
- * Get all parent menu keys
- * e.g., 'access-control.roles.edit' -> ['access-control', 'access-control.roles']
+ * Get all parent menu keys (from immediate parent to root)
+ * e.g., 'access-control.roles.edit' -> ['access-control.roles', 'access-control']
  */
 export function getAllParentMenuKeys(menuKey: string): string[] {
   const parts = menuKey.split('.');
   const parents: string[] = [];
   
-  for (let i = 1; i < parts.length; i++) {
+  // Start from length-1 to get immediate parent first
+  for (let i = parts.length - 1; i > 0; i--) {
     parents.push(parts.slice(0, i).join('.'));
   }
   
