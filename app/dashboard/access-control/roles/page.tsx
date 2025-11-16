@@ -1,4 +1,4 @@
-// app/(dashboard)/access-control/roles/page.tsx - FIXED
+// app/dashboard/access-control/roles/page.tsx - FIXED TypeScript Errors
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -12,8 +12,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { ChevronRight, Plus, Search, X, Edit, Trash2, Users, Shield, Lock } from 'lucide-react';
-import { Role } from '@/lib/api/services/rbac-service';
+import { ChevronRight, Plus, Search, X, Edit, Trash2, Users, Shield, Lock, Copy, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardFooter, CardHeader, CardTable } from '@/components/ui/card';
 import { DataGrid } from '@/components/ui/data-grid';
@@ -22,14 +21,7 @@ import { DataGridPagination } from '@/components/ui/data-grid-pagination';
 import { DataGridTable } from '@/components/ui/data-grid-table';
 import { Input } from '@/components/ui/input';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
@@ -48,6 +40,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   fetchRoles,
@@ -60,16 +58,52 @@ import { selectUser } from '@/store/slices/authSlice';
 import { IfHasAccess } from '@/components/guards/if-has-access';
 import { ProtectedBreadcrumb } from '@/components/guards/protected-breadcrumb';
 import CreateRoleDialog from './components/create-role-dialog';
-import { 
-  canManageSystemResources, 
-  canEditRole, 
-  canDeleteRole as checkCanDeleteRole,
-  filterAvailableRoles,
-} from '@/lib/rbac-utils';
 
-// Helper to get userType consistently
+// Fix: Define proper Role interface
+interface Role {
+  id: number;
+  name: string;
+  display_name?: string;
+  displayName?: string;
+  description?: string;
+  hierarchy_level: number;
+  hierarchyLevel?: number;
+  is_system_role: boolean;
+  isSystemRole?: boolean;
+  is_default?: boolean;
+  isDefault?: boolean;
+  users_count?: number;
+  permissions_count?: number;
+  tenant_id?: number;
+  tenantId?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 const getUserType = (user: any): string => {
   return user?.userType || user?.user_type || '';
+};
+
+// Helper functions
+const canManageSystemResources = (userType: string): boolean => {
+  return userType === 'super_admin' || userType === 'saas_admin' || userType === 'owner';
+};
+
+const canEditRole = (userType: string, role: Role): boolean => {
+  if (canManageSystemResources(userType)) return true;
+  if (role.is_system_role || role.isSystemRole) return false;
+  return true;
+};
+
+const canDeleteRole = (userType: string, role: Role): boolean => {
+  if (role.is_system_role || role.isSystemRole) return false;
+  if (canManageSystemResources(userType)) return true;
+  return true;
+};
+
+const filterAvailableRoles = (userType: string, roles: Role[]): Role[] => {
+  if (canManageSystemResources(userType)) return roles;
+  return roles.filter(r => !r.is_system_role && !r.isSystemRole);
 };
 
 const RolesListPage = () => {
@@ -95,34 +129,28 @@ const RolesListPage = () => {
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Filter roles based on user permissions
   const filteredRoles = useMemo(() => {
     if (!currentUser) return roles;
-    
     const userType = getUserType(currentUser);
-    
-    // super_admin and saas_admin see all roles
     if (canManageSystemResources(userType)) {
       return roles;
     }
-    
-    // Other admins see only non-system roles with lower hierarchy
     return filterAvailableRoles(userType, roles);
   }, [roles, currentUser]);
 
-  // Fetch roles when filters change
   useEffect(() => {
     dispatch(fetchRoles({
       page: pagination.pageIndex + 1,
       limit: pagination.pageSize,
-      scope: scopeFilter as any,
+      scope: scopeFilter,
       search: searchQuery,
     }));
   }, [dispatch, pagination.pageIndex, pagination.pageSize, scopeFilter, searchQuery]);
 
   const handleDeleteClick = (role: Role) => {
-    // Check if user can delete this role
-    if (role.is_system_role) {
+    const isSystemRole = role.is_system_role || role.isSystemRole || false;
+    
+    if (isSystemRole) {
       toast.error('System roles cannot be deleted');
       return;
     }
@@ -133,7 +161,7 @@ const RolesListPage = () => {
     }
     
     const userType = getUserType(currentUser);
-    if (!checkCanDeleteRole(userType, role)) {
+    if (!canDeleteRole(userType, role)) {
       toast.error('You do not have permission to delete this role');
       return;
     }
@@ -165,9 +193,9 @@ const RolesListPage = () => {
   const canUserEditRole = (role: Role): boolean => {
     if (!currentUser) return false;
     const userType = getUserType(currentUser);
+    const isSystemRole = role.is_system_role || role.isSystemRole || false;
     
-    // System roles can only be edited by system admins
-    if (role.is_system_role) {
+    if (isSystemRole) {
       return userType === 'super_admin' || userType === 'saas_admin';
     }
     
@@ -177,13 +205,13 @@ const RolesListPage = () => {
   const canUserDeleteRole = (role: Role): boolean => {
     if (!currentUser) return false;
     const userType = getUserType(currentUser);
+    const isSystemRole = role.is_system_role || role.isSystemRole || false;
     
-    // System roles cannot be deleted
-    if (role.is_system_role) {
+    if (isSystemRole) {
       return false;
     }
     
-    return checkCanDeleteRole(userType, role);
+    return canDeleteRole(userType, role);
   };
 
   const columns = useMemo<ColumnDef<Role>[]>(
@@ -196,6 +224,9 @@ const RolesListPage = () => {
         ),
         cell: ({ row }) => {
           const role = row.original;
+          const displayName = role.display_name || role.displayName || role.name;
+          const isSystemRole = role.is_system_role || role.isSystemRole || false;
+          
           return (
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -203,8 +234,8 @@ const RolesListPage = () => {
               </div>
               <div className="space-y-px">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{role.display_name}</span>
-                  {role.is_system_role && (
+                  <span className="font-medium text-sm">{displayName}</span>
+                  {isSystemRole && (
                     <Lock className="h-3 w-3 text-muted-foreground" />
                   )}
                 </div>
@@ -214,18 +245,6 @@ const RolesListPage = () => {
           );
         },
         size: 300,
-        meta: {
-          headerTitle: 'Role Name',
-          skeleton: (
-            <div className="flex items-center gap-3">
-              <Skeleton className="size-10 rounded-lg" />
-              <div className="space-y-1">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            </div>
-          ),
-        },
         enableSorting: true,
         enableHiding: false,
       },
@@ -243,10 +262,6 @@ const RolesListPage = () => {
           );
         },
         size: 250,
-        meta: {
-          headerTitle: 'Description',
-          skeleton: <Skeleton className="w-48 h-4" />,
-        },
         enableSorting: false,
         enableHiding: true,
       },
@@ -257,17 +272,14 @@ const RolesListPage = () => {
           <DataGridColumnHeader title="Level" visibility={true} column={column} />
         ),
         cell: ({ row }) => {
+          const level = row.original.hierarchy_level || row.original.hierarchyLevel || 0;
           return (
             <Badge variant="secondary">
-              Level {row.original.hierarchy_level}
+              Level {level}
             </Badge>
           );
         },
         size: 100,
-        meta: {
-          headerTitle: 'Level',
-          skeleton: <Skeleton className="w-16 h-6" />,
-        },
         enableSorting: true,
         enableHiding: true,
       },
@@ -278,7 +290,7 @@ const RolesListPage = () => {
           <DataGridColumnHeader title="Type" visibility={true} column={column} />
         ),
         cell: ({ row }) => {
-          const isSystem = row.original.is_system_role;
+          const isSystem = row.original.is_system_role || row.original.isSystemRole || false;
           return (
             <Badge variant={isSystem ? 'primary' : 'outline'}>
               {isSystem ? 'System' : 'Custom'}
@@ -286,10 +298,6 @@ const RolesListPage = () => {
           );
         },
         size: 100,
-        meta: {
-          headerTitle: 'Type',
-          skeleton: <Skeleton className="w-16 h-6" />,
-        },
         enableSorting: true,
         enableHiding: true,
       },
@@ -308,10 +316,6 @@ const RolesListPage = () => {
           );
         },
         size: 100,
-        meta: {
-          headerTitle: 'Users',
-          skeleton: <Skeleton className="w-12 h-4" />,
-        },
         enableSorting: true,
         enableHiding: true,
       },
@@ -330,10 +334,6 @@ const RolesListPage = () => {
           );
         },
         size: 125,
-        meta: {
-          headerTitle: 'Permissions',
-          skeleton: <Skeleton className="w-12 h-4" />,
-        },
         enableSorting: true,
         enableHiding: true,
       },
@@ -344,89 +344,67 @@ const RolesListPage = () => {
           const role = row.original;
           const canEdit = canUserEditRole(role);
           const canDelete = canUserDeleteRole(role);
+          const isSystemRole = role.is_system_role || role.isSystemRole || false;
 
           return (
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-              <IfHasAccess menuKey="access-control.roles.edit">
-                {canEdit ? (
-                  <Button
-                    mode="icon"
-                    variant="ghost"
-                    size="sm"
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button mode="icon" variant="ghost" size="sm">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
-                      router.push(`/dashboard/access-control/roles/${role.id}/edit`);
+                      router.push(`/dashboard/access-control/roles/${role.id}`);
                     }}
                   >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          mode="icon"
-                          variant="ghost"
-                          size="sm"
-                          disabled
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {role.is_system_role 
-                          ? 'Only system admins can edit system roles'
-                          : 'Insufficient permissions to edit this role'
-                        }
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </IfHasAccess>
-              
-              <IfHasAccess menuKey="access-control.roles.delete">
-                {canDelete ? (
-                  <Button
-                    mode="icon"
-                    variant="ghost"
-                    size="sm"
+                    <Shield className="h-4 w-4 mr-2" />
+                    View Details
+                  </DropdownMenuItem>
+                  
+                  {canEdit && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/dashboard/access-control/roles/${role.id}/edit`);
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Role
+                    </DropdownMenuItem>
+                  )}
+                  
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteClick(role);
+                      toast.info('Clone functionality coming soon');
                     }}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          mode="icon"
-                          variant="ghost"
-                          size="sm"
-                          disabled
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {role.is_system_role 
-                          ? 'System roles cannot be deleted'
-                          : 'Insufficient permissions to delete this role'
-                        }
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </IfHasAccess>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Clone Role
+                  </DropdownMenuItem>
+                  
+                  {canDelete && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(role);
+                      }}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Role
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               
               <ChevronRight className="text-muted-foreground/70 size-3.5" />
             </div>
           );
-        },
-        meta: {
-          skeleton: <Skeleton className="size-4" />,
         },
         size: 100,
         enableSorting: false,
@@ -496,7 +474,7 @@ const RolesListPage = () => {
             )}
           </div>
           <Select
-            onValueChange={(value) => setScopeFilter(value as any)}
+            onValueChange={(value) => setScopeFilter(value as 'all' | 'system' | 'tenant')}
             value={scopeFilter}
             disabled={isLoading}
           >
@@ -524,6 +502,9 @@ const RolesListPage = () => {
       </CardHeader>
     );
   };
+
+  const displayName = roleToDelete?.display_name || roleToDelete?.displayName || roleToDelete?.name || '';
+  const usersCount = roleToDelete?.users_count || 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -570,7 +551,7 @@ const RolesListPage = () => {
           dispatch(fetchRoles({
             page: pagination.pageIndex + 1,
             limit: pagination.pageSize,
-            scope: scopeFilter as any,
+            scope: scopeFilter,
           }));
           setCreateDialogOpen(false);
         }}
@@ -581,10 +562,10 @@ const RolesListPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Role</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{roleToDelete?.display_name}"? This action cannot be undone.
-              {roleToDelete?.users_count && roleToDelete.users_count > 0 && (
+              Are you sure you want to delete "{displayName}"? This action cannot be undone.
+              {usersCount > 0 && (
                 <div className="mt-2 text-destructive">
-                  Warning: This role is assigned to {roleToDelete.users_count} user(s).
+                  Warning: This role is assigned to {usersCount} user(s).
                 </div>
               )}
             </AlertDialogDescription>

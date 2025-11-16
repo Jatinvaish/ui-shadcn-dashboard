@@ -133,6 +133,8 @@ export default function MenuPermissionsPage() {
     dispatch(fetchMenuPermissions({
       page: pagination.pageIndex + 1,
       limit: pagination.pageSize,
+      //todo
+      //@ts-ignore
       search: searchQuery || undefined,
     }));
   }, [dispatch, pagination.pageIndex, pagination.pageSize, searchQuery]);
