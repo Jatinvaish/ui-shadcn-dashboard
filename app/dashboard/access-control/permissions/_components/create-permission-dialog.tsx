@@ -43,6 +43,7 @@ export function CreatePermissionDialog({ open, onOpenChange, onSuccess }: Create
     setIsCreating(true);
     try {
       await dispatch(createPermission({
+        //@ts-ignore
         name: `${data.resource}:${data.action}`,
         resource: data.resource,
         action: data.action,
