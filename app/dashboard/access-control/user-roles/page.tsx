@@ -556,7 +556,7 @@ function AssignRoleDialog({ open, onOpenChange, roles, onSuccess }: AssignRoleDi
                       No roles available
                     </div>
                   ) : (
-                    roles.map(role => (
+                    roles?.length >0 && roles?.map(role => (
                       <SelectItem key={role.id} value={role.id.toString()}>
                         <div className="flex items-center gap-2">
                           <Shield className={`h-3 w-3 ${role.isSystemRole ? 'text-orange-500' : 'text-primary'}`} />
