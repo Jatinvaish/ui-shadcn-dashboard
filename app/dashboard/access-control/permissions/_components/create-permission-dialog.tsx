@@ -1,3 +1,4 @@
+// app/dashboard/access-control/permissions/_components/create-permission-dialog.tsx - FIXED
 'use client';
 
 import { useState } from 'react';
@@ -42,9 +43,8 @@ export function CreatePermissionDialog({ open, onOpenChange, onSuccess }: Create
   const onSubmit = async (data: any) => {
     setIsCreating(true);
     try {
+      // ✅ FIX: Remove 'name' field, backend only accepts resource + action
       await dispatch(createPermission({
-        //@ts-ignore
-        name: `${data.resource}:${data.action}`,
         resource: data.resource,
         action: data.action,
         description: data.description,

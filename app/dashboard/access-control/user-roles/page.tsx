@@ -1,28 +1,13 @@
-// app/(dashboard)/access-control/user-roles/page.tsx
+// app/dashboard/access-control/user-roles/page.tsx - COMPLETE WORKING VERSION
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import {
-  ColumnDef,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  PaginationState,
-  SortingState,
-  useReactTable,
-} from '@tanstack/react-table';
-import { Plus, Search, X, Shield, Trash2, ChevronRight, Users, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, X, Trash2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardFooter, CardHeader, CardTable } from '@/components/ui/card';
-import { DataGrid } from '@/components/ui/data-grid';
-import { DataGridColumnHeader } from '@/components/ui/data-grid-column-header';
-import { DataGridPagination } from '@/components/ui/data-grid-pagination';
-import { DataGridTable } from '@/components/ui/data-grid-table';
-import { Input } from '@/components/ui/input';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -32,7 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -50,454 +34,104 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { IfHasAccess } from '@/components/guards/if-has-access';
-import { ProtectedBreadcrumb } from '@/components/guards/protected-breadcrumb';
-import { RbacService, UserRole, Role } from '@/lib/api/services/rbac-service';
-import { useAppSelector } from '@/store/hooks';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { fetchRoles, selectRoles } from '@/store/slices/roles.slice';
 import { selectUser } from '@/store/slices/authSlice';
-import { canManageSystemResources, canManageUserRole, getAssignableRoles } from '@/lib/rbac-utils';
+import { ProtectedBreadcrumb } from '@/components/guards/protected-breadcrumb';
+import { RbacService } from '@/lib/api/services/rbac-service';
 
-interface UserRoleWithDetails extends UserRole {
-  user_email?: string;
-  display_name?: string;
-  hierarchy_level?: number;
-  is_active?: boolean;
-  role_name?: string;
-  is_system_role?: boolean;
+interface UserRoleAssignment {
+  id: number;
+  userId: number;
+  roleId: number;
+  roleName: string;
+  roleDisplayName: string;
+  hierarchyLevel: number;
+  isSystemRole: boolean;
+  assignedAt: string;
 }
 
-export default function UserRolesPage() {
+const UserRolesPage = () => {
+  const dispatch = useAppDispatch();
   const currentUser = useAppSelector(selectUser);
-  const userType = currentUser?.userType || currentUser?.user_type || '';
+  const roles = useAppSelector(selectRoles);
 
-  const [userRoles, setUserRoles] = useState<UserRoleWithDetails[]>([]);
-  const [allRoles, setAllRoles] = useState<Role[]>([]);
+  const [assignments, setAssignments] = useState<UserRoleAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchUserId, setSearchUserId] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<UserRoleWithDetails | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('');
+  const [itemToDelete, setItemToDelete] = useState<UserRoleAssignment | null>(null);
+  const [isAssigning, setIsAssigning] = useState(false);
 
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'assigned_at', desc: true }]);
-  const [searchQuery, setSearchQuery] = useState('');
+  useEffect(() => {
+    dispatch(fetchRoles({ page: 1, limit: 1000 }));
+  }, [dispatch]);
 
-  // Fetch user roles
-  const fetchUserRoles = useCallback(async () => {
+  const handleSearchUser = async () => {
+    if (!searchUserId) {
+      toast.error('Please enter a user ID');
+      return;
+    }
+
+    const userId = Number(searchUserId);
+    if (isNaN(userId)) {
+      toast.error('Invalid user ID');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Mock API call - replace with actual implementation when backend provides user roles list
-      // const response = await RbacService.listUserRoles({ page: pagination.pageIndex + 1, limit: pagination.pageSize, search: searchQuery });
-      // setUserRoles(response.data);
-      setUserRoles([]);
+      const response = await RbacService.getUserRoles(userId);
+      
+      if (response.success && response.data) {
+        const mappedAssignments: UserRoleAssignment[] = response.data.map((ur: any) => ({
+          id: ur.id,
+          userId: ur.user_id || ur.userId,
+          roleId: ur.role_id || ur.roleId,
+          roleName: ur.role?.name || ur.role_name || 'Unknown',
+          roleDisplayName: ur.role?.display_name || ur.role_display_name || ur.role?.name || 'Unknown',
+          hierarchyLevel: ur.role?.hierarchy_level || ur.hierarchy_level || 0,
+          isSystemRole: ur.role?.is_system_role || ur.is_system_role || false,
+          assignedAt: ur.assigned_at || ur.assignedAt || new Date().toISOString(),
+        }));
+        
+        setAssignments(mappedAssignments);
+        setCurrentUserId(userId);
+        toast.success(`Found ${mappedAssignments.length} role assignments`);
+      } else {
+        setAssignments([]);
+        setCurrentUserId(userId);
+        toast.info('No roles assigned to this user');
+      }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to fetch user roles');
+      setAssignments([]);
+      setCurrentUserId(null);
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.pageIndex, pagination.pageSize, searchQuery]);
-
-  // Fetch all roles for assignment
-  const fetchRoles = useCallback(async () => {
-    try {
-      const response:any = await RbacService.listRoles({ page: 1, limit: 1000 });
-      const assignableRoles:any = getAssignableRoles(userType, response.data);
-      setAllRoles(assignableRoles);
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to fetch roles');
-    }
-  }, [userType]);
-
-  useEffect(() => {
-    fetchUserRoles();
-  }, [fetchUserRoles]);
-
-  useEffect(() => {
-    fetchRoles();
-  }, [fetchRoles]);
-
-  // Check if user can remove role assignment
-  const canUserRemoveRole = useCallback((userRole: UserRoleWithDetails): boolean => {
-    if (!currentUser || !userRole.role) return false;
-    
-    if (canManageSystemResources(userType)) return true;
-    
-    if (userRole.role.isSystemRole) return false;
-    
-    return canManageUserRole(userType, userRole.role);
-  }, [currentUser, userType]);
-
-  const handleRemoveClick = (userRole: UserRoleWithDetails) => {
-    if (!canUserRemoveRole(userRole)) {
-      toast.error(userRole.role?.isSystemRole 
-        ? 'Only system admins can remove system roles'
-        : 'You cannot manage this role assignment'
-      );
-      return;
-    }
-    setItemToDelete(userRole);
-    setDeleteDialogOpen(true);
   };
 
-  const handleRemoveConfirm = async () => {
-    if (!itemToDelete) return;
-
-    try {
-      await RbacService.removeRoleFromUser(itemToDelete.userId, itemToDelete.roleId);
-      toast.success('Role removed from user');
-      setDeleteDialogOpen(false);
-      setItemToDelete(null);
-      fetchUserRoles();
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to remove role');
-    }
-  };
-
-  const columns = useMemo<ColumnDef<UserRoleWithDetails>[]>(
-    () => [
-      {
-        accessorKey: 'display_name',
-        id: 'display_name',
-        header: ({ column }) => (
-          <DataGridColumnHeader title="User" visibility={true} column={column} />
-        ),
-        cell: ({ row }) => {
-          const initials = row.original.display_name
-            ?.split(' ')
-            .map(n => n[0])
-            .join('')
-            .toUpperCase() || 'U';
-          
-          return (
-            <div className="flex items-center gap-3">
-              <Avatar className="size-8">
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="font-medium text-sm">{row.original.display_name || 'Unknown User'}</div>
-                <div className="text-xs text-muted-foreground">
-                  {row.original.user_email || `ID: ${row.original.userId}`}
-                </div>
-              </div>
-            </div>
-          );
-        },
-        size: 250,
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'role_name',
-        id: 'role_name',
-        header: ({ column }) => (
-          <DataGridColumnHeader title="Role" visibility={true} column={column} />
-        ),
-        cell: ({ row }) => {
-          const isSystemRole = row.original.is_system_role;
-          return (
-            <div className="flex items-center gap-2">
-              <Shield className={`h-4 w-4 ${isSystemRole ? 'text-orange-500' : 'text-primary'}`} />
-              <span className="font-medium">{row.original.role_name || row.original.role?.displayName || 'Unknown Role'}</span>
-              {isSystemRole && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Badge variant="outline" className="text-xs">System</Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>System Role</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-          );
-        },
-        size: 200,
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'hierarchy_level',
-        id: 'hierarchy_level',
-        header: ({ column }) => (
-          <DataGridColumnHeader title="Level" visibility={true} column={column} />
-        ),
-        cell: ({ row }) => (
-          <Badge variant="secondary">
-            Level {row.original.hierarchy_level || row.original.role?.hierarchyLevel || 0}
-          </Badge>
-        ),
-        size: 100,
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'is_active',
-        id: 'is_active',
-        header: ({ column }) => (
-          <DataGridColumnHeader title="Status" visibility={true} column={column} />
-        ),
-        cell: ({ row }) => {
-          const isActive = row.original.is_active ?? true;
-          return (
-            <Badge variant={isActive ? 'default' : 'destructive'}>
-              {isActive ? 'Active' : 'Inactive'}
-            </Badge>
-          );
-        },
-        size: 100,
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'assignedAt',
-        id: 'assignedAt',
-        header: ({ column }) => (
-          <DataGridColumnHeader title="Assigned At" visibility={true} column={column} />
-        ),
-        cell: ({ row }) => {
-          const date = row.original.assignedAt ? new Date(row.original.assignedAt) : null;
-          return (
-            <div className="text-sm text-muted-foreground">
-              {date ? date.toLocaleDateString() : 'N/A'}
-            </div>
-          );
-        },
-        size: 150,
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'actions',
-        header: '',
-        cell: ({ row }) => {
-          const canRemove = canUserRemoveRole(row.original);
-          return (
-            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-              <IfHasAccess menuKey="access-control.user-roles">
-                {canRemove ? (
-                  <Button 
-                    mode="icon" 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => handleRemoveClick(row.original)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button mode="icon" variant="ghost" size="sm" disabled>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {row.original.is_system_role 
-                          ? 'System roles can only be removed by admins'
-                          : 'You cannot manage this role assignment'
-                        }
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </IfHasAccess>
-              <ChevronRight className="text-muted-foreground/70 size-3.5" />
-            </div>
-          );
-        },
-        size: 80,
-        enableSorting: false,
-      },
-    ],
-    [canUserRemoveRole]
-  );
-
-  const table = useReactTable({
-    columns,
-    data: userRoles,
-    state: { pagination, sorting },
-    onPaginationChange: setPagination,
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    manualPagination: true,
-  });
-
-  return (
-    <div className="flex flex-col gap-6">
-      <ProtectedBreadcrumb
-        items={[
-          { label: 'Access Control', menuKey: 'access-control', href: '/dashboard/access-control' },
-          {
-            label: 'User Roles',
-            menuKey: 'access-control.user-roles',
-            href: '/dashboard/access-control/user-roles',
-            isCurrent: true,
-          },
-        ]}
-      />
-
-      <DataGrid
-        table={table}
-        recordCount={userRoles.length}
-        isLoading={isLoading}
-        tableLayout={{
-          columnsResizable: true,
-          columnsMovable: true,
-          columnsVisibility: true,
-        }}
-      >
-        <Card>
-          <CardHeader className="py-5">
-            <div className="flex justify-between items-center gap-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="size-4 text-muted-foreground absolute start-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  placeholder="Search users or roles"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  disabled={isLoading}
-                  className="ps-9"
-                />
-                {searchQuery && (
-                  <Button
-                    mode="icon"
-                    variant="dim"
-                    className="absolute end-1.5 top-1/2 -translate-y-1/2 h-6 w-6"
-                    onClick={() => setSearchQuery('')}
-                  >
-                    <X />
-                  </Button>
-                )}
-              </div>
-              <IfHasAccess menuKey="access-control.user-roles">
-                <Button disabled={isLoading} onClick={() => setAssignDialogOpen(true)}>
-                  <Plus />
-                  Assign Role
-                </Button>
-              </IfHasAccess>
-            </div>
-          </CardHeader>
-          <CardTable>
-            <ScrollArea>
-              <DataGridTable />
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          </CardTable>
-          <CardFooter>
-            <DataGridPagination />
-          </CardFooter>
-        </Card>
-      </DataGrid>
-
-      <AssignRoleDialog
-        open={assignDialogOpen}
-        onOpenChange={setAssignDialogOpen}
-        roles={allRoles}
-        onSuccess={() => {
-          fetchUserRoles();
-          setAssignDialogOpen(false);
-        }}
-      />
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Role Assignment</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to remove the role "{itemToDelete?.role_name}" from user "{itemToDelete?.display_name}"?
-              This will revoke all permissions associated with this role.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRemoveConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
-interface AssignRoleDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  roles: Role[];
-  onSuccess: () => void;
-}
-
-function AssignRoleDialog({ open, onOpenChange, roles, onSuccess }: AssignRoleDialogProps) {
-  const currentUser = useAppSelector(selectUser);
-  const userType = currentUser?.userType || currentUser?.user_type || '';
-
-  const [userId, setUserId] = useState('');
-  const [roleId, setRoleId] = useState('');
-  const [isAssigning, setIsAssigning] = useState(false);
-  const [validationError, setValidationError] = useState('');
-
-  useEffect(() => {
-    if (!open) {
-      setUserId('');
-      setRoleId('');
-      setValidationError('');
-    }
-  }, [open]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidationError('');
-
-    if (!userId || !roleId) {
-      toast.error('Please fill all required fields');
-      return;
-    }
-
-    const userIdNum = Number(userId);
-    const roleIdNum = Number(roleId);
-
-    if (isNaN(userIdNum) || isNaN(roleIdNum)) {
-      toast.error('Invalid user ID or role ID');
-      return;
-    }
-
-    // Validate assignment
-    try {
-      const validation = await RbacService.validateRoleAssignment({
-        userId: userIdNum,
-        roleId: roleIdNum,
-      });
-
-      if (!validation.valid) {
-        setValidationError(validation.reason || 'Invalid role assignment');
-        return;
-      }
-    } catch (error: any) {
-      console.error('Validation error:', error);
-    }
-
-    const selectedRole = roles.find(r => r.id === roleIdNum);
-    if (selectedRole && selectedRole.isSystemRole && !canManageSystemResources(userType)) {
-      toast.error('Only system admins can assign system roles');
+  const handleAssignRole = async () => {
+    if (!currentUserId || !selectedRoleId) {
+      toast.error('Please select a role');
       return;
     }
 
     setIsAssigning(true);
     try {
       await RbacService.assignRoleToUser({
-        userId: userIdNum,
-        roleId: roleIdNum,
+        userId: currentUserId,
+        roleId: Number(selectedRoleId),
       });
+
       toast.success('Role assigned successfully');
-      onSuccess();
+      setAssignDialogOpen(false);
+      setSelectedRoleId('');
+      handleSearchUser();
     } catch (error: any) {
       toast.error(error?.message || 'Failed to assign role');
     } finally {
@@ -505,95 +139,198 @@ function AssignRoleDialog({ open, onOpenChange, roles, onSuccess }: AssignRoleDi
     }
   };
 
+  const handleDeleteClick = (assignment: UserRoleAssignment) => {
+    setItemToDelete(assignment);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      await RbacService.removeRoleFromUser(itemToDelete.userId, itemToDelete.roleId);
+      toast.success('Role removed successfully');
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+      handleSearchUser();
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to remove role');
+    }
+  };
+
+  const availableRoles = roles.filter(
+    role => !assignments.some(a => a.roleId === role.id)
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Assign Role to User</DialogTitle>
-            <DialogDescription>
-              Assign a role to a user to grant them specific permissions.
-              {!canManageSystemResources(userType) && (
-                <span className="block mt-2 text-xs text-yellow-600 dark:text-yellow-500">
-                  ⚠️ You can only assign roles you have permission to manage.
-                </span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
+    <div className="flex flex-col gap-6">
+      <ProtectedBreadcrumb
+        items={[
+          { label: 'Access Control', menuKey: 'access-control', href: '/dashboard/access-control' },
+          { label: 'User Roles', menuKey: 'access-control.user-roles', href: '/dashboard/access-control/user-roles', isCurrent: true },
+        ]}
+      />
 
-          <div className="space-y-4 py-4">
-            {validationError && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-                <AlertCircle className="h-4 w-4" />
-                <span>{validationError}</span>
-              </div>
-            )}
+      <div>
+        <h1 className="text-2xl font-bold">User Roles</h1>
+        <p className="text-muted-foreground mt-1">Assign and manage roles for users</p>
+      </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="userId">User ID *</Label>
+      {/* Search User */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Search User</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <Label>User ID</Label>
               <Input
-                id="userId"
                 type="number"
                 placeholder="Enter user ID"
-                value={userId}
-                onChange={e => setUserId(e.target.value)}
-                disabled={isAssigning}
+                value={searchUserId}
+                onChange={(e) => setSearchUserId(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearchUser()}
               />
-              <p className="text-xs text-muted-foreground">
-                Enter the numeric ID of the user
-              </p>
             </div>
+            <Button onClick={handleSearchUser} disabled={isLoading} className="mt-6">
+              <Search className="h-4 w-4" />
+              Search
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Results */}
+      {currentUserId && (
+        <>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Role Assignments</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">User ID: {currentUserId}</p>
+              </div>
+              <Button onClick={() => setAssignDialogOpen(true)} disabled={availableRoles.length === 0}>
+                <Plus className="h-4 w-4" />
+                Assign Role
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {assignments.length > 0 ? (
+                <div className="space-y-3">
+                  {assignments.map((assignment) => (
+                    <div
+                      key={assignment.id}
+                      className="flex items-center justify-between p-4 rounded-lg border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                          <UserPlus className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <div className="font-medium">{assignment.roleDisplayName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Assigned {new Date(assignment.assignedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">Level {assignment.hierarchyLevel}</Badge>
+                        {assignment.isSystemRole && (
+                          <Badge variant="outline">System</Badge>
+                        )}
+                        <Button
+                          mode="icon"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteClick(assignment)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <UserPlus className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No roles assigned to this user</p>
+                  <Button onClick={() => setAssignDialogOpen(true)} className="mt-4">
+                    Assign First Role
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {!currentUserId && !isLoading && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="font-semibold mb-2">No User Selected</h3>
+            <p className="text-sm text-muted-foreground">Enter a user ID to view and manage their roles</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Assign Role Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Role</DialogTitle>
+            <DialogDescription>
+              Select a role to assign to user {currentUserId}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="role">Role *</Label>
-              <Select value={roleId} onValueChange={setRoleId} disabled={isAssigning}>
+              <Label>Role</Label>
+              <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      No roles available
-                    </div>
-                  ) : (
-                    roles?.length >0 && roles?.map(role => (
-                      <SelectItem key={role.id} value={role.id.toString()}>
-                        <div className="flex items-center gap-2">
-                          <Shield className={`h-3 w-3 ${role.isSystemRole ? 'text-orange-500' : 'text-primary'}`} />
-                          <span>{role.displayName || role.name}</span>
-                          {role.isSystemRole && (
-                            <Badge variant="outline" className="text-xs ml-1">System</Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
+                  {availableRoles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.display_name || role.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                {canManageSystemResources(userType) 
-                  ? '✅ All roles available (System Admin)'
-                  : `📋 ${roles.length} roles available based on your permissions`
-                }
-              </p>
             </div>
           </div>
-
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isAssigning}
-            >
+            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isAssigning || !userId || !roleId}>
-              {isAssigning ? 'Assigning...' : 'Assign Role'}
+            <Button onClick={handleAssignRole} disabled={isAssigning || !selectedRoleId}>
+              {isAssigning ? 'Assigning...' : 'Assign'}
             </Button>
           </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Role</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove role "{itemToDelete?.roleDisplayName}" from this user?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive">
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
-}
+};
+
+export default UserRolesPage;
