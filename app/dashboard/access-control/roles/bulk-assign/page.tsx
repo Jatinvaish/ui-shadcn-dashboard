@@ -350,7 +350,7 @@ const BulkRoleAssignmentPage = () => {
                         <div className="text-xs text-red-600 mt-1">{result.error}</div>
                       )}
                     </div>
-                    <Badge variant={result.status === 'success' ? 'default' : 'destructive'}>
+                    <Badge variant={result.status === 'success' ? 'primary' : 'destructive'}>
                       {result.status}
                     </Badge>
                   </div>

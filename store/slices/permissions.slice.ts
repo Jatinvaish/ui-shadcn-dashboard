@@ -30,15 +30,17 @@ const initialState: PermissionsState = {
   },
 };
 
+// Update fetchPermissions thunk to match backend DTO
 export const fetchPermissions = createAsyncThunk(
   'permissions/fetchPermissions',
-  async (filters: ListParams, { rejectWithValue }) => {
-    try {
-      const response = await RbacService.listPermissions(filters);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch permissions');
-    }
+  async (params: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    scope?: 'all' | 'system' | 'custom'; // ← ADD THIS
+  }) => {
+    const response = await RbacService.listPermissions(params);
+    return response.data;
   }
 );
 

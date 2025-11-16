@@ -72,14 +72,13 @@ export default function PermissionsPage() {
   const [permissionToDelete, setPermissionToDelete] = useState<Permission | null>(null);
 
   useEffect(() => {
-    dispatch(
-      fetchPermissions({
-        page: pagination.pageIndex + 1,
-        limit: pagination.pageSize,
-        search: searchQuery,
-        category: categoryFilter === 'all' ? undefined : categoryFilter,
-      })
-    );
+    dispatch(fetchPermissions({
+      page: pagination.pageIndex + 1,
+      limit: pagination.pageSize,
+      scope: 'all', // ← ADD THIS
+      category: categoryFilter === 'all' ? undefined : categoryFilter,
+      // NO search parameter
+    }));
   }, [dispatch, pagination.pageIndex, pagination.pageSize, searchQuery, categoryFilter]);
 
   const handleDeleteClick = (permission: Permission) => {

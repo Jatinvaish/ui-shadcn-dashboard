@@ -1,3 +1,329 @@
+// // app/dashboard/access-control/menu-permissions/page.tsx - COMPLETE WORKING
+// 'use client';
+
+// import { useState, useEffect } from 'react';
+// import { Plus, Search, X, Trash2, Menu } from 'lucide-react';
+// import { Button } from '@/components/ui/button';
+// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// import { Badge } from '@/components/ui/badge';
+// import { Input } from '@/components/ui/input';
+// import { Label } from '@/components/ui/label';
+// import { toast } from 'sonner';
+// import {
+//   Dialog,
+//   DialogContent,
+//   DialogDescription,
+//   DialogFooter,
+//   DialogHeader,
+//   DialogTitle,
+// } from '@/components/ui/dialog';
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from '@/components/ui/select';
+// import {
+//   AlertDialog,
+//   AlertDialogAction,
+//   AlertDialogCancel,
+//   AlertDialogContent,
+//   AlertDialogDescription,
+//   AlertDialogFooter,
+//   AlertDialogHeader,
+//   AlertDialogTitle,
+// } from '@/components/ui/alert-dialog';
+// import { Switch } from '@/components/ui/switch';
+// import { useAppDispatch, useAppSelector } from '@/store/hooks';
+// import {
+//   fetchMenuPermissions,
+//   fetchAllPermissions,
+//   linkMenuPermission,
+//   unlinkMenuPermission,
+//   selectMenuPermissions,
+//   selectAllPermissions,
+//   selectMenuPermissionsLoading,
+// } from '@/store/slices/menu-permissions.slice';
+// import { ProtectedBreadcrumb } from '@/components/guards/protected-breadcrumb';
+
+// const MENU_KEYS = [
+//   'dashboard',
+//   'access-control',
+//   'access-control.roles',
+//   'access-control.permissions',
+//   'access-control.role-permissions',
+//   'access-control.user-roles',
+//   'access-control.menu-permissions',
+// ];
+
+// const MenuPermissionsPage = () => {
+//   const dispatch = useAppDispatch();
+  
+//   const menuPermissions = useAppSelector(selectMenuPermissions);
+//   const allPermissions = useAppSelector(selectAllPermissions);
+//   const isLoading = useAppSelector(selectMenuPermissionsLoading);
+
+//   const [searchQuery, setSearchQuery] = useState('');
+//   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+//   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+//   const [selectedMenuKey, setSelectedMenuKey] = useState('');
+//   const [selectedPermissionId, setSelectedPermissionId] = useState('');
+//   const [isRequired, setIsRequired] = useState(true);
+//   const [itemToDelete, setItemToDelete] = useState<any>(null);
+//   const [isLinking, setIsLinking] = useState(false);
+
+//   useEffect(() => {
+//     dispatch(fetchMenuPermissions({ page: 1, limit: 1000 }));
+//     dispatch(fetchAllPermissions());
+//   }, [dispatch]);
+
+//   const filteredPermissions = searchQuery
+//     ? menuPermissions.filter(mp =>
+//         mp.menu_key.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//         mp.permission_key.toLowerCase().includes(searchQuery.toLowerCase())
+//       )
+//     : menuPermissions;
+
+//   const handleLinkSubmit = async () => {
+//     if (!selectedMenuKey || !selectedPermissionId) {
+//       toast.error('Please select both menu and permission');
+//       return;
+//     }
+
+//     setIsLinking(true);
+//     try {
+//       await dispatch(linkMenuPermission({
+//         menuKey: selectedMenuKey,
+//         permissionId: Number(selectedPermissionId),
+//         isRequired,
+//       })).unwrap();
+
+//       toast.success('Menu permission linked successfully');
+//       setLinkDialogOpen(false);
+//       setSelectedMenuKey('');
+//       setSelectedPermissionId('');
+//       setIsRequired(true);
+//       dispatch(fetchMenuPermissions({ page: 1, limit: 1000 }));
+//     } catch (error: any) {
+//       toast.error(error?.message || 'Failed to link permission');
+//     } finally {
+//       setIsLinking(false);
+//     }
+//   };
+
+//   const handleDeleteClick = (item: any) => {
+//     setItemToDelete(item);
+//     setDeleteDialogOpen(true);
+//   };
+
+//   const handleDeleteConfirm = async () => {
+//     if (!itemToDelete) return;
+
+//     try {
+//       await dispatch(unlinkMenuPermission({
+//         menuKey: itemToDelete.menu_key,
+//         permissionId: itemToDelete.permission_id,
+//       })).unwrap();
+
+//       toast.success('Menu permission unlinked successfully');
+//       setDeleteDialogOpen(false);
+//       setItemToDelete(null);
+//       dispatch(fetchMenuPermissions({ page: 1, limit: 1000 }));
+//     } catch (error: any) {
+//       toast.error(error?.message || 'Failed to unlink permission');
+//     }
+//   };
+
+//   const formatMenuKey = (key: string) => {
+//     return key.split('.').map(part => 
+//       part.charAt(0).toUpperCase() + part.slice(1)
+//     ).join(' > ');
+//   };
+
+//   return (
+//     <div className="flex flex-col gap-6">
+//       <ProtectedBreadcrumb
+//         items={[
+//           { label: 'Access Control', menuKey: 'access-control', href: '/dashboard/access-control' },
+//           { label: 'Menu Permissions', menuKey: 'access-control.menu-permissions', href: '/dashboard/access-control/menu-permissions', isCurrent: true },
+//         ]}
+//       />
+
+//       <div>
+//         <h1 className="text-2xl font-bold">Menu Permissions</h1>
+//         <p className="text-muted-foreground mt-1">Link permissions to menu items for access control</p>
+//       </div>
+
+//       {/* Search and Actions */}
+//       <Card>
+//         <CardHeader className="flex flex-row items-center justify-between">
+//           <div className="relative flex-1 max-w-sm">
+//             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+//             <Input
+//               placeholder="Search menu permissions..."
+//               value={searchQuery}
+//               onChange={(e) => setSearchQuery(e.target.value)}
+//               className="pl-9"
+//             />
+//           </div>
+//           <Button onClick={() => setLinkDialogOpen(true)}>
+//             <Plus className="h-4 w-4" />
+//             Link Permission
+//           </Button>
+//         </CardHeader>
+//       </Card>
+
+//       {/* Menu Permissions List */}
+//       <Card>
+//         <CardHeader>
+//           <CardTitle>Menu Permissions ({filteredPermissions.length})</CardTitle>
+//         </CardHeader>
+//         <CardContent>
+//           {filteredPermissions.length > 0 ? (
+//             <div className="space-y-3">
+//               {filteredPermissions.map((item) => (
+//                 <div
+//                   key={item.id}
+//                   className="flex items-center justify-between p-4 rounded-lg border"
+//                 >
+//                   <div className="flex items-center gap-3 flex-1">
+//                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+//                       <Menu className="h-5 w-5 text-primary" />
+//                     </div>
+//                     <div className="flex-1">
+//                       <div className="font-medium text-sm">{formatMenuKey(item.menu_key)}</div>
+//                       <div className="text-xs text-muted-foreground mt-1">
+//                         {item.menu_key}
+//                       </div>
+//                     </div>
+//                     <div className="flex items-center gap-2">
+//                       <Badge variant="outline">{item.permission_key}</Badge>
+//                       <Badge variant={item.is_required ? 'primary' : 'secondary'}>
+//                         {item.is_required ? 'Required' : 'Optional'}
+//                       </Badge>
+//                       {item.is_system_permission && (
+//                         <Badge variant="outline">System</Badge>
+//                       )}
+//                     </div>
+//                   </div>
+//                   <Button
+//                     mode="icon"
+//                     variant="ghost"
+//                     size="sm"
+//                     onClick={() => handleDeleteClick(item)}
+//                   >
+//                     <Trash2 className="h-4 w-4" />
+//                   </Button>
+//                 </div>
+//               ))}
+//             </div>
+//           ) : (
+//             <div className="text-center py-12 text-muted-foreground">
+//               <Menu className="h-12 w-12 mx-auto mb-4 opacity-50" />
+//               <p>No menu permissions found</p>
+//               {searchQuery && (
+//                 <Button variant="outline" onClick={() => setSearchQuery('')} className="mt-4">
+//                   Clear Search
+//                 </Button>
+//               )}
+//             </div>
+//           )}
+//         </CardContent>
+//       </Card>
+
+//       {/* Link Dialog */}
+//       <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+//         <DialogContent>
+//           <DialogHeader>
+//             <DialogTitle>Link Menu Permission</DialogTitle>
+//             <DialogDescription>
+//               Associate a permission with a menu item
+//             </DialogDescription>
+//           </DialogHeader>
+//           <div className="space-y-4 py-4">
+//             <div className="space-y-2">
+//               <Label>Menu Key *</Label>
+//               <Select value={selectedMenuKey} onValueChange={setSelectedMenuKey}>
+//                 <SelectTrigger>
+//                   <SelectValue placeholder="Select menu" />
+//                 </SelectTrigger>
+//                 <SelectContent>
+//                   {MENU_KEYS.map((key) => (
+//                     <SelectItem key={key} value={key}>
+//                       {formatMenuKey(key)}
+//                     </SelectItem>
+//                   ))}
+//                 </SelectContent>
+//               </Select>
+//             </div>
+
+//             <div className="space-y-2">
+//               <Label>Permission *</Label>
+//               <Select value={selectedPermissionId} onValueChange={setSelectedPermissionId}>
+//                 <SelectTrigger>
+//                   <SelectValue placeholder="Select permission" />
+//                 </SelectTrigger>
+//                 <SelectContent>
+//                   {allPermissions.map((perm) => (
+//                     <SelectItem key={perm.id} value={perm.id.toString()}>
+//                       {perm.permission_key}
+//                     </SelectItem>
+//                   ))}
+//                 </SelectContent>
+//               </Select>
+//             </div>
+
+//             <div className="flex items-center justify-between pt-2">
+//               <div>
+//                 <Label>Required</Label>
+//                 <p className="text-xs text-muted-foreground">
+//                   User must have this permission to access the menu
+//                 </p>
+//               </div>
+//               <Switch checked={isRequired} onCheckedChange={setIsRequired} />
+//             </div>
+//           </div>
+//           <DialogFooter>
+//             <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>
+//               Cancel
+//             </Button>
+//             <Button 
+//               onClick={handleLinkSubmit} 
+//               disabled={isLinking || !selectedMenuKey || !selectedPermissionId}
+//             >
+//               {isLinking ? 'Linking...' : 'Link Permission'}
+//             </Button>
+//           </DialogFooter>
+//         </DialogContent>
+//       </Dialog>
+
+//       {/* Delete Confirmation */}
+//       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+//         <AlertDialogContent>
+//           <AlertDialogHeader>
+//             <AlertDialogTitle>Unlink Menu Permission</AlertDialogTitle>
+//             <AlertDialogDescription>
+//               Remove permission "{itemToDelete?.permission_key}" from menu "{itemToDelete?.menu_key}"?
+//             </AlertDialogDescription>
+//           </AlertDialogHeader>
+//           <AlertDialogFooter>
+//             <AlertDialogCancel>Cancel</AlertDialogCancel>
+//             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive">
+//               Unlink
+//             </AlertDialogAction>
+//           </AlertDialogFooter>
+//         </AlertDialogContent>
+//       </AlertDialog>
+//     </div>
+//   );
+// };
+
+// export default MenuPermissionsPage;
+
+
+
+
 // app/(dashboard)/access-control/menu-permissions/page.tsx
 'use client';
 
