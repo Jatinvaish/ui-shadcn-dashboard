@@ -359,10 +359,10 @@ export interface UserAccessReport {
 
 export class RbacService {
   // ==================== ROLES ====================
-  
-  static async listRoles(payload: ListParams = {}): Promise<{ 
-    data: { 
-      rolesList: Role[]; 
+
+  static async listRoles(payload: ListParams = {}): Promise<{
+    data: {
+      rolesList: Role[];
       meta: {
         currentPage: number;
         itemsPerPage: number;
@@ -371,7 +371,7 @@ export class RbacService {
         hasNextPage: boolean;
         hasPreviousPage: boolean;
       }
-    } 
+    }
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ROLES.LIST, payload);
   }
@@ -394,7 +394,7 @@ export class RbacService {
 
   // ==================== PERMISSIONS ====================
 
-  static async listPermissions(payload: ListParams = {}): Promise<{ 
+  static async listPermissions(payload: ListParams = {}): Promise<{
     data: {
       permissionsList: Permission[];
       meta: {
@@ -423,10 +423,35 @@ export class RbacService {
   }
 
   static async getAllPermissions(): Promise<{ data: { permissionsList: Permission[] } }> {
-    return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.LIST, {
-      page: 1,
-      limit: 1000,
-    });
+    const allPermissions: Permission[] = [];
+    let currentPage = 1;
+    let hasMore = true;
+    const limit = 100; // ✅ Respect backend's max limit
+
+    while (hasMore) {
+      const response = await encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.LIST, {
+        page: currentPage,
+        limit,
+      });
+
+      const { permissionsList, meta } = response.data;
+      allPermissions.push(...permissionsList);
+
+      hasMore = meta.hasNextPage;
+      currentPage++;
+
+      // Safety check to prevent infinite loops
+      if (currentPage > 100) {
+        console.warn('getAllPermissions: Reached maximum page limit (100)');
+        break;
+      }
+    }
+
+    return {
+      data: {
+        permissionsList: allPermissions,
+      },
+    };
   }
 
   // ==================== ROLE-PERMISSIONS ====================
@@ -435,14 +460,14 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ROLE_PERMISSIONS.TREE, { roleId });
   }
 
-  static async assignPermissionsToRole(payload: AssignPermissionsPayload): Promise<{ 
+  static async assignPermissionsToRole(payload: AssignPermissionsPayload): Promise<{
     success: boolean;
     data: { assigned_permissions: number };
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ROLE_PERMISSIONS.ASSIGN, payload);
   }
 
-  static async bulkAssignRolePermissions(roleId: number, changes: Array<{ mode: 'I' | 'D'; permissionId: number }>): Promise<{ 
+  static async bulkAssignRolePermissions(roleId: number, changes: Array<{ mode: 'I' | 'D'; permissionId: number }>): Promise<{
     success: boolean;
     data: {
       assigned_permissions: number;
@@ -466,14 +491,14 @@ export class RbacService {
 
   // ==================== USER-ROLES ====================
 
-  static async assignRoleToUser(payload: AssignRolePayload): Promise<{ 
+  static async assignRoleToUser(payload: AssignRolePayload): Promise<{
     success: boolean;
     data: UserRole;
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.USER_ROLES.ASSIGN, payload);
   }
 
-  static async getUserRoles(userId: number): Promise<{ 
+  static async getUserRoles(userId: number): Promise<{
     success: boolean;
     data: UserRole[];
   }> {
@@ -487,7 +512,7 @@ export class RbacService {
     });
   }
 
-  static async getUserEffectivePermissions(userId: number): Promise<{ 
+  static async getUserEffectivePermissions(userId: number): Promise<{
     success: boolean;
     data: {
       userId: number;
@@ -502,14 +527,14 @@ export class RbacService {
 
   // ==================== MENU PERMISSIONS ====================
 
-  static async linkMenuPermission(payload: LinkMenuPermissionPayload): Promise<{ 
+  static async linkMenuPermission(payload: LinkMenuPermissionPayload): Promise<{
     success: boolean;
     data: MenuPermission;
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.MENU_PERMISSIONS.LINK, payload);
   }
 
-  static async bulkLinkMenuPermissions(payload: BulkLinkMenuPermissionsPayload): Promise<{ 
+  static async bulkLinkMenuPermissions(payload: BulkLinkMenuPermissionsPayload): Promise<{
     success: boolean;
     data: MenuPermission[];
     created: number;
@@ -518,14 +543,14 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.MENU_PERMISSIONS.BULK_LINK, payload);
   }
 
-  static async unlinkMenuPermission(payload: { menuKey: string; permissionId: number }): Promise<{ 
+  static async unlinkMenuPermission(payload: { menuKey: string; permissionId: number }): Promise<{
     success: boolean;
     data: MenuPermission;
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.MENU_PERMISSIONS.UNLINK, payload);
   }
 
-  static async getMenuPermissions(menuKey: string): Promise<{ 
+  static async getMenuPermissions(menuKey: string): Promise<{
     success: boolean;
     data: MenuPermission[];
   }> {
@@ -534,7 +559,7 @@ export class RbacService {
     });
   }
 
-  static async listMenuPermissions(payload: ListMenuPermissionsParams = {}): Promise<{ 
+  static async listMenuPermissions(payload: ListMenuPermissionsParams = {}): Promise<{
     success: boolean;
     data: {
       menuPermissionsList: MenuPermission[];
@@ -551,14 +576,14 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.MENU_PERMISSIONS.LIST, payload);
   }
 
-  static async getMyAccessibleMenus(): Promise<{ 
+  static async getMyAccessibleMenus(): Promise<{
     success: boolean;
     data: UserAccessibleMenusResponse;
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.MENU_PERMISSIONS.MY_ACCESS, {});
   }
 
-  static async getUserAccessibleMenus(userId?: number): Promise<{ 
+  static async getUserAccessibleMenus(userId?: number): Promise<{
     success: boolean;
     data: UserAccessibleMenusResponse;
   }> {
@@ -567,7 +592,7 @@ export class RbacService {
     });
   }
 
-  static async checkMenuAccess(menuKey: string, userId?: number): Promise<{ 
+  static async checkMenuAccess(menuKey: string, userId?: number): Promise<{
     success: boolean;
     data: {
       canAccess: boolean;
@@ -583,7 +608,7 @@ export class RbacService {
 
   // ==================== RESOURCE PERMISSIONS ====================
 
-  static async grantResourcePermission(payload: GrantResourcePermissionDto): Promise<{ 
+  static async grantResourcePermission(payload: GrantResourcePermissionDto): Promise<{
     success: boolean;
     data: ResourcePermission;
   }> {
@@ -594,14 +619,14 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.RESOURCE_PERMISSIONS.REVOKE, payload);
   }
 
-  static async checkResourcePermission(payload: CheckResourcePermissionDto): Promise<{ 
+  static async checkResourcePermission(payload: CheckResourcePermissionDto): Promise<{
     success: boolean;
     data: { hasPermission: boolean };
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.RESOURCE_PERMISSIONS.CHECK, payload);
   }
 
-  static async checkBatchPermissions(checks: CheckResourcePermissionDto[]): Promise<{ 
+  static async checkBatchPermissions(checks: CheckResourcePermissionDto[]): Promise<{
     success: boolean;
     data: Array<{
       resourceType: string;
@@ -615,7 +640,7 @@ export class RbacService {
     });
   }
 
-  static async listResourcePermissions(resourceType: string, resourceId: number): Promise<{ 
+  static async listResourcePermissions(resourceType: string, resourceId: number): Promise<{
     success: boolean;
     data: ResourcePermission[];
   }> {
@@ -627,21 +652,21 @@ export class RbacService {
 
   // ==================== ROLE LIMITS ====================
 
-  static async createRoleLimit(payload: CreateRoleLimitDto): Promise<{ 
+  static async createRoleLimit(payload: CreateRoleLimitDto): Promise<{
     success: boolean;
     data: RoleLimit;
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ROLE_LIMITS.CREATE, payload);
   }
 
-  static async updateRoleLimit(payload: UpdateRoleLimitDto): Promise<{ 
+  static async updateRoleLimit(payload: UpdateRoleLimitDto): Promise<{
     success: boolean;
     data: RoleLimit;
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ROLE_LIMITS.UPDATE, payload);
   }
 
-  static async getRoleLimits(roleId: number): Promise<{ 
+  static async getRoleLimits(roleId: number): Promise<{
     success: boolean;
     data: RoleLimit[];
   }> {
@@ -650,7 +675,7 @@ export class RbacService {
 
   // ==================== ENHANCED OPERATIONS ====================
 
-  static async bulkAssignRolesToUser(payload: BulkAssignRolesPayload): Promise<{ 
+  static async bulkAssignRolesToUser(payload: BulkAssignRolesPayload): Promise<{
     success: boolean;
     data: {
       userId: number;
@@ -668,7 +693,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.BULK_ASSIGN_ROLES, payload);
   }
 
-  static async bulkRemoveRolesFromUser(payload: BulkRemoveRolesPayload): Promise<{ 
+  static async bulkRemoveRolesFromUser(payload: BulkRemoveRolesPayload): Promise<{
     success: boolean;
     data: {
       userId: number;
@@ -686,7 +711,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.BULK_REMOVE_ROLES, payload);
   }
 
-  static async bulkAssignUsersToRole(payload: BulkAssignUsersToRolePayload): Promise<{ 
+  static async bulkAssignUsersToRole(payload: BulkAssignUsersToRolePayload): Promise<{
     success: boolean;
     data: {
       roleId: number;
@@ -706,7 +731,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.BULK_ASSIGN_USERS, payload);
   }
 
-  static async cloneRole(payload: CloneRolePayload): Promise<{ 
+  static async cloneRole(payload: CloneRolePayload): Promise<{
     success: boolean;
     data: {
       newRole: Role;
@@ -722,7 +747,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.CLONE_ROLE, payload);
   }
 
-  static async compareRoles(payload: CompareRolesPayload): Promise<{ 
+  static async compareRoles(payload: CompareRolesPayload): Promise<{
     success: boolean;
     data: {
       role1: {
@@ -755,7 +780,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.COMPARE_ROLES, payload);
   }
 
-  static async searchPermissions(payload: SearchPermissionsPayload): Promise<{ 
+  static async searchPermissions(payload: SearchPermissionsPayload): Promise<{
     success: boolean;
     data: {
       permissions: Permission[];
@@ -772,7 +797,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.SEARCH_PERMISSIONS, payload);
   }
 
-  static async getAvailablePermissionsForRole(payload: GetAvailablePermissionsPayload): Promise<{ 
+  static async getAvailablePermissionsForRole(payload: GetAvailablePermissionsPayload): Promise<{
     success: boolean;
     data: {
       roleId: number;
@@ -784,7 +809,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.AVAILABLE_PERMISSIONS, payload);
   }
 
-  static async getMenuHierarchyWithAccess(payload: GetMenuHierarchyPayload): Promise<{ 
+  static async getMenuHierarchyWithAccess(payload: GetMenuHierarchyPayload): Promise<{
     success: boolean;
     data: {
       userId: number;
@@ -799,7 +824,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.MENU_HIERARCHY, payload);
   }
 
-  static async getBlockedMenus(payload: { userId?: number }): Promise<{ 
+  static async getBlockedMenus(payload: { userId?: number }): Promise<{
     success: boolean;
     data: {
       userId: number;
@@ -816,7 +841,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.BLOCKED_MENUS, payload);
   }
 
-  static async getTenantRoles(payload: GetTenantRolesPayload): Promise<{ 
+  static async getTenantRoles(payload: GetTenantRolesPayload): Promise<{
     success: boolean;
     data: {
       tenantId: number;
@@ -832,7 +857,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.TENANT_ROLES, payload);
   }
 
-  static async validateRoleAssignment(payload: ValidateRoleAssignmentPayload): Promise<{ 
+  static async validateRoleAssignment(payload: ValidateRoleAssignmentPayload): Promise<{
     success: boolean;
     data: {
       canAssign: boolean;
@@ -845,7 +870,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.VALIDATE_ASSIGNMENT, payload);
   }
 
-  static async validateRoleName(payload: ValidateRoleNamePayload): Promise<{ 
+  static async validateRoleName(payload: ValidateRoleNamePayload): Promise<{
     success: boolean;
     data: {
       isAvailable: boolean;
@@ -856,7 +881,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.VALIDATE_NAME, payload);
   }
 
-  static async getRoleAssignmentHistory(payload: GetRoleAssignmentHistoryPayload): Promise<{ 
+  static async getRoleAssignmentHistory(payload: GetRoleAssignmentHistoryPayload): Promise<{
     success: boolean;
     data: {
       history: any[];
@@ -871,7 +896,7 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.ROLE_ASSIGNMENT_HISTORY, payload);
   }
 
-  static async getUserAccessReport(payload: GetUserAccessReportPayload): Promise<{ 
+  static async getUserAccessReport(payload: GetUserAccessReportPayload): Promise<{
     success: boolean;
     data: UserAccessReport;
   }> {
@@ -882,7 +907,7 @@ export class RbacService {
     tenantId?: number;
     minLevel?: number;
     maxLevel?: number;
-  }): Promise<{ 
+  }): Promise<{
     success: boolean;
     data: {
       roles: Role[];
@@ -900,7 +925,7 @@ export class RbacService {
     tenantId?: number;
     page?: number;
     limit?: number;
-  }): Promise<{ 
+  }): Promise<{
     success: boolean;
     data: {
       users: any[];
@@ -919,7 +944,7 @@ export class RbacService {
     tenantId?: number;
     roleId?: number;
     period?: string;
-  }): Promise<{ 
+  }): Promise<{
     success: boolean;
     data: {
       stats: any[];

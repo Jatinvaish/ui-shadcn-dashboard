@@ -1,10 +1,10 @@
 // store/slices/roles.slice.ts - UPDATED WITH BACKEND DTO ALIGNMENT
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
-import { 
-  RbacService, 
-  Role, 
-  CreateRolePayload, 
-  UpdateRolePayload, 
+import {
+  RbacService,
+  Role,
+  CreateRolePayload,
+  UpdateRolePayload,
   ListParams,
   PermissionTree,
   BulkAssignRolesPayload,
@@ -108,7 +108,6 @@ export const deleteRole = createAsyncThunk(
     }
   }
 );
-
 export const fetchRolePermissionsTree = createAsyncThunk(
   'roles/fetchRolePermissionsTree',
   async (roleId: number, { rejectWithValue }) => {
@@ -116,10 +115,27 @@ export const fetchRolePermissionsTree = createAsyncThunk(
       const response = await RbacService.getRolePermissionsTree(roleId);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error?.message || 'Failed to fetch permissions tree');
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch permissions tree');
     }
   }
 );
+
+// If you have a separate action for listing permissions:
+export const fetchPermissions = createAsyncThunk(
+  'permissions/fetchList',
+  async (params: { page?: number; limit?: number; search?: string }, { rejectWithValue }) => {
+    try {
+      const response = await RbacService.listPermissions({
+        page: params.page || 1,
+        limit: params.limit || 100,
+        search: params.search || '',
+      });
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch permissions');
+    }
+  }
+);  
 
 export const bulkAssignRolePermissions = createAsyncThunk(
   'roles/bulkAssignRolePermissions',
