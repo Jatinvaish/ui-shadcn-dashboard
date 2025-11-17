@@ -410,7 +410,8 @@ export class RbacService {
   static async deletePermission(permissionId: number): Promise<{ success: boolean }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.DELETE, { permissionId });
   }
-  static async listPermissions(params: ListPermissionsParams  = {}) {
+
+  static async listPermissions(params: ListPermissionsParams = {}) {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.LIST, {
       page: params.page || 1,
       limit: params.limit || 100,
@@ -425,6 +426,13 @@ export class RbacService {
       limit: 500,
       scope: 'all',
     });
+  }
+
+
+  // ==================== ROLE-PERMISSIONS ====================
+
+  static async getRolePermissionsTree(roleId: number): Promise<{ data: PermissionTree }> {
+    return encryptedApiClient.post(API_ENDPOINTS.RBAC.ROLE_PERMISSIONS.TREE, { roleId });
   }
 
   static async assignPermissionsToRole(payload: AssignPermissionsPayload): Promise<{

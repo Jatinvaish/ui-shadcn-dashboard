@@ -1,6 +1,6 @@
-// store/slices/permissions.slice.ts - FIXED VERSION
+// store/slices/permissions.slice.ts
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { RbacService, Permission, CreatePermissionPayload } from '@/lib/api/services/rbac-service';
+import { RbacService, Permission, CreatePermissionPayload, ListParams } from '@/lib/api/services/rbac-service';
 
 interface PermissionsState {
   permissions: Permission[];
@@ -14,8 +14,6 @@ interface PermissionsState {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
   };
-  // ✅ Add cache tracking
-  lastFetchParams: string | null;
 }
 
 const initialState: PermissionsState = {
@@ -30,43 +28,19 @@ const initialState: PermissionsState = {
     hasNextPage: false,
     hasPreviousPage: false,
   },
-  lastFetchParams: null,
 };
 
-// ✅ FIX: Add proper params type with scope
+// Update fetchPermissions thunk to match backend DTO
 export const fetchPermissions = createAsyncThunk(
   'permissions/fetchPermissions',
   async (params: {
     page?: number;
     limit?: number;
     category?: string;
-    scope?: 'all' | 'system' | 'custom';
-  }, { getState, rejectWithValue }) => {
-    try {
-      // ✅ Create cache key
-      const cacheKey = JSON.stringify(params);
-      const state = getState() as { permissions: PermissionsState };
-      
-      // ✅ Prevent duplicate calls
-      if (state.permissions.lastFetchParams === cacheKey && state.permissions.loading) {
-        console.log('🚫 Duplicate fetchPermissions prevented:', params);
-        return rejectWithValue('Duplicate request');
-      }
-
-      console.log('📡 Fetching permissions with params:', params);
-      const response = await RbacService.listPermissions({
-        page: params.page || 1,
-        limit: params.limit || 100,
-        category: params.category,
-        scope: params.scope || 'all', // ✅ Default to 'all'
-      });
-      
-      console.log('✅ Permissions fetched:', response.data.permissionsList.length);
-      return { data: response.data, cacheKey };
-    } catch (error: any) {
-      console.error('❌ fetchPermissions error:', error);
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch permissions');
-    }
+    scope?: 'all' | 'system' | 'custom'; // ← ADD THIS
+  }) => {
+    const response = await RbacService.listPermissions(params);
+    return response.data;
   }
 );
 
@@ -101,11 +75,6 @@ const permissionsSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    // ✅ Add reset action
-    resetPermissions: (state) => {
-      state.permissions = [];
-      state.lastFetchParams = null;
-    },
   },
   extraReducers: (builder) => {
     builder
@@ -114,27 +83,13 @@ const permissionsSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchPermissions.fulfilled, (state, action) => {
-        // ✅ Handle rejected duplicate requests
-        //todo
-        //@ts-ignore
-        if (action.payload === 'Duplicate request') {
-          state.loading = false;
-          return;
-        }
-        
         state.loading = false;
-        state.permissions = action.payload.data.permissionsList;
-        state.pagination = action.payload.data.meta;
-        state.lastFetchParams = action.payload.cacheKey; // ✅ Store cache key
-        console.log('✅ Permissions state updated:', state.permissions.length);
+        state.permissions = action.payload.permissionsList;
+        state.pagination = action.payload.meta;
       })
       .addCase(fetchPermissions.rejected, (state, action) => {
         state.loading = false;
-        // ✅ Don't set error for duplicate requests
-        if (action.payload !== 'Duplicate request') {
-          state.error = action.payload as string;
-          console.error('❌ Permissions fetch failed:', action.payload);
-        }
+        state.error = action.payload as string;
       })
       .addCase(createPermission.pending, (state) => {
         state.loading = true;
@@ -143,8 +98,6 @@ const permissionsSlice = createSlice({
       .addCase(createPermission.fulfilled, (state, action) => {
         state.loading = false;
         state.permissions.unshift(action.payload);
-        // ✅ Invalidate cache
-        state.lastFetchParams = null;
       })
       .addCase(createPermission.rejected, (state, action) => {
         state.loading = false;
@@ -157,8 +110,6 @@ const permissionsSlice = createSlice({
       .addCase(deletePermission.fulfilled, (state, action) => {
         state.loading = false;
         state.permissions = state.permissions.filter(p => p.id !== action.payload);
-        // ✅ Invalidate cache
-        state.lastFetchParams = null;
       })
       .addCase(deletePermission.rejected, (state, action) => {
         state.loading = false;
@@ -167,7 +118,7 @@ const permissionsSlice = createSlice({
   },
 });
 
-export const { clearError, resetPermissions } = permissionsSlice.actions;
+export const { clearError } = permissionsSlice.actions;
 export default permissionsSlice.reducer;
 
 export const selectPermissions = (state: { permissions: PermissionsState }) => state.permissions.permissions;
