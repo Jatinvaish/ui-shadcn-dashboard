@@ -3,8 +3,8 @@ import { SidebarSearch } from "./sidebar-search";
 import { Badge } from "@/components/ui/badge";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useMemo, useEffect, useCallback, memo } from "react";
-import { 
-  ChevronRight, ShieldAlertIcon, Shield, Key, Users, Menu as MenuIcon, 
+import {
+  ChevronRight, ShieldAlertIcon, Shield, Key, Users, Menu as MenuIcon,
   ShieldCheck, UserCheck, LayoutDashboard, LockIcon, Settings,
   ChartPie, Building2, Package, FolderKanban, MessageSquare, Brain
 } from "lucide-react";
@@ -42,7 +42,7 @@ const MENU_STRUCTURES: Record<string, any[]> = {
       path: '/dashboard/ecommerce',
     },
   ],
-  
+
   'access-control': [
     {
       key: 'access-control',
@@ -55,17 +55,17 @@ const MENU_STRUCTURES: Record<string, any[]> = {
       title: 'User Management',
       icon: 'Users',
       children: [
-        { 
-          key: 'access-control.users.list', 
-          title: 'All Users', 
-          icon: 'Users', 
-          path: '/dashboard/access-control/users' 
+        {
+          key: 'access-control.users.list',
+          title: 'All Users',
+          icon: 'Users',
+          path: '/dashboard/access-control/users'
         },
-        { 
-          key: 'access-control.user-roles', 
-          title: 'User Roles', 
-          icon: 'UserCheck', 
-          path: '/dashboard/access-control/user-roles' 
+        {
+          key: 'access-control.user-roles',
+          title: 'User Roles',
+          icon: 'UserCheck',
+          path: '/dashboard/access-control/user-roles'
         },
       ],
     },
@@ -74,23 +74,23 @@ const MENU_STRUCTURES: Record<string, any[]> = {
       title: 'Permissions',
       icon: 'Key',
       children: [
-        { 
-          key: 'access-control.permissions', 
-          title: 'All Permissions', 
-          icon: 'Key', 
-          path: '/dashboard/access-control/permissions' 
+        {
+          key: 'access-control.permissions',
+          title: 'All Permissions',
+          icon: 'Key',
+          path: '/dashboard/access-control/permissions'
         },
-        { 
-          key: 'access-control.role-permissions', 
-          title: 'Role Permissions', 
-          icon: 'ShieldCheck', 
-          path: '/dashboard/access-control/role-permissions' 
+        {
+          key: 'access-control.role-permissions',
+          title: 'Role Permissions',
+          icon: 'ShieldCheck',
+          path: '/dashboard/access-control/role-permissions'
         },
-        { 
-          key: 'access-control.menu-permissions', 
-          title: 'Menu Permissions', 
-          icon: 'Menu', 
-          path: '/dashboard/access-control/menu-permissions' 
+        {
+          key: 'access-control.menu-permissions',
+          title: 'Menu Permissions',
+          icon: 'Menu',
+          path: '/dashboard/access-control/menu-permissions'
         },
       ],
     },
@@ -99,37 +99,6 @@ const MENU_STRUCTURES: Record<string, any[]> = {
       title: 'Roles',
       icon: 'Shield',
       path: '/dashboard/access-control/roles',
-    },
-    {
-      key: 'access-control.advanced',
-      title: 'Advanced',
-      icon: 'Settings',
-      children: [
-        { 
-          key: 'access-control.attributes', 
-          title: 'Attributes', 
-          icon: 'Shield', 
-          path: '/dashboard/access-control/attributes' 
-        },
-        { 
-          key: 'access-control.policies', 
-          title: 'Policies', 
-          icon: 'Shield', 
-          path: '/dashboard/access-control/policies' 
-        },
-        { 
-          key: 'access-control.policy-evaluation', 
-          title: 'Policy Evaluation', 
-          icon: 'Shield', 
-          path: '/dashboard/access-control/policy-evaluation' 
-        },
-        { 
-          key: 'access-control.resource-attributes', 
-          title: 'Resource Attributes', 
-          icon: 'Shield', 
-          path: '/dashboard/access-control/resource-attributes' 
-        },
-      ],
     },
   ],
 
@@ -187,7 +156,7 @@ const MENU_STRUCTURES: Record<string, any[]> = {
 
 const MenuItem = memo(function MenuItem({ item, pathname, router, canAccessMenu, blockedMenus }: any) {
   const [isOpen, setIsOpen] = useState(false);
-  
+
   const isBlocked = useCallback((menuKey: string) => {
     return blockedMenus.some((blocked: any) => {
       const key = typeof blocked === 'string' ? blocked : blocked?.menu_key;
@@ -208,7 +177,7 @@ const MenuItem = memo(function MenuItem({ item, pathname, router, canAccessMenu,
 
   const accessibleChildren = useMemo(() => {
     if (!item.children) return [];
-    return item.children.filter((child: any) => 
+    return item.children.filter((child: any) =>
       canAccessMenu(child.key) && !isBlocked(child.key)
     );
   }, [item.children, canAccessMenu, isBlocked]);
@@ -251,11 +220,11 @@ const MenuItem = memo(function MenuItem({ item, pathname, router, canAccessMenu,
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-1 space-y-1 pl-6">
           {accessibleChildren.map((subItem: any) => (
-            <MenuItem 
+            <MenuItem
               key={subItem.key}
-              item={subItem} 
-              pathname={pathname} 
-              router={router} 
+              item={subItem}
+              pathname={pathname}
+              router={router}
               canAccessMenu={canAccessMenu}
               blockedMenus={blockedMenus}
             />
@@ -303,10 +272,10 @@ export function SidebarSecondary() {
   const pathname = usePathname();
   const router = useRouter();
   const { activeSecondaryMenu } = useLayout();
-  
-  const { 
-    isLoading, 
-    canAccessMenu, 
+
+  const {
+    isLoading,
+    canAccessMenu,
     isSystemAdmin,
     blockedMenus,
   } = usePermissionContext();
@@ -321,7 +290,7 @@ export function SidebarSecondary() {
     if (isLoading) return [];
 
     return currentMenuStructure.map(menu => {
-      const accessibleChildren = menu.children?.filter((child: any) => 
+      const accessibleChildren = menu.children?.filter((child: any) =>
         canAccessMenu(child.key)
       ) || [];
 
@@ -360,7 +329,7 @@ export function SidebarSecondary() {
         <div className="flex-1 overflow-y-auto py-2.5">
           <div className="space-y-2 px-2.5">
             <Skeleton className="h-6 w-32 mb-4" />
-            {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-9 w-full" />)}
+            {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-9 w-full" />)}
           </div>
         </div>
       </div>
@@ -395,11 +364,11 @@ export function SidebarSecondary() {
           </div>
           <div className="space-y-1">
             {accessibleMenuStructure.map((item: any) => (
-              <MenuItem 
+              <MenuItem
                 key={item.key}
-                item={item} 
-                pathname={pathname} 
-                router={router} 
+                item={item}
+                pathname={pathname}
+                router={router}
                 canAccessMenu={canAccessMenu}
                 blockedMenus={blockedMenus}
               />
