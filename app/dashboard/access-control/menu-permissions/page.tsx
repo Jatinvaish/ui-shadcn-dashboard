@@ -1,4 +1,4 @@
-// app/dashboard/access-control/menu-permissions/page.tsx - FIXED INFINITE CALLS
+// app/dashboard/access-control/menu-permissions/page.tsx - FIXED VERSION
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -62,6 +62,7 @@ import {
   selectMenuPermissions,
   selectAllPermissions,
   selectMenuPermissionsLoading,
+  selectMenuPermissionsPagination,
   fetchMenuPermissions,
   fetchAllPermissions,
   unlinkMenuPermission,
@@ -125,6 +126,7 @@ export default function MenuPermissionsPage() {
   const menuPermissions = useAppSelector(selectMenuPermissions);
   const allPermissions = useAppSelector(selectAllPermissions);
   const isLoading = useAppSelector(selectMenuPermissionsLoading);
+  const paginationMeta = useAppSelector(selectMenuPermissionsPagination);
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -137,21 +139,17 @@ export default function MenuPermissionsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<MenuPermission | null>(null);
 
-  // ✅ Use refs to track what triggered the last fetch
-  const isInitialMount = useRef(true);
-  const lastFetchParams = useRef<{
-    page: number;
-    limit: number;
-    search: string | undefined;
-  }>({ page: 1, limit: 10, search: undefined });
+  // ✅ FIX: Single ref to track if initial load is complete
+  const hasInitialized = useRef(false);
+  const currentFetchParams = useRef<string>('');
 
   // Filter permissions based on user access
   const filteredPermissions = useMemo(() => {
     if (!currentUser) return [];
     const userType = currentUser.userType || currentUser.user_type || '';
-    
+
     if (canManageSystemResources(userType)) return allPermissions;
-    
+
     const userPermissionKeys = new Set(userPermissions.map(p => p.permission_key));
     return allPermissions.filter(p => userPermissionKeys.has(p.permission_key));
   }, [allPermissions, currentUser, userPermissions]);
@@ -160,32 +158,29 @@ export default function MenuPermissionsPage() {
   const availableMenuKeys = useMemo(() => {
     if (!currentUser) return [];
     const userType = currentUser.userType || currentUser.user_type || '';
-    
+
     if (canManageSystemResources(userType)) return AVAILABLE_MENU_KEYS;
-    
+
     return AVAILABLE_MENU_KEYS.filter(key => accessibleMenus.includes(key));
   }, [currentUser, accessibleMenus]);
 
-  // ✅ FIXED: Single source of truth for fetching
+  // ✅ FIX: Memoized fetch function with deduplication
   const fetchData = useCallback((params: {
     page: number;
     limit: number;
     search?: string;
   }) => {
-    // Prevent duplicate calls
-    const isDuplicate = 
-      lastFetchParams.current.page === params.page &&
-      lastFetchParams.current.limit === params.limit &&
-      lastFetchParams.current.search === params.search;
+    const paramsKey = JSON.stringify(params);
 
-    if (isDuplicate) {
-      console.log('🚫 Skipping duplicate fetch', params);
+    // Prevent duplicate calls
+    if (currentFetchParams.current === paramsKey) {
+      console.log('🚫 Duplicate fetch prevented', params);
       return;
     }
 
     console.log('✅ Fetching menu permissions:', params);
-    lastFetchParams.current = params;
-    
+    currentFetchParams.current = paramsKey;
+
     dispatch(fetchMenuPermissions({
       page: params.page,
       limit: params.limit,
@@ -193,48 +188,47 @@ export default function MenuPermissionsPage() {
     }));
   }, [dispatch]);
 
-  // ✅ FIXED: Initial load only
+  // ✅ FIX: Single initialization effect
   useEffect(() => {
-    if (isInitialMount.current) {
-      console.log('🎯 Initial mount - fetching data');
-      console.log('🔍 Calling fetchMenuPermissions for menu-permission linkages');
+    if (!hasInitialized.current) {
+      console.log('🎯 Initial load - fetching data');
+      hasInitialized.current = true;
+
+      // Fetch menu permissions
       fetchData({
         page: 1,
         limit: pagination.pageSize,
         search: undefined,
       });
-      
-      console.log('🔍 Calling fetchAllPermissions for dropdown options');
-      dispatch(fetchAllPermissions());
-      
-      isInitialMount.current = false;
+
+      // Fetch all permissions for dropdown (only once)
+      if (allPermissions.length === 0) {  // ❌ PROBLEM: allPermissions is in dependency
+        console.log('🔍 Fetching all permissions for dropdown');
+        dispatch(fetchAllPermissions());
+      }
     }
-  }, [dispatch, pagination.pageSize, fetchData]);
+  }, []); // ✅
 
-  // ✅ FIXED: Handle pagination changes (but not during search)
+  // ✅ FIX: Separate effect for pagination changes (not initial load)
+  // ✅ FIX: Separate effect for pagination changes (not initial load)
   useEffect(() => {
-    // Skip on initial mount
-    if (isInitialMount.current) return;
+    if (!hasInitialized.current) return; // Skip during initial mount
+    if (searchQuery) return; // Don't fetch if search is active
 
-    // If there's an active search, don't auto-refetch on pagination change
-    // The user needs to click "Search" again
-    if (searchQuery) return;
-
-    console.log('📄 Pagination changed (no search active)');
+    console.log('📄 Pagination changed - fetching data');
     fetchData({
       page: pagination.pageIndex + 1,
       limit: pagination.pageSize,
       search: undefined,
     });
-  }, [pagination.pageIndex, pagination.pageSize, searchQuery, fetchData]);
-
-  // ✅ FIXED: Handle search - single fetch
+  }, [pagination.pageIndex, pagination.pageSize]); // ❌ Missing fetchData dependency
+  
+  // ✅ FIX: Handle search with proper state management
   const handleSearch = useCallback(() => {
     console.log('🔍 Search triggered:', searchInput);
     setSearchQuery(searchInput);
     setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    
-    // This will be the ONLY fetch for search
+
     fetchData({
       page: 1,
       limit: pagination.pageSize,
@@ -242,13 +236,13 @@ export default function MenuPermissionsPage() {
     });
   }, [searchInput, pagination.pageSize, fetchData]);
 
-  // ✅ FIXED: Clear search
+  // ✅ FIX: Clear search with proper cleanup
   const handleClearSearch = useCallback(() => {
     console.log('🧹 Clearing search');
     setSearchInput('');
     setSearchQuery('');
     setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    
+
     fetchData({
       page: 1,
       limit: pagination.pageSize,
@@ -259,17 +253,17 @@ export default function MenuPermissionsPage() {
   const canUserUnlinkPermission = useCallback((mapping: MenuPermission): boolean => {
     if (!currentUser) return false;
     const userType = currentUser.userType || currentUser.user_type || '';
-    
+
     if (canManageSystemResources(userType)) return true;
     if (mapping.is_system_permission) return false;
     if (!accessibleMenus.includes(mapping.menu_key)) return false;
-    
+
     return true;
   }, [currentUser, accessibleMenus]);
 
   const handleUnlinkClick = (mapping: MenuPermission) => {
     if (!canUserUnlinkPermission(mapping)) {
-      toast.error(mapping.is_system_permission 
+      toast.error(mapping.is_system_permission
         ? 'Only system admins can unlink system permissions'
         : 'You do not have access to this menu'
       );
@@ -281,18 +275,18 @@ export default function MenuPermissionsPage() {
 
   const handleUnlinkConfirm = async () => {
     if (!itemToDelete) return;
-    
+
     try {
       await dispatch(unlinkMenuPermission({
         menuKey: itemToDelete.menu_key,
         permissionId: itemToDelete.permission_id,
       })).unwrap();
-      
+
       toast.success('Menu permission unlinked successfully');
       setDeleteDialogOpen(false);
       setItemToDelete(null);
-      
-      // ✅ Refetch current view
+
+      // ✅ FIX: Refetch current view without resetting state
       fetchData({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
@@ -371,10 +365,10 @@ export default function MenuPermissionsPage() {
             <div className="flex items-center gap-2">
               <IfHasAccess menuKey="access-control.menu-permissions">
                 {canUnlink ? (
-                  <Button 
-                    mode="icon" 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    mode="icon"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleUnlinkClick(row.original)}
                   >
                     <Unlink className="h-4 w-4" />
@@ -414,7 +408,7 @@ export default function MenuPermissionsPage() {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     manualPagination: true,
-    pageCount: Math.ceil(menuPermissions.length / pagination.pageSize),
+    pageCount: paginationMeta.totalPages,
   });
 
   return (
@@ -426,7 +420,7 @@ export default function MenuPermissionsPage() {
         ]}
       />
 
-      <DataGrid table={table} recordCount={menuPermissions.length} isLoading={isLoading}>
+      <DataGrid table={table} recordCount={paginationMeta.totalItems} isLoading={isLoading}>
         <Card>
           <CardHeader className="py-5">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
@@ -452,7 +446,7 @@ export default function MenuPermissionsPage() {
                   </Button>
                 )}
               </div>
-              
+
               <div className="flex items-center gap-2">
                 {searchInput !== searchQuery && (
                   <Button onClick={handleSearch} disabled={isLoading} variant="outline">
@@ -460,7 +454,7 @@ export default function MenuPermissionsPage() {
                     Search
                   </Button>
                 )}
-                
+
                 <IfHasAccess menuKey="access-control.menu-permissions">
                   <Button onClick={() => setLinkDialogOpen(true)} disabled={isLoading}>
                     <Plus className="h-4 w-4" />
@@ -470,14 +464,14 @@ export default function MenuPermissionsPage() {
               </div>
             </div>
           </CardHeader>
-          
+
           <CardTable>
             <ScrollArea>
               <DataGridTable />
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
           </CardTable>
-          
+
           <CardFooter>
             <DataGridPagination />
           </CardFooter>
@@ -511,8 +505,8 @@ export default function MenuPermissionsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleUnlinkConfirm} 
+            <AlertDialogAction
+              onClick={handleUnlinkConfirm}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Unlink
@@ -531,9 +525,16 @@ function LinkDialog({ open, onOpenChange, permissions, availableMenuKeys, onSucc
   const [isRequired, setIsRequired] = useState(true);
   const [isLinking, setIsLinking] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  // ✅ FIX: Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setMenuKey('');
+      setPermissionId('');
+      setIsRequired(true);
+    }
+  }, [open]);
+
+  const handleSubmit = async () => {
     if (!menuKey || !permissionId) {
       toast.error('Please select both menu and permission');
       return;
@@ -541,16 +542,13 @@ function LinkDialog({ open, onOpenChange, permissions, availableMenuKeys, onSucc
 
     setIsLinking(true);
     try {
-      await dispatch(linkMenuPermission({ 
-        menuKey, 
-        permissionId: Number(permissionId), 
-        isRequired 
+      await dispatch(linkMenuPermission({
+        menuKey,
+        permissionId: Number(permissionId),
+        isRequired
       })).unwrap();
-      
+
       toast.success('Menu permission linked successfully');
-      setMenuKey('');
-      setPermissionId('');
-      setIsRequired(true);
       onSuccess();
     } catch (error: any) {
       toast.error(error?.message || 'Failed to link permission');
@@ -561,9 +559,6 @@ function LinkDialog({ open, onOpenChange, permissions, availableMenuKeys, onSucc
 
   const handleClose = () => {
     if (!isLinking) {
-      setMenuKey('');
-      setPermissionId('');
-      setIsRequired(true);
       onOpenChange(false);
     }
   };
@@ -571,102 +566,103 @@ function LinkDialog({ open, onOpenChange, permissions, availableMenuKeys, onSucc
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Link Menu Permission</DialogTitle>
-            <DialogDescription>
-              Associate a permission with a menu item to control access
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="menu">Menu Key *</Label>
-              <Select value={menuKey} onValueChange={setMenuKey} disabled={isLinking}>
-                <SelectTrigger id="menu">
-                  <SelectValue placeholder="Select menu" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableMenuKeys.map((key: string) => (
-                    <SelectItem key={key} value={key}>
-                      {formatMenuKey(key)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Choose the menu item to link the permission to
-              </p>
-            </div>
+        <DialogHeader>
+          <DialogTitle>Link Menu Permission</DialogTitle>
+          <DialogDescription>
+            Associate a permission with a menu item to control access
+          </DialogDescription>
+        </DialogHeader>
 
-            <div className="space-y-2">
-              <Label htmlFor="permission">Permission *</Label>
-              <Select value={permissionId} onValueChange={setPermissionId} disabled={isLinking}>
-                <SelectTrigger id="permission">
-                  <SelectValue placeholder="Select permission" />
-                </SelectTrigger>
-                <SelectContent>
-                  {permissions.map((p: Permission) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{p.permission_key}</span>
-                        {p.description && (
-                          <span className="text-xs text-muted-foreground">{p.description}</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Select the permission required to access this menu
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t">
-              <div className="space-y-0.5">
-                <Label htmlFor="required">Required Permission</Label>
-                <p className="text-xs text-muted-foreground">
-                  If enabled, users must have this permission to access the menu
-                </p>
-              </div>
-              <Switch 
-                id="required"
-                checked={isRequired} 
-                onCheckedChange={setIsRequired}
-                disabled={isLinking}
-              />
-            </div>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="menu">Menu Key *</Label>
+            <Select value={menuKey} onValueChange={setMenuKey} disabled={isLinking}>
+              <SelectTrigger id="menu">
+                <SelectValue placeholder="Select menu" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableMenuKeys.map((key: string) => (
+                  <SelectItem key={key} value={key}>
+                    {formatMenuKey(key)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Choose the menu item to link the permission to
+            </p>
           </div>
 
-          <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={handleClose}
+          <div className="space-y-2">
+            <Label htmlFor="permission">Permission *</Label>
+            <Select value={permissionId} onValueChange={setPermissionId} disabled={isLinking}>
+              <SelectTrigger id="permission">
+                <SelectValue placeholder="Select permission" />
+              </SelectTrigger>
+              <SelectContent>
+                {permissions.map((p: Permission) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{p.permission_key}</span>
+                      {p.description && (
+                        <span className="text-xs text-muted-foreground">{p.description}</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Select the permission required to access this menu
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t">
+            <div className="space-y-0.5">
+              <Label htmlFor="required">Required Permission</Label>
+              <p className="text-xs text-muted-foreground">
+                If enabled, users must have this permission to access the menu
+              </p>
+            </div>
+            <Switch
+              id="required"
+              checked={isRequired}
+              onCheckedChange={setIsRequired}
               disabled={isLinking}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={isLinking || !menuKey || !permissionId}
-            >
-              {isLinking ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Linking...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" />
-                  Link Permission
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClose}
+            disabled={isLinking}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isLinking || !menuKey || !permissionId}
+          >
+            {isLinking ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Linking...
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Link Permission
+              </>
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
+
