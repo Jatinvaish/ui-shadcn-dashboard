@@ -14,9 +14,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <PermissionProvider>
       <Layout14>
         <RbacErrorBoundary>
-          <RouteGuard>
+          {/* <RouteGuard> */}
             {children}
-          </RouteGuard>
+          {/* </RouteGuard> */}
         </RbacErrorBoundary>
       </Layout14>
     </PermissionProvider>
