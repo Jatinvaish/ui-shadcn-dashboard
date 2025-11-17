@@ -14,7 +14,12 @@ export interface CreateRolePayload {
   isSystemRole?: boolean;
   isDefault?: boolean;
 }
-
+export interface ListPermissionsParams {
+  page?: number;
+  limit?: number;
+  category?: string;
+  scope?: 'all' | 'system' | 'custom'; // ✅ Add scope
+}
 export interface UpdateRolePayload {
   roleId: number;
   displayName?: string;
@@ -394,22 +399,6 @@ export class RbacService {
 
   // ==================== PERMISSIONS ====================
 
-  static async listPermissions(payload: ListParams = {}): Promise<{
-    data: {
-      permissionsList: Permission[];
-      meta: {
-        currentPage: number;
-        itemsPerPage: number;
-        totalItems: number;
-        totalPages: number;
-        hasNextPage: boolean;
-        hasPreviousPage: boolean;
-      }
-    }
-  }> {
-    return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.LIST, payload);
-  }
-
   static async getPermission(permissionId: number): Promise<{ data: Permission }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.GET, { permissionId });
   }
@@ -422,37 +411,23 @@ export class RbacService {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.DELETE, { permissionId });
   }
 
-  static async getAllPermissions(): Promise<{ data: { permissionsList: Permission[] } }> {
-    const allPermissions: Permission[] = [];
-    let currentPage = 1;
-    let hasMore = true;
-    const limit = 100; // ✅ Respect backend's max limit
-
-    while (hasMore) {
-      const response = await encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.LIST, {
-        page: currentPage,
-        limit,
-      });
-
-      const { permissionsList, meta } = response.data;
-      allPermissions.push(...permissionsList);
-
-      hasMore = meta.hasNextPage;
-      currentPage++;
-
-      // Safety check to prevent infinite loops
-      if (currentPage > 100) {
-        console.warn('getAllPermissions: Reached maximum page limit (100)');
-        break;
-      }
-    }
-
-    return {
-      data: {
-        permissionsList: allPermissions,
-      },
-    };
+  static async listPermissions(params: ListPermissionsParams = {}) {
+    return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.LIST, {
+      page: params.page || 1,
+      limit: params.limit || 100,
+      category: params.category,
+      scope: params.scope || 'all',
+    });
   }
+
+  static async getAllPermissions() {
+    return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.LIST, {
+      page: 1,
+      limit: 500,
+      scope: 'all',
+    });
+  }
+
 
   // ==================== ROLE-PERMISSIONS ====================
 

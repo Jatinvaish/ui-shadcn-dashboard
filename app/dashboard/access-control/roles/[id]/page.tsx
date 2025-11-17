@@ -1,7 +1,7 @@
 // app/dashboard/access-control/roles/[id]/page.tsx - PRODUCTION READY
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   Shield, 
@@ -15,7 +15,8 @@ import {
   MoreHorizontal,
   CheckCircle2,
   XCircle,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -89,6 +91,7 @@ const RoleDetailsPage = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const userType = currentUser?.userType || currentUser?.user_type || '';
+  
   const canEdit = useMemo(() => {
     if (!role) return false;
     if (canManageSystemResources(userType)) return true;
@@ -103,8 +106,10 @@ const RoleDetailsPage = () => {
     return true;
   }, [role, userType]);
 
+  // Load role and permissions tree
   useEffect(() => {
-    if (roleId) {
+    if (roleId && !isNaN(roleId)) {
+      console.log('🎯 Loading role:', roleId);
       dispatch(fetchRoleById(roleId));
       dispatch(fetchRolePermissionsTree(roleId));
     }
@@ -114,8 +119,12 @@ const RoleDetailsPage = () => {
     };
   }, [dispatch, roleId]);
 
+  // Auto-expand first category
   useEffect(() => {
-    if (permissionsTree && permissionsTree.permissions_tree.length > 0 && expandedCategories.length === 0) {
+    if (permissionsTree && 
+        permissionsTree.permissions_tree && 
+        permissionsTree.permissions_tree.length > 0 && 
+        expandedCategories.length === 0) {
       setExpandedCategories([permissionsTree.permissions_tree[0].category]);
     }
   }, [permissionsTree, expandedCategories.length]);
@@ -143,18 +152,28 @@ const RoleDetailsPage = () => {
     }
   };
 
-  const handlePermissionToggle = (permissionId: number, currentlyChecked: boolean) => {
+  const handlePermissionToggle = useCallback((permissionId: number, currentlyChecked: boolean) => {
     const newChanges = new Map(permissionChanges);
-    newChanges.set(permissionId, currentlyChecked ? 'D' : 'I');
+    
+    // Determine the change mode
+    const changeMode = currentlyChecked ? 'D' : 'I';
+    
+    // If already in changes, remove it (toggling back)
+    if (newChanges.has(permissionId)) {
+      newChanges.delete(permissionId);
+    } else {
+      newChanges.set(permissionId, changeMode);
+    }
+    
     setPermissionChanges(newChanges);
-  };
+  }, [permissionChanges]);
 
-  const getEffectiveState = (permissionId: number, originalState: boolean) => {
+  const getEffectiveState = useCallback((permissionId: number, originalState: boolean) => {
     const change = permissionChanges.get(permissionId);
     if (change === 'I') return true;
     if (change === 'D') return false;
     return originalState;
-  };
+  }, [permissionChanges]);
 
   const handleSavePermissions = async () => {
     if (!roleId || permissionChanges.size === 0) {
@@ -172,6 +191,8 @@ const RoleDetailsPage = () => {
       await dispatch(bulkAssignRolePermissions({ roleId, changes })).unwrap();
       toast.success('Permissions updated successfully');
       setPermissionChanges(new Map());
+      
+      // Reload permissions tree
       dispatch(fetchRolePermissionsTree(roleId));
     } catch (error: any) {
       toast.error(error || 'Failed to update permissions');
@@ -180,13 +201,15 @@ const RoleDetailsPage = () => {
     }
   };
 
-  const handleDiscardChanges = () => {
+  const handleDiscardChanges = useCallback(() => {
     setPermissionChanges(new Map());
     toast.info('Changes discarded');
-  };
+  }, []);
 
   const filteredTree = useMemo(() => {
-    if (!permissionsTree) return [];
+    if (!permissionsTree || !permissionsTree.permissions_tree) return [];
+    
+    if (!searchQuery) return permissionsTree.permissions_tree;
     
     return permissionsTree.permissions_tree
       .map((category) => {
@@ -195,7 +218,8 @@ const RoleDetailsPage = () => {
           return (
             perm.permission_key.toLowerCase().includes(q) ||
             perm.resource.toLowerCase().includes(q) ||
-            perm.action.toLowerCase().includes(q)
+            perm.action.toLowerCase().includes(q) ||
+            (perm.description && perm.description.toLowerCase().includes(q))
           );
         });
 
@@ -251,12 +275,8 @@ const RoleDetailsPage = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{role.display_name || role.name}</h1>
-              {role.is_system_role && (
-                <Badge variant="primary">System</Badge>
-              )}
-              {role.is_default && (
-                <Badge variant="outline">Default</Badge>
-              )}
+              {role.is_system_role && <Badge variant="primary">System</Badge>}
+              {role.is_default && <Badge variant="outline">Default</Badge>}
             </div>
             <p className="text-muted-foreground text-sm mt-1">{role.description || 'No description'}</p>
           </div>
@@ -435,8 +455,17 @@ const RoleDetailsPage = () => {
                       Discard
                     </Button>
                     <Button onClick={handleSavePermissions} disabled={isSaving}>
-                      <CheckCircle2 className="h-4 w-4" />
-                      {isSaving ? 'Saving...' : 'Save Changes'}
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Save Changes
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -480,7 +509,11 @@ const RoleDetailsPage = () => {
           </div>
 
           {/* Permissions List */}
-          {permissionsTree && (
+          {isLoading && !permissionsTree ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : permissionsTree && filteredTree.length > 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle>Permissions</CardTitle>
@@ -491,7 +524,7 @@ const RoleDetailsPage = () => {
                   value={expandedCategories} 
                   onValueChange={setExpandedCategories}
                 >
-                  {filteredTree?.map((category) => {
+                  {filteredTree.map((category) => {
                     const assignedCount = category.permissions.filter((p) =>
                       getEffectiveState(p.id, p.is_checked)
                     ).length;
@@ -564,6 +597,12 @@ const RoleDetailsPage = () => {
                 </Accordion>
               </CardContent>
             </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <p className="text-muted-foreground">No permissions found</p>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
@@ -608,14 +647,5 @@ const RoleDetailsPage = () => {
     </div>
   );
 };
-
-// Helper Label component
-function Label({ className, children, ...props }: any) {
-  return (
-    <label className={`text-sm font-medium ${className || ''}`} {...props}>
-      {children}
-    </label>
-  );
-}
 
 export default RoleDetailsPage;
