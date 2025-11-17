@@ -12,6 +12,7 @@ export const ROUTE_MENU_MAP: Record<string, string> = {
   '/dashboard/sales': 'dashboards.sales',
   '/dashboard/crm': 'dashboards.crm',
   '/dashboard/analytics': 'dashboards.analytics',
+  '/dashboard/chat': 'chat.access',
   
   // Access Control
   '/dashboard/access-control': 'access-control',
@@ -20,10 +21,7 @@ export const ROUTE_MENU_MAP: Record<string, string> = {
   '/dashboard/access-control/menu-permissions': 'access-control.menu-permissions',
   '/dashboard/access-control/user-roles': 'access-control.user-roles',
   '/dashboard/access-control/role-permissions': 'access-control.role-permissions',
-  '/dashboard/access-control/attributes': 'access-control.attributes',
-  '/dashboard/access-control/policies': 'access-control.policies',
-  '/dashboard/access-control/policy-evaluation': 'access-control.policy-evaluation',
-  '/dashboard/access-control/resource-attributes': 'access-control.resource-attributes',
+     '/dashboard/access-control/resource-attributes': 'access-control.resource-attributes',
   
   // Apps
   '/dashboard/apps/chat': 'apps.chat',
