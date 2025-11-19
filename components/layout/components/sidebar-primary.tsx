@@ -72,27 +72,6 @@ const menuItems = [
     rootPath: '/dashboard/access-control',
   },
   {
-    id: 'apps',
-    icon: SquareKanbanIcon,
-    tooltip: 'Apps',
-    path: '#',
-    rootPath: '#',
-  },
-  {
-    id: 'ai-apps',
-    icon: BrainIcon,
-    tooltip: 'AI Apps',
-    path: '#',
-    rootPath: '#',
-  },
-  {
-    id: 'pages',
-    icon: UsersIcon,
-    tooltip: 'Pages',
-    path: '#',
-    rootPath: '#',
-  },
-  {
     id: 'chat',
     icon: MessageSquareIcon,
     tooltip: 'Chat',

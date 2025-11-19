@@ -128,6 +128,7 @@ export const fetchPermissions = createAsyncThunk(
       const response = await RbacService.listPermissions({
         page: params.page || 1,
         limit: params.limit || 100,
+        //@ts-ignore
         search: params.search || '',
       });
       return response.data;
@@ -135,7 +136,7 @@ export const fetchPermissions = createAsyncThunk(
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch permissions');
     }
   }
-);  
+);
 
 export const bulkAssignRolePermissions = createAsyncThunk(
   'roles/bulkAssignRolePermissions',
@@ -269,6 +270,8 @@ export const selectPermissionsTreeSummary = createSelector(
 
 // ==================== SLICE ====================
 
+// ==================== SLICE ====================
+
 const rolesSlice = createSlice({
   name: 'roles',
   initialState,
@@ -387,8 +390,8 @@ const rolesSlice = createSlice({
       })
       .addCase(bulkAssignRolePermissions.fulfilled, (state, action) => {
         state.loading = false;
-        // Update current role's permission count if available
-        if (state.currentRole && action.payload.current_total_permissions !== undefined) {
+        // ✅ KEEP ONLY THIS ONE with safe access
+        if (state.currentRole && action.payload?.current_total_permissions !== undefined) {
           state.currentRole.permissions_count = action.payload.current_total_permissions;
         }
       })
@@ -467,6 +470,7 @@ const rolesSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       });
+    // ❌ REMOVE THE DUPLICATE BELOW - IT WAS ADDED AT THE END
   },
 });
 

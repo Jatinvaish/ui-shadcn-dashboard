@@ -22,34 +22,9 @@ const ICON_MAP: Record<string, any> = {
 
 // Define all menu structures for different sections
 const MENU_STRUCTURES: Record<string, any[]> = {
-  'dashboard': [
-    {
-      key: 'dashboard',
-      title: 'Overview',
-      icon: 'ChartPie',
-      path: '/dashboard',
-    },
-    {
-      key: 'dashboards.analytics',
-      title: 'Analytics',
-      icon: 'ChartPie',
-      path: '/dashboard/analytics',
-    },
-    {
-      key: 'dashboards.ecommerce',
-      title: 'E-Commerce',
-      icon: 'Package',
-      path: '/dashboard/ecommerce',
-    },
-  ],
+  
 
   'access-control': [
-    {
-      key: 'access-control',
-      title: 'Overview',
-      icon: 'Shield',
-      path: '/dashboard/access-control',
-    },
     {
       key: 'access-control.users',
       title: 'User Management',
@@ -81,12 +56,6 @@ const MENU_STRUCTURES: Record<string, any[]> = {
           path: '/dashboard/access-control/permissions'
         },
         {
-          key: 'access-control.role-permissions',
-          title: 'Role Permissions',
-          icon: 'ShieldCheck',
-          path: '/dashboard/access-control/role-permissions'
-        },
-        {
           key: 'access-control.menu-permissions',
           title: 'Menu Permissions',
           icon: 'Menu',
@@ -102,56 +71,7 @@ const MENU_STRUCTURES: Record<string, any[]> = {
     },
   ],
 
-  'apps': [
-    {
-      key: 'apps.kanban',
-      title: 'Kanban Board',
-      icon: 'FolderKanban',
-      path: '/dashboard/apps/kanban',
-    },
-    {
-      key: 'apps.calendar',
-      title: 'Calendar',
-      icon: 'ChartPie',
-      path: '/dashboard/apps/calendar',
-    },
-    {
-      key: 'apps.mail',
-      title: 'Mail',
-      icon: 'MessageSquare',
-      path: '/dashboard/apps/mail',
-    },
-  ],
-
-  'ai-apps': [
-    {
-      key: 'ai-apps.chat',
-      title: 'AI Chat',
-      icon: 'Brain',
-      path: '/dashboard/apps/ai-chat',
-    },
-    {
-      key: 'ai-apps.image-generator',
-      title: 'Image Generator',
-      icon: 'Brain',
-      path: '/dashboard/apps/ai-image-generator',
-    },
-  ],
-
-  'pages': [
-    {
-      key: 'pages.profile',
-      title: 'Profile',
-      icon: 'Users',
-      path: '/dashboard/pages/profile',
-    },
-    {
-      key: 'pages.settings',
-      title: 'Settings',
-      icon: 'Settings',
-      path: '/dashboard/pages/settings',
-    },
-  ],
+   
 };
 
 const MenuItem = memo(function MenuItem({ item, pathname, router, canAccessMenu, blockedMenus }: any) {
