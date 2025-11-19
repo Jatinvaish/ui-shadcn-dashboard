@@ -91,18 +91,25 @@ export interface BulkAssignPermissionsPayload {
   roleId: number;
   changes: Array<{ mode: 'I' | 'D'; permissionId: number }>;
 }
-
+export interface BulkAssignPermissionsResponse {
+  assigned_permissions: number;
+  deleted_permissions: number;
+  total_changes: number;
+  current_total_permissions: number;
+  filtered_out?: number;
+}
 export interface PermissionTree {
   roleId: number;
   permissions_tree: Array<{
     category: string;
-    permissions: Array<{
+    permissions: Array<{  
       id: number;
       permission_key: string;
       resource: string;
       action: string;
       description?: string;
       is_checked: boolean;
+      is_readonly: boolean;
       is_system_permission: boolean;
     }>;
   }>;
@@ -929,6 +936,17 @@ export class RbacService {
   }> {
     return encryptedApiClient.post(API_ENDPOINTS.RBAC.ENHANCED.ROLE_USAGE_STATS, payload);
   }
+  static async getAssignablePermissions(): Promise<{
+  success: boolean;
+  data: {
+    permissions: Permission[];
+    groupedByCategory: Record<string, Permission[]>;
+    totalAssignable: number;
+    isGlobalAdmin: boolean;
+  };
+}> {
+  return encryptedApiClient.post(API_ENDPOINTS.RBAC.PERMISSIONS.ASSIGNABLE, {});
+}
 }
 
 export const rbacService = RbacService;

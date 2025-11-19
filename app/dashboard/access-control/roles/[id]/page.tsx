@@ -3,20 +3,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { 
-  Shield, 
-  Users, 
-  Key, 
-  Edit, 
-  Trash2, 
-  ArrowLeft, 
-  Copy,
-  Lock,
-  MoreHorizontal,
-  CheckCircle2,
-  XCircle,
-  Search,
-  Loader2
+import {
+  Shield, Users, Key, Edit, Trash2, ArrowLeft, Copy,
+  Lock, MoreHorizontal, CheckCircle2, XCircle, Search, Loader2, Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,41 +15,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import {
-  fetchRoleById,
-  deleteRole,
-  selectCurrentRole,
-  selectRolesLoading,
-  clearCurrentRole,
-  fetchRolePermissionsTree,
-  selectPermissionsTree,
-  bulkAssignRolePermissions,
-} from '@/store/slices/roles.slice';
+import { fetchRoleById, deleteRole, selectCurrentRole, selectRolesLoading, clearCurrentRole, fetchRolePermissionsTree, selectPermissionsTree, bulkAssignRolePermissions } from '@/store/slices/roles.slice';
 import { selectUser } from '@/store/slices/authSlice';
 import { ProtectedBreadcrumb } from '@/components/guards/protected-breadcrumb';
 import { IfHasAccess } from '@/components/guards/if-has-access';
@@ -91,40 +52,40 @@ const RoleDetailsPage = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const userType = currentUser?.userType || currentUser?.user_type || '';
-  
+  const isGlobalAdmin = canManageSystemResources(userType);
+
+  // ✅ Check if this is a system role
+  const isSystemRole = role?.is_system_role || false;
+
+  // ✅ Check if user can edit this role
   const canEdit = useMemo(() => {
     if (!role) return false;
-    if (canManageSystemResources(userType)) return true;
-    if (role.is_system_role) return false;
+    if (isGlobalAdmin) return true;
+    if (isSystemRole) return false;
     return true;
-  }, [role, userType]);
+  }, [role, isGlobalAdmin, isSystemRole]);
 
   const canDelete = useMemo(() => {
     if (!role) return false;
-    if (role.is_system_role) return false;
-    if (canManageSystemResources(userType)) return true;
+    if (isSystemRole) return false;
+    if (isGlobalAdmin) return true;
     return true;
-  }, [role, userType]);
+  }, [role, isSystemRole, isGlobalAdmin]);
 
-  // Load role and permissions tree
   useEffect(() => {
     if (roleId && !isNaN(roleId)) {
-      console.log('🎯 Loading role:', roleId);
       dispatch(fetchRoleById(roleId));
       dispatch(fetchRolePermissionsTree(roleId));
     }
-
     return () => {
       dispatch(clearCurrentRole());
     };
   }, [dispatch, roleId]);
 
-  // Auto-expand first category
   useEffect(() => {
-    if (permissionsTree && 
-        permissionsTree.permissions_tree && 
-        permissionsTree.permissions_tree.length > 0 && 
-        expandedCategories.length === 0) {
+    if (permissionsTree?.permissions_tree &&
+      permissionsTree.permissions_tree.length > 0 &&
+      expandedCategories.length === 0) {
       setExpandedCategories([permissionsTree.permissions_tree[0].category]);
     }
   }, [permissionsTree, expandedCategories.length]);
@@ -139,7 +100,6 @@ const RoleDetailsPage = () => {
 
   const handleDeleteConfirm = async () => {
     if (!role) return;
-
     setIsDeleting(true);
     try {
       await dispatch(deleteRole(role.id)).unwrap();
@@ -152,21 +112,24 @@ const RoleDetailsPage = () => {
     }
   };
 
-  const handlePermissionToggle = useCallback((permissionId: number, currentlyChecked: boolean) => {
+  const handlePermissionToggle = useCallback((permissionId: number, currentlyChecked: boolean, isReadonly: boolean) => {
+    // ✅ Prevent toggle if readonly or system role
+    if (isReadonly || (isSystemRole && !isGlobalAdmin)) {
+      toast.error('You cannot modify this permission');
+      return;
+    }
+
     const newChanges = new Map(permissionChanges);
-    
-    // Determine the change mode
     const changeMode = currentlyChecked ? 'D' : 'I';
-    
-    // If already in changes, remove it (toggling back)
+
     if (newChanges.has(permissionId)) {
       newChanges.delete(permissionId);
     } else {
       newChanges.set(permissionId, changeMode);
     }
-    
+
     setPermissionChanges(newChanges);
-  }, [permissionChanges]);
+  }, [permissionChanges, isSystemRole, isGlobalAdmin]);
 
   const getEffectiveState = useCallback((permissionId: number, originalState: boolean) => {
     const change = permissionChanges.get(permissionId);
@@ -175,9 +138,15 @@ const RoleDetailsPage = () => {
     return originalState;
   }, [permissionChanges]);
 
+
   const handleSavePermissions = async () => {
     if (!roleId || permissionChanges.size === 0) {
       toast.info('No changes to save');
+      return;
+    }
+
+    if (isSystemRole && !isGlobalAdmin) {
+      toast.error('System roles cannot be modified');
       return;
     }
 
@@ -188,17 +157,25 @@ const RoleDetailsPage = () => {
         permissionId,
       }));
 
-      await dispatch(bulkAssignRolePermissions({ roleId, changes })).unwrap();
-      toast.success('Permissions updated successfully');
+      const result: any = await dispatch(bulkAssignRolePermissions({ roleId, changes })).unwrap();
+      console.log("🚀 ~ handleSavePermissions ~ result:", result)
+
+      // ✅ Safe null check
+      if (result?.filtered_out && result.filtered_out > 0) {
+        toast.warning(`${result.filtered_out} changes were filtered (you don't have those permissions)`);
+      } else {
+        toast.success('Permissions updated successfully');
+      }
+
       setPermissionChanges(new Map());
-      
-      // Reload permissions tree
       dispatch(fetchRolePermissionsTree(roleId));
     } catch (error: any) {
       toast.error(error || 'Failed to update permissions');
     } finally {
       setIsSaving(false);
     }
+
+
   };
 
   const handleDiscardChanges = useCallback(() => {
@@ -207,10 +184,9 @@ const RoleDetailsPage = () => {
   }, []);
 
   const filteredTree = useMemo(() => {
-    if (!permissionsTree || !permissionsTree.permissions_tree) return [];
-    
+    if (!permissionsTree?.permissions_tree) return []; //  
     if (!searchQuery) return permissionsTree.permissions_tree;
-    
+
     return permissionsTree.permissions_tree
       .map((category) => {
         const filteredPerms = category.permissions.filter((perm) => {
@@ -222,7 +198,6 @@ const RoleDetailsPage = () => {
             (perm.description && perm.description.toLowerCase().includes(q))
           );
         });
-
         return { ...category, permissions: filteredPerms };
       })
       .filter((cat) => cat.permissions.length > 0);
@@ -265,7 +240,6 @@ const RoleDetailsPage = () => {
         ]}
       />
 
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => router.back()}>
@@ -275,7 +249,7 @@ const RoleDetailsPage = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{role.display_name || role.name}</h1>
-              {role.is_system_role && <Badge variant="primary">System</Badge>}
+              {isSystemRole && <Badge variant="primary">System</Badge>}
               {role.is_default && <Badge variant="outline">Default</Badge>}
             </div>
             <p className="text-muted-foreground text-sm mt-1">{role.description || 'No description'}</p>
@@ -298,7 +272,7 @@ const RoleDetailsPage = () => {
                 </DropdownMenuItem>
               </IfHasAccess>
             )}
-            
+
             <DropdownMenuItem onClick={() => setCloneDialogOpen(true)}>
               <Copy className="h-4 w-4 mr-2" />
               Clone Role
@@ -308,7 +282,7 @@ const RoleDetailsPage = () => {
               <>
                 <DropdownMenuSeparator />
                 <IfHasAccess menuKey="access-control.roles.delete">
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={handleDeleteClick}
                     className="text-destructive"
                   >
@@ -322,7 +296,6 @@ const RoleDetailsPage = () => {
         </DropdownMenu>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6">
@@ -367,7 +340,6 @@ const RoleDetailsPage = () => {
         </Card>
       </div>
 
-      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -404,8 +376,8 @@ const RoleDetailsPage = () => {
                 <div>
                   <Label className="text-sm text-muted-foreground">Type</Label>
                   <div className="mt-1">
-                    <Badge variant={role.is_system_role ? 'primary' : 'outline'}>
-                      {role.is_system_role ? 'System Role' : 'Custom Role'}
+                    <Badge variant={isSystemRole ? 'primary' : 'outline'}>
+                      {isSystemRole ? 'System Role' : 'Custom Role'}
                     </Badge>
                   </div>
                 </div>
@@ -440,7 +412,26 @@ const RoleDetailsPage = () => {
         </TabsContent>
 
         <TabsContent value="permissions" className="space-y-6">
-          {/* Changes Bar */}
+          {/* ✅ System Role Lock Warning */}
+          {isSystemRole && !isGlobalAdmin && (
+            <Alert>
+              <Lock className="h-4 w-4" />
+              <AlertDescription>
+                This is a system role. All permissions are locked and cannot be modified unless you are a super admin.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* ✅ Filtered Permissions Info */}
+          {!isGlobalAdmin && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                You can only see and modify permissions that you currently have. Locked permissions require super admin access.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {permissionChanges.size > 0 && (
             <Card className="border-primary">
               <CardContent className="p-4">
@@ -473,7 +464,6 @@ const RoleDetailsPage = () => {
             </Card>
           )}
 
-          {/* Summary */}
           {permissionsTree && (
             <Card>
               <CardContent className="p-6">
@@ -497,7 +487,6 @@ const RoleDetailsPage = () => {
             </Card>
           )}
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -508,7 +497,6 @@ const RoleDetailsPage = () => {
             />
           </div>
 
-          {/* Permissions List */}
           {isLoading && !permissionsTree ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -519,9 +507,9 @@ const RoleDetailsPage = () => {
                 <CardTitle>Permissions</CardTitle>
               </CardHeader>
               <CardContent>
-                <Accordion 
-                  type="multiple" 
-                  value={expandedCategories} 
+                <Accordion
+                  type="multiple"
+                  value={expandedCategories}
                   onValueChange={setExpandedCategories}
                 >
                   {filteredTree.map((category) => {
@@ -545,44 +533,55 @@ const RoleDetailsPage = () => {
                             {category.permissions.map((perm) => {
                               const effectiveState = getEffectiveState(perm.id, perm.is_checked);
                               const hasChange = permissionChanges.has(perm.id);
+                              // ✅ Check if readonly
+                              const isReadonly = perm.is_readonly || (isSystemRole && !isGlobalAdmin);
 
                               return (
                                 <div
                                   key={perm.id}
-                                  className={`flex items-start gap-3 p-3 rounded border ${
-                                    hasChange ? 'bg-primary/5 border-primary' : 'hover:bg-muted/50'
-                                  }`}
+                                  className={`flex items-start gap-3 p-3 rounded border ${hasChange ? 'bg-primary/5 border-primary' :
+                                    isReadonly ? 'bg-muted/50 opacity-60' : 'hover:bg-muted/50'
+                                    }`}
                                 >
                                   <Checkbox
                                     checked={effectiveState}
                                     onCheckedChange={() =>
-                                      handlePermissionToggle(perm.id, perm.is_checked)
+                                      handlePermissionToggle(perm.id, perm.is_checked, isReadonly)
                                     }
-                                    disabled={role.is_system_role && !canManageSystemResources(userType)}
+                                    disabled={isReadonly}
                                   />
 
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
-                                      <span className="font-medium text-sm">
+                                      <span className={`font-medium text-sm ${isReadonly ? 'text-muted-foreground' : ''}`}>
                                         {perm.resource}:{perm.action}
                                       </span>
 
                                       {hasChange && (
                                         <Badge variant="primary" className="text-xs">
-                                          {permissionChanges.get(perm.id) === 'I'
-                                            ? 'Adding'
-                                            : 'Removing'}
+                                          {permissionChanges.get(perm.id) === 'I' ? 'Adding' : 'Removing'}
                                         </Badge>
                                       )}
 
-                                      {perm.is_system_permission && (
+                                      {isReadonly && (
                                         <Lock className="h-3 w-3 text-muted-foreground" />
+                                      )}
+
+                                      {perm.is_system_permission && (
+                                        <Badge variant="outline" className="text-xs">System</Badge>
                                       )}
                                     </div>
 
                                     {perm.description && (
                                       <p className="text-xs text-muted-foreground mt-1">
                                         {perm.description}
+                                      </p>
+                                    )}
+
+                                    {/* ✅ Show why it's locked */}
+                                    {isReadonly && !isGlobalAdmin && (
+                                      <p className="text-xs text-amber-600 mt-1">
+                                        🔒 You don't have this permission
                                       </p>
                                     )}
                                   </div>
@@ -607,7 +606,6 @@ const RoleDetailsPage = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -634,7 +632,6 @@ const RoleDetailsPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Clone Dialog */}
       <CloneRoleDialog
         open={cloneDialogOpen}
         onOpenChange={setCloneDialogOpen}
