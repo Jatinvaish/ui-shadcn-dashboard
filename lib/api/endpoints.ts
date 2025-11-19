@@ -36,28 +36,29 @@ export const API_ENDPOINTS = {
       UPDATE: '/rbac/roles/update',
       DELETE: '/rbac/roles/delete',
     },
-    
+
     PERMISSIONS: {
       LIST: '/rbac/permissions/list',
       GET: '/rbac/permissions/get',
       CREATE: '/rbac/permissions/create',
       DELETE: '/rbac/permissions/delete',
+      ASSIGNABLE: '/rbac/permissions/assignable', // ✅ ADD THIS
     },
-    
+
     ROLE_PERMISSIONS: {
       TREE: '/rbac/roles/permissions/tree',
       ASSIGN: '/rbac/roles/permissions/assign',
       BULK_ASSIGN: '/rbac/roles/permissions/bulk-assign',
       REMOVE: '/rbac/roles/permissions/remove',
     },
-    
+
     USER_ROLES: {
       LIST: '/rbac/users/roles/list',
       ASSIGN: '/rbac/users/roles/assign',
       REMOVE: '/rbac/users/roles/remove',
       EFFECTIVE_PERMISSIONS: '/rbac/users/permissions/effective',
     },
-    
+
     MENU_PERMISSIONS: {
       LINK: '/rbac/menu-permissions/link',
       BULK_LINK: '/rbac/menu-permissions/bulk-link',
@@ -68,7 +69,7 @@ export const API_ENDPOINTS = {
       MY_ACCESS: '/rbac/menu-permissions/my-access',
       CHECK_ACCESS: '/rbac/menu-permissions/check-access',
     },
-    
+
     RESOURCE_PERMISSIONS: {
       GRANT: '/rbac/resource-permissions/grant',
       REVOKE: '/rbac/resource-permissions/revoke',
@@ -76,7 +77,7 @@ export const API_ENDPOINTS = {
       CHECK_BATCH: '/rbac/resource-permissions/check-batch',
       LIST: '/rbac/resource-permissions/list',
     },
-    
+
     ROLE_LIMITS: {
       CREATE: '/rbac/role-limits/create',
       UPDATE: '/rbac/role-limits/update',
