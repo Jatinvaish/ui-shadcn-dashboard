@@ -17,7 +17,7 @@ export const ROUTE_MENU_MAP: Record<string, string> = {
   '/dashboard/access-control/resource-attributes': 'access-control.resource-attributes',
   
   // Apps
-  '/dashboard/apps/chat': 'apps.chat',  
+  '/dashboard/chat': 'chat.access',  
 };
 
 /**
