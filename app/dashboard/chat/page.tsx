@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
+import { PrimarySidebar } from "@/components/chat/primary-sidebar";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { MessageList } from "@/components/chat/message-list";
@@ -39,6 +40,7 @@ import {
 import toast from "react-hot-toast";
 import * as crypto from "crypto";
 import { selectUser } from "@/store/slices/authSlice";
+import { Menu } from "lucide-react";
 
 const encryptMessageContent = (content: string, channelKey: string) => {
   const ALGORITHM = "aes-256-gcm";
@@ -109,6 +111,7 @@ const Page = () => {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
 
   useEffect(() => {
     const initializeChat = async () => {
@@ -460,14 +463,28 @@ const Page = () => {
       }
     : undefined;
 
+  const totalUnread = (sidebarDMs?.reduce((sum, dm) => sum + (dm.unread || 0), 0) || 0) +
+    (sidebarChannels?.reduce((sum, ch) => sum + (ch.unread || 0), 0) || 0);
+
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
+      {/* Primary Sidebar */}
+      <div className="hidden lg:block">
+        <PrimarySidebar 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab}
+          unreadCount={totalUnread}
+        />
+      </div>
+
+      {/* Secondary Sidebar */}
       <div
-        className={`bg-background fixed inset-y-0 left-0 z-40 w-72 transform shadow-lg transition-transform duration-300 md:relative md:z-0 md:flex ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+        className={`bg-background fixed inset-y-0 left-0 z-40 transform shadow-lg transition-transform duration-300 lg:relative lg:z-0 lg:flex ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <Sidebar
           channels={sidebarChannels || []}
           directMessages={sidebarDMs || []}
           activeId={selectedChannel?.id.toString()}
+          activeTab={activeTab}
           onChannelClick={handleChannelClick}
           onDirectMessageClick={handleChannelClick}
           currentUser={currentUserForSidebar}
@@ -478,26 +495,22 @@ const Page = () => {
         />
       </div>
 
+      {/* Mobile overlay */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-y-0 right-0 left-72 z-30 bg-black/50 md:hidden"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
+      {/* Main content */}
       <div className="bg-background flex h-screen w-full flex-1 flex-col overflow-hidden">
-        <div className="border-border flex h-16 items-center border-b md:hidden">
+        {/* Mobile header */}
+        <div className="border-border flex h-14 items-center border-b lg:hidden">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="hover:bg-muted flex h-16 w-16 items-center justify-center transition-colors">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
+            className="hover:bg-muted flex h-14 w-14 items-center justify-center transition-colors">
+            <Menu className="h-5 w-5" />
           </button>
           {selectedChannel && (
             <div className="flex-1 px-3">
@@ -508,7 +521,7 @@ const Page = () => {
 
         {selectedChannel ? (
           <>
-            <div className="hidden h-16 items-center md:flex">
+            <div className="hidden h-14 items-center lg:flex">
               <ChatHeader
                 title={selectedChannel.name}
                 description={selectedChannel.description || `Welcome to ${selectedChannel.name}`}
@@ -540,11 +553,15 @@ const Page = () => {
           </>
         ) : (
           <div className="text-muted-foreground flex flex-1 items-center justify-center">
-            <p>Select a channel to start chatting</p>
+            <div className="text-center">
+              <p className="text-base font-medium mb-2">Select a chat to start messaging</p>
+              <p className="text-sm">Choose from your recent conversations or start a new one</p>
+            </div>
           </div>
         )}
       </div>
 
+      {/* Thread sidebar */}
       {selectedThreadId && (
         <ThreadSidebar
           threadId={selectedThreadId}
