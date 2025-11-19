@@ -6,13 +6,7 @@
  */
 export const ROUTE_MENU_MAP: Record<string, string> = {
   // Dashboard
-  '/dashboard': 'dashboard',
-  '/dashboard/default': 'dashboards',
-  '/dashboard/ecommerce': 'dashboards.ecommerce',
-  '/dashboard/sales': 'dashboards.sales',
-  '/dashboard/crm': 'dashboards.crm',
-  '/dashboard/analytics': 'dashboards.analytics',
-  '/dashboard/chat': 'chat.access',
+  '/dashboard': 'dashboard', 
   
   // Access Control
   '/dashboard/access-control': 'access-control',
@@ -20,33 +14,10 @@ export const ROUTE_MENU_MAP: Record<string, string> = {
   '/dashboard/access-control/permissions': 'access-control.permissions',
   '/dashboard/access-control/menu-permissions': 'access-control.menu-permissions',
   '/dashboard/access-control/user-roles': 'access-control.user-roles',
-  '/dashboard/access-control/role-permissions': 'access-control.role-permissions',
-     '/dashboard/access-control/resource-attributes': 'access-control.resource-attributes',
+  '/dashboard/access-control/resource-attributes': 'access-control.resource-attributes',
   
   // Apps
-  '/dashboard/apps/chat': 'apps.chat',
-  '/dashboard/apps/kanban': 'apps.kanban',
-  '/dashboard/apps/notes': 'apps.notes',
-  '/dashboard/apps/mail': 'apps.mail',
-  '/dashboard/apps/calendar': 'apps.calendar',
-  '/dashboard/apps/tasks': 'apps.tasks',
-  '/dashboard/apps/todo-list-app': 'apps.todo-list',
-  '/dashboard/apps/file-manager': 'apps.file-manager',
-  '/dashboard/apps/api-keys': 'apps.api-keys',
-  
-  // AI Apps
-  '/dashboard/apps/ai-chat': 'ai-apps.chat',
-  '/dashboard/apps/ai-chat-v2': 'ai-apps.chat-v2',
-  '/dashboard/apps/ai-image-generator': 'ai-apps.image-generator',
-  '/dashboard/apps/text-to-speech': 'ai-apps.text-to-speech',
-  
-  // Pages
-  '/dashboard/pages/users': 'pages.users',
-  '/dashboard/pages/profile': 'pages.profile',
-  '/dashboard/pages/settings': 'pages.settings',
-  '/dashboard/pages/pricing': 'pages.pricing',
-  '/dashboard/pages/onboarding-flow': 'pages.onboarding',
-  '/dashboard/pages/empty-states': 'pages.empty-states',
+  '/dashboard/apps/chat': 'apps.chat',  
 };
 
 /**

@@ -25,10 +25,6 @@ export interface Permission {
   updated_at?: string;
 }
 
-const getUserType = (user: any): string => {
-  return user?.userType || user?.user_type || '';
-};
-
 export const canManageSystemResources = (userType: string): boolean => {
   return userType === 'super_admin' || userType === 'saas_admin';
 };
