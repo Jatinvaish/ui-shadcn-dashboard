@@ -51,10 +51,13 @@ export function MessageList({
   }, [messages])
 
   return (
-    <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-6 py-4">
+    <div ref={scrollRef} className="flex-1 space-y-0 overflow-y-auto px-4 md:px-6 py-3 md:py-4 bg-background">
       {messages.length === 0 ? (
         <div className="flex h-full items-center justify-center text-muted-foreground">
-          <p>No messages yet. Start the conversation!</p>
+          <div className="text-center">
+            <p className="text-sm font-medium mb-1">No messages yet</p>
+            <p className="text-xs">Start the conversation!</p>
+          </div>
         </div>
       ) : (
         messages.map((message) => (

@@ -1,7 +1,7 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Info, Settings, Hash, Lock, Users } from "lucide-react"
+import { Info, Settings, Hash, Lock, Users } from 'lucide-react'
 import { useState } from "react"
 import { ChannelSettingsDialog } from "./dialogs/channel-settings-dialog"
 import { InviteDialog } from "./dialogs/invite-dialog"
@@ -46,39 +46,39 @@ export function ChatHeader({
 
   return (
     <>
-      <div className="border-b border-border bg-background px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-background px-4 py-3 h-16 flex items-center">
+        <div className="flex items-center justify-between gap-3 w-full">
           {/* Left side */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {isPrivate ? (
-              <Lock className="h-5 w-5 text-muted-foreground" />
+              <Lock className="h-5 w-5 text-muted-foreground flex-shrink-0" />
             ) : (
-              <Hash className="h-5 w-5 text-muted-foreground" />
+              <Hash className="h-5 w-5 text-muted-foreground flex-shrink-0" />
             )}
-            <div>
-              <h2 className="font-display text-lg font-bold">{title}</h2>
-              {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            <div className="min-w-0 flex-1">
+              <h2 className="font-display text-sm font-bold truncate">{title}</h2>
+              {description && <p className="text-xs text-muted-foreground truncate hidden sm:block">{description}</p>}
             </div>
             {memberCount && (
-              <Badge variant="secondary" className="ml-auto mr-0 flex gap-1">
+              <Badge variant="secondary" className="gap-1 flex-shrink-0">
                 <Users className="h-3 w-3" />
-                {memberCount}
+                <span className="text-xs">{memberCount}</span>
               </Badge>
             )}
           </div>
 
-          {/* Right side */}
-          <div className="flex items-center gap-2">
-            <Button size="icon" variant="ghost" onClick={() => setInviteOpen(true)} title="Invite people">
+          {/* Right side - Action buttons */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button size="icon" variant="ghost" onClick={() => setInviteOpen(true)} title="Invite people" className="h-8 w-8 hover:bg-muted">
               <Users className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={() => setPinOpen(true)} title={isPinned ? "Unpin" : "Pin"}>
-              <div className={`h-4 w-4 ${isPinned ? "text-primary" : ""}`}>📌</div>
+            <Button size="icon" variant="ghost" onClick={() => setPinOpen(true)} title={isPinned ? "Unpin" : "Pin"} className="h-8 w-8 hover:bg-muted">
+              <span className={`text-lg ${isPinned ? "text-primary" : ""}`}>📌</span>
             </Button>
-            <Button size="icon" variant="ghost" onClick={onInfoClick} title="Channel info">
+            <Button size="icon" variant="ghost" onClick={onInfoClick} title="Channel info" className="h-8 w-8 hover:bg-muted">
               <Info className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={handleSettingsClick} title="Settings">
+            <Button size="icon" variant="ghost" onClick={handleSettingsClick} title="Settings" className="h-8 w-8 hover:bg-muted">
               <Settings className="h-4 w-4" />
             </Button>
           </div>

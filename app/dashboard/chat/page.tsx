@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatHeader } from "@/components/chat/chat-header";
-import { MessageList, type Message } from "@/components/chat/message-list";
+import { MessageList } from "@/components/chat/message-list";
 import { MessageInput } from "@/components/chat/message-input";
 import { ThreadSidebar } from "@/components/chat/thread-sidebar";
+import type { Message } from "@/components/chat/message-list";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchUserChannels,
@@ -95,7 +96,7 @@ const decryptMessageContent = (
   }
 };
 
-export default function ChatPage() {
+const Page = () => {
   const dispatch = useAppDispatch();
   const {
     channels,
@@ -119,8 +120,12 @@ export default function ChatPage() {
 
   console.log("Current User:", currentUser);
 
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [directMessages, setDirectMessages] = useState([]);
+  const [openThreadId, setOpenThreadId] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
   const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = React.useState<Message | null>(null);
   const [pinnedIds, setPinnedIds] = React.useState<Set<string>>(new Set());
 
   // Fetch initial data
@@ -165,7 +170,6 @@ export default function ChatPage() {
     }
   }, [successMessage, dispatch]);
 
-  // Handle errors
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -177,7 +181,6 @@ export default function ChatPage() {
   const convertToFrontendMessage = useCallback(
     (backendMessage: any): Message => {
       const channelKey = selectedChannel?.encrypted_channel_key || "default-key";
-      debugger;
       let decryptedContent = backendMessage.encrypted_content;
       try {
         if (backendMessage.encryption_iv && backendMessage.encryption_auth_tag) {
@@ -496,49 +499,99 @@ export default function ChatPage() {
     status: m.status as "active" | "away" | "offline" | undefined
   }));
 
-  if (isLoadingChannels) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  const handleChannelSelect = useCallback((channel) => {
+    setSelectedChannel(channel);
+  }, []);
+
+  const handleDirectMessageSelect = useCallback((message) => {
+    setSelectedChannel(message);
+  }, []);
+
+  const handleReplyInThread = useCallback((message) => {
+    // Logic to reply in a thread
+  }, []);
+
+
+  const handleStartDirectMessage = useCallback((user) => {
+    // Logic to start a direct message
+  }, []);
+
+  const handleStatusChange = useCallback((status) => {
+    // Logic to handle status change
+  }, []);
 
   return (
-    <div className="bg-background flex h-screen">
-      {/* Sidebar */}
-      <Sidebar
-        channels={sidebarChannels}
-        directMessages={sidebarDMs}
-        activeId={selectedChannel?.id.toString()}
-        onChannelClick={handleChannelClick}
-        onDirectMessageClick={handleChannelClick}
-        currentUser={currentUserForSidebar}
-        availableUsers={availableUsers}
-        onCreateChannel={handleCreateChannel}
-        onStartDirectMessage={(userId) => {
-          toast.info("Direct message feature requires additional setup");
-        }}
-        onStatusChange={(status, message) => {
-          toast.success(`Status updated to ${status}`);
-        }}
-      />
+    <div className="bg-background flex h-screen w-full overflow-hidden">
+      {/* Left Sidebar - Collapsible on mobile */}
+      <div
+        className={`bg-background fixed inset-y-0 left-0 z-40 w-72 transform shadow-lg transition-transform duration-300 md:relative md:z-0 md:flex ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} `}>
+        <Sidebar
+          channels={channels}
+          directMessages={directMessages}
+          activeId={selectedChannel?.id.toString()}
+          onChannelClick={(channel) => {
+            handleChannelSelect(channel);
+            setIsSidebarOpen(false); // Close sidebar after selecting on mobile
+          }}
+          onDirectMessageClick={(message) => {
+            handleDirectMessageSelect(message);
+            setIsSidebarOpen(false); // Close sidebar after selecting on mobile
+          }}
+          currentUser={currentUser}
+          availableUsers={availableUsers}
+          onCreateChannel={handleCreateChannel}
+          onStartDirectMessage={handleStartDirectMessage}
+          onStatusChange={handleStatusChange}
+        />
+      </div>
 
-      {/* Main chat area */}
-      <div className="flex flex-1 flex-col">
+      {/* Mobile sidebar overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-y-0 right-0 left-72 z-30 bg-black/50 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Main Chat Area */}
+      <div className="bg-background flex h-screen w-full flex-1 flex-col overflow-hidden">
+        <div className="border-border flex h-16 items-center border-b md:hidden">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="hover:bg-muted flex h-16 w-16 items-center justify-center transition-colors"
+            title="Toggle sidebar">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </button>
+          {selectedChannel && (
+            <div className="flex-1 px-3">
+              <h2 className="font-display truncate text-sm font-bold">{currentChannelName}</h2>
+            </div>
+          )}
+        </div>
+
         {selectedChannel ? (
           <>
-            <ChatHeader
-              title={currentChannelName}
-              description={selectedChannel.description || `Welcome to ${currentChannelName}`}
-              memberCount={isChannelView ? selectedChannel.member_count : undefined}
-              isPinned={isPinned}
-              onPinChange={(pinned) => handlePinChange(selectedChannel.id.toString(), pinned)}
-              onUpdateChannel={handleUpdateChannel}
-              onArchiveChannel={handleArchiveChannel}
-              onLeaveChannel={handleLeaveChannel}
-              onInviteUsers={handleInviteUsers}
-            />
+            {/* Desktop chat header - hidden on mobile since we show button above */}
+            <div className="hidden h-16 items-center md:flex">
+              <ChatHeader
+                title={currentChannelName}
+                description={selectedChannel.description || `Welcome to ${currentChannelName}`}
+                memberCount={isChannelView ? selectedChannel.member_count : undefined}
+                isPinned={isPinned}
+                onPinChange={(pinned) => handlePinChange(selectedChannel.id.toString(), pinned)}
+                onUpdateChannel={handleUpdateChannel}
+                onArchiveChannel={handleArchiveChannel}
+                onLeaveChannel={handleLeaveChannel}
+                onInviteUsers={handleInviteUsers}
+              />
+            </div>
             <MessageList
               messages={currentMessages}
               currentUserId={currentUser?.id.toString() || "user-1"}
@@ -563,15 +616,18 @@ export default function ChatPage() {
         )}
       </div>
 
-      {selectedThreadId && parentMessage && (
+      {/* Thread Sidebar - Only visible when thread is open */}
+      {openThreadId && (
         <ThreadSidebar
-          parentMessage={parentMessage}
-          threadMessages={currentThreadMessages}
+          threadId={openThreadId}
+          messages={currentMessages}
           currentUserId={currentUser?.id.toString() || "user-1"}
-          onClose={() => setSelectedThreadId(null)}
-          onSendReply={handleSendThreadReply}
+          onClose={() => setOpenThreadId(null)}
+          onReplyInThread={handleReplyInThread}
         />
       )}
     </div>
   );
-}
+};
+
+export default Page;

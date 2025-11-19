@@ -47,7 +47,7 @@ export function MessageActionsPopover({
           <MoreVertical className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-40 p-0" side="top" align="end">
+      <PopoverContent className="p-0" side="top" align="end">
         <div className="flex flex-col gap-1 p-2">
           {/* Reply option - always show */}
           <button
