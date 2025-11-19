@@ -87,13 +87,13 @@ export function Sidebar({
   };
 
   return (
-    <div className="bg-sidebar text-sidebar-foreground flex h-screen w-full lg:w-72 flex-col overflow-hidden border-r border-border">
+    <div className="bg-sidebar text-sidebar-foreground flex h-screen w-full md:w-72 flex-col overflow-hidden border-r border-border">
       {/* Header */}
       <div className="border-border flex h-14 flex-shrink-0 items-center border-b px-4 gap-3">
-        {/* Mobile Menu Button */}
+        {/* Mobile Menu Button (hidden from tablet up) */}
         <button
           onClick={onMenuClick}
-          className="lg:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors">
+          className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors">
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>

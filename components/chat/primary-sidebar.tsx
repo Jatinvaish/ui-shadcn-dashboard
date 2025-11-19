@@ -32,8 +32,8 @@ export function PrimarySidebar({
 
   return (
     <>
-      {/* Desktop - Vertical Sidebar */}
-      <div className="bg-[#464775] hidden lg:flex h-screen w-16 flex-col items-center py-2 gap-1">
+      {/* Desktop/Tablet - Vertical Sidebar (from md breakpoint - 768px) */}
+      <div className="bg-[#464775] hidden md:flex h-screen w-16 flex-col items-center py-2 gap-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -65,18 +65,18 @@ export function PrimarySidebar({
         </div>
       </div>
 
-      {/* Mobile - Slide-in Overlay from Left */}
+      {/* Mobile - Slide-in Overlay from Left (below md breakpoint - <768px) */}
       {isOpen && (
         <>
           {/* Dark Overlay */}
           <div
-            className="fixed inset-0 z-50 bg-black/50 lg:hidden transition-opacity duration-300"
+            className="fixed inset-0 z-50 bg-black/50 md:hidden transition-opacity duration-300"
             onClick={onClose}
           />
 
           {/* Sidebar Overlay */}
           <div className={cn(
-            "fixed inset-y-0 left-0 z-50 w-64 bg-[#464775] shadow-2xl lg:hidden",
+            "fixed inset-y-0 left-0 z-50 w-64 bg-[#464775] shadow-2xl md:hidden",
             "transform transition-transform duration-300 ease-in-out",
             isOpen ? "translate-x-0" : "-translate-x-full"
           )}>

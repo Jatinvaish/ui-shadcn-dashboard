@@ -472,13 +472,13 @@ const Page = () => {
     (sidebarChannels?.reduce((sum, ch) => sum + (ch.unread || 0), 0) || 0);
 
   // Mobile: Show sidebar when no channel selected, show chat when channel selected
-  // Desktop: Always show both
+  // Tablet+: Always show both
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
 
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
-      {/* Primary Sidebar - Desktop vertical, Mobile modal */}
+      {/* Primary Sidebar - Desktop/Tablet vertical (md+), Mobile overlay */}
       <PrimarySidebar 
         activeTab={activeTab} 
         onTabChange={setActiveTab}
@@ -487,8 +487,8 @@ const Page = () => {
         onClose={() => setIsPrimarySidebarOpen(false)}
       />
 
-      {/* Secondary Sidebar - Mobile: full screen when no channel, Desktop: always visible */}
-      <div className={`${showSidebarOnMobile ? 'flex' : 'hidden'} lg:flex`}>
+      {/* Secondary Sidebar - Mobile: full screen when no channel, Tablet+: always visible */}
+      <div className={`${showSidebarOnMobile ? 'flex' : 'hidden'} md:flex`}>
         <Sidebar
           channels={sidebarChannels || []}
           directMessages={sidebarDMs || []}
@@ -505,10 +505,10 @@ const Page = () => {
         />
       </div>
 
-      {/* Main Chat Content - Mobile: full screen when channel selected, Desktop: always visible */}
-      <div className={`bg-background flex h-screen w-full flex-1 flex-col overflow-hidden ${showChatOnMobile ? 'flex' : 'hidden'} lg:flex`}>
+      {/* Main Chat Content - Mobile: full screen when channel selected, Tablet+: always visible */}
+      <div className={`bg-background flex h-screen w-full flex-1 flex-col overflow-hidden ${showChatOnMobile ? 'flex' : 'hidden'} md:flex`}>
         {/* Mobile header with back button */}
-        <div className="border-border flex h-14 items-center border-b lg:hidden">
+        <div className="border-border flex h-14 items-center border-b md:hidden">
           {selectedChannel && (
             <>
               <button
@@ -523,9 +523,9 @@ const Page = () => {
           )}
         </div>
 
-        {/* Desktop header */}
+        {/* Desktop/Tablet header */}
         {selectedChannel && (
-          <div className="hidden h-14 items-center lg:flex">
+          <div className="hidden h-14 items-center md:flex">
             <ChatHeader
               title={selectedChannel.name}
               description={selectedChannel.description || `Welcome to ${selectedChannel.name}`}
@@ -561,7 +561,7 @@ const Page = () => {
             />
           </>
         ) : (
-          <div className="text-muted-foreground hidden lg:flex flex-1 items-center justify-center">
+          <div className="text-muted-foreground hidden md:flex flex-1 items-center justify-center">
             <div className="text-center px-4">
               <p className="text-base font-medium mb-2">Select a chat to start messaging</p>
               <p className="text-sm">Choose from your recent conversations or start a new one</p>
