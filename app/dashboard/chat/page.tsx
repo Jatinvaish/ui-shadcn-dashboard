@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatHeader } from "@/components/chat/chat-header";
-import { MessageList, type Message } from "@/components/chat/message-list";
+import { MessageList } from "@/components/chat/message-list";
 import { MessageInput } from "@/components/chat/message-input";
 import { ThreadSidebar } from "@/components/chat/thread-sidebar";
+import type { Message } from "@/components/chat/message-list";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchUserChannels,
@@ -17,7 +18,6 @@ import {
   archiveChannel,
   leaveChannel,
   deleteMessage,
-  addChannelMembers,
   updateMemberNotification,
   setSelectedChannel,
   clearError,
@@ -34,18 +34,15 @@ import {
   CreateChannelPayload,
   UpdateChannelPayload,
   ArchiveChannelPayload,
-  AddChannelMembersPayload,
   UpdateMemberNotificationPayload
 } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
-import { Loader2 } from "lucide-react";
 import * as crypto from "crypto";
 import { selectUser } from "@/store/slices/authSlice";
 
-// Helper function to encrypt message content
 const encryptMessageContent = (content: string, channelKey: string) => {
   const ALGORITHM = "aes-256-gcm";
-  const IV_LENGTH = 16; // 12 bytes -> 16 base64 chars
+  const IV_LENGTH = 16;
 
   try {
     const key = crypto.pbkdf2Sync(channelKey, "message-salt", 100000, 32, "sha256");
@@ -53,13 +50,12 @@ const encryptMessageContent = (content: string, channelKey: string) => {
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
     const encrypted = Buffer.concat([cipher.update(content, "utf8"), cipher.final()]);
-
     const authTag = cipher.getAuthTag();
 
     return {
       encryptedContent: encrypted.toString("base64"),
-      encryptionIv: iv.toString("base64"), // 12 bytes  → 16 base64 chars
-      encryptionAuthTag: authTag.toString("base64") // 16 bytes → 24 base64 chars
+      encryptionIv: iv.toString("base64"),
+      encryptionAuthTag: authTag.toString("base64")
     };
   } catch (error) {
     console.error("Message encryption failed:", error);
@@ -77,17 +73,14 @@ const decryptMessageContent = (
 
   try {
     const key = crypto.pbkdf2Sync(channelKey, "message-salt", 100000, 32, "sha256");
-
-    // Decode all base64 inputs
-    const iv = Buffer.from(encryptionIv, "base64"); // 16 bytes
-    const authTag = Buffer.from(encryptionAuthTag, "base64"); // 16 bytes
-    const encrypted = Buffer.from(encryptedContent, "base64"); // ciphertext
+    const iv = Buffer.from(encryptionIv, "base64");
+    const authTag = Buffer.from(encryptionAuthTag, "base64");
+    const encrypted = Buffer.from(encryptedContent, "base64");
 
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
 
     const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-
     return decrypted.toString("utf8");
   } catch (error) {
     console.error("Message decryption failed:", error);
@@ -95,7 +88,7 @@ const decryptMessageContent = (
   }
 };
 
-export default function ChatPage() {
+const Page = () => {
   const dispatch = useAppDispatch();
   const {
     channels,
@@ -110,20 +103,13 @@ export default function ChatPage() {
     successMessage
   } = useAppSelector((state) => state.chat);
 
-  console.log("Selected Channel:", selectedChannel);
-  console.log("Channels:", channels);
-  console.log("Messages:", messages);
-
-  // const currentUser = useAppSelector((state) => state.auth.user)
   const currentUser = useAppSelector(selectUser);
 
-  console.log("Current User:", currentUser);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = React.useState<Message | null>(null);
-  const [pinnedIds, setPinnedIds] = React.useState<Set<string>>(new Set());
-
-  // Fetch initial data
   useEffect(() => {
     const initializeChat = async () => {
       try {
@@ -138,7 +124,6 @@ export default function ChatPage() {
     initializeChat();
   }, [dispatch]);
 
-  // Handle channel selection
   useEffect(() => {
     if (selectedChannel) {
       const loadChannelData = async () => {
@@ -157,7 +142,6 @@ export default function ChatPage() {
     }
   }, [selectedChannel, dispatch]);
 
-  // Handle success messages
   useEffect(() => {
     if (successMessage) {
       toast.success(successMessage);
@@ -165,7 +149,6 @@ export default function ChatPage() {
     }
   }, [successMessage, dispatch]);
 
-  // Handle errors
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -173,11 +156,9 @@ export default function ChatPage() {
     }
   }, [error, dispatch]);
 
-  // Convert backend messages to frontend format
   const convertToFrontendMessage = useCallback(
     (backendMessage: any): Message => {
       const channelKey = selectedChannel?.encrypted_channel_key || "default-key";
-      debugger;
       let decryptedContent = backendMessage.encrypted_content;
       try {
         if (backendMessage.encryption_iv && backendMessage.encryption_auth_tag) {
@@ -200,13 +181,13 @@ export default function ChatPage() {
         content: decryptedContent,
         timestamp: new Date(backendMessage.sent_at || backendMessage.created_at),
         edited: backendMessage.is_edited,
-        reactions: [], // You can map reactions here if available
+        reactions: [],
         threadReplies: backendMessage.reply_count || 0,
         replyTo: backendMessage.reply_to_message_id
           ? {
               messageId: backendMessage.reply_to_message_id.toString(),
-              authorName: "Previous User", // You'd need to fetch this
-              content: "Previous message" // You'd need to fetch this
+              authorName: "Previous User",
+              content: "Previous message"
             }
           : undefined
       };
@@ -216,14 +197,12 @@ export default function ChatPage() {
 
   const currentMessages: Message[] = React.useMemo(() => {
     if (!selectedChannel) return [];
-
     const channelMessages = messages[selectedChannel.id] || [];
     return channelMessages.map(convertToFrontendMessage);
   }, [selectedChannel, messages, convertToFrontendMessage]);
 
   const currentThreadMessages: Message[] = React.useMemo(() => {
     if (!selectedThreadId) return [];
-
     const threadMsgs = threadMessages[parseInt(selectedThreadId)] || [];
     return threadMsgs.map(convertToFrontendMessage);
   }, [selectedThreadId, threadMessages, convertToFrontendMessage]);
@@ -235,6 +214,7 @@ export default function ChatPage() {
         dispatch(setSelectedChannel(channel));
         setSelectedThreadId(null);
         setReplyingTo(null);
+        setIsSidebarOpen(false);
       }
     },
     [channels, dispatch]
@@ -271,8 +251,8 @@ export default function ChatPage() {
   );
 
   const handleSendThreadReply = useCallback(
-    async (content: string) => {
-      if (!selectedThreadId || !selectedChannel || !content.trim()) return;
+    async (content: string, parentId: string) => {
+      if (!selectedChannel || !content.trim()) return;
 
       try {
         const channelKey = selectedChannel.encrypted_channel_key || "default-key";
@@ -287,7 +267,7 @@ export default function ChatPage() {
           encryptedContent,
           encryptionIv,
           encryptionAuthTag,
-          threadId: parseInt(selectedThreadId)
+          threadId: parseInt(parentId)
         };
 
         await dispatch(replyToThread(payload)).unwrap();
@@ -296,7 +276,7 @@ export default function ChatPage() {
         toast.error("Failed to send reply");
       }
     },
-    [selectedThreadId, selectedChannel, dispatch]
+    [selectedChannel, dispatch]
   );
 
   const handleDeleteMessage = useCallback(
@@ -421,16 +401,18 @@ export default function ChatPage() {
   const handleInviteUsers = useCallback(
     async (emails: string[]) => {
       if (!selectedChannel) return;
-
-      // Note: This would need a backend endpoint to convert emails to user IDs
       toast.info("User invitation feature requires additional backend support");
     },
     [selectedChannel]
   );
 
   const handlePinChange = useCallback(
-    async (channelId: string, isPinned: boolean) => {
+    async (isPinned: boolean) => {
+      if (!selectedChannel) return;
+
       const newPinned = new Set(pinnedIds);
+      const channelId = selectedChannel.id.toString();
+      
       if (isPinned) {
         newPinned.add(channelId);
       } else {
@@ -438,10 +420,9 @@ export default function ChatPage() {
       }
       setPinnedIds(newPinned);
 
-      // You could also persist this to backend if needed
       try {
         const payload: UpdateMemberNotificationPayload = {
-          channelId: parseInt(channelId),
+          channelId: selectedChannel.id,
           notificationSettings: { isPinned }
         };
         await dispatch(updateMemberNotification(payload)).unwrap();
@@ -449,18 +430,9 @@ export default function ChatPage() {
         console.error("Failed to update pin status:", error);
       }
     },
-    [pinnedIds, dispatch]
+    [selectedChannel, pinnedIds, dispatch]
   );
 
-  const parentMessage = selectedThreadId
-    ? currentMessages.find((m) => m.id === selectedThreadId)
-    : null;
-
-  const isChannelView = selectedChannel?.channel_type !== ChannelType.DIRECT;
-  const currentChannelName = selectedChannel?.name || "general";
-  const isPinned = selectedChannel ? pinnedIds.has(selectedChannel.id.toString()) : false;
-
-  // Transform channels for sidebar
   const sidebarChannels = channels
     ?.filter((ch) => ch.channel_type !== ChannelType.DIRECT)
     ?.map((ch) => ({
@@ -471,7 +443,6 @@ export default function ChatPage() {
       unread: ch.unread_count
     }));
 
-  // Transform direct messages for sidebar
   const sidebarDMs = channels
     ?.filter((ch) => ch.channel_type === ChannelType.DIRECT)
     ?.map((ch) => ({
@@ -489,60 +460,71 @@ export default function ChatPage() {
       }
     : undefined;
 
-  const availableUsers = (selectedChannel ? members[selectedChannel.id] || [] : []).map((m) => ({
-    id: m.user_id.toString(),
-    name: `${m.first_name} ${m.last_name}`,
-    email: m.email,
-    status: m.status as "active" | "away" | "offline" | undefined
-  }));
-
-  if (isLoadingChannels) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-background flex h-screen">
-      {/* Sidebar */}
-      <Sidebar
-        channels={sidebarChannels}
-        directMessages={sidebarDMs}
-        activeId={selectedChannel?.id.toString()}
-        onChannelClick={handleChannelClick}
-        onDirectMessageClick={handleChannelClick}
-        currentUser={currentUserForSidebar}
-        availableUsers={availableUsers}
-        onCreateChannel={handleCreateChannel}
-        onStartDirectMessage={(userId) => {
-          toast.info("Direct message feature requires additional setup");
-        }}
-        onStatusChange={(status, message) => {
-          toast.success(`Status updated to ${status}`);
-        }}
-      />
+    <div className="bg-background flex h-screen w-full overflow-hidden">
+      <div
+        className={`bg-background fixed inset-y-0 left-0 z-40 w-72 transform shadow-lg transition-transform duration-300 md:relative md:z-0 md:flex ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+        <Sidebar
+          channels={sidebarChannels || []}
+          directMessages={sidebarDMs || []}
+          activeId={selectedChannel?.id.toString()}
+          onChannelClick={handleChannelClick}
+          onDirectMessageClick={handleChannelClick}
+          currentUser={currentUserForSidebar}
+          availableUsers={[]}
+          onCreateChannel={handleCreateChannel}
+          onStartDirectMessage={() => {}}
+          onStatusChange={() => {}}
+        />
+      </div>
 
-      {/* Main chat area */}
-      <div className="flex flex-1 flex-col">
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-y-0 right-0 left-72 z-30 bg-black/50 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <div className="bg-background flex h-screen w-full flex-1 flex-col overflow-hidden">
+        <div className="border-border flex h-16 items-center border-b md:hidden">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="hover:bg-muted flex h-16 w-16 items-center justify-center transition-colors">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </button>
+          {selectedChannel && (
+            <div className="flex-1 px-3">
+              <h2 className="font-display truncate text-sm font-bold">{selectedChannel.name}</h2>
+            </div>
+          )}
+        </div>
+
         {selectedChannel ? (
           <>
-            <ChatHeader
-              title={currentChannelName}
-              description={selectedChannel.description || `Welcome to ${currentChannelName}`}
-              memberCount={isChannelView ? selectedChannel.member_count : undefined}
-              isPinned={isPinned}
-              onPinChange={(pinned) => handlePinChange(selectedChannel.id.toString(), pinned)}
-              onUpdateChannel={handleUpdateChannel}
-              onArchiveChannel={handleArchiveChannel}
-              onLeaveChannel={handleLeaveChannel}
-              onInviteUsers={handleInviteUsers}
-            />
+            <div className="hidden h-16 items-center md:flex">
+              <ChatHeader
+                title={selectedChannel.name}
+                description={selectedChannel.description || `Welcome to ${selectedChannel.name}`}
+                memberCount={selectedChannel.member_count}
+                isPinned={pinnedIds.has(selectedChannel.id.toString())}
+                onPinChange={handlePinChange}
+                onUpdateChannel={handleUpdateChannel}
+                onArchiveChannel={handleArchiveChannel}
+                onLeaveChannel={handleLeaveChannel}
+                onInviteUsers={handleInviteUsers}
+              />
+            </div>
             <MessageList
               messages={currentMessages}
               currentUserId={currentUser?.id.toString() || "user-1"}
-              isDirect={!isChannelView}
+              isDirect={selectedChannel.channel_type === ChannelType.DIRECT}
               onReply={handleReplyToMessage}
               onReact={(id, emoji) => console.log("React", emoji, "to", id)}
               onOpenThread={handleOpenThread}
@@ -563,15 +545,17 @@ export default function ChatPage() {
         )}
       </div>
 
-      {selectedThreadId && parentMessage && (
+      {selectedThreadId && (
         <ThreadSidebar
-          parentMessage={parentMessage}
-          threadMessages={currentThreadMessages}
+          threadId={selectedThreadId}
+          messages={currentThreadMessages}
           currentUserId={currentUser?.id.toString() || "user-1"}
           onClose={() => setSelectedThreadId(null)}
-          onSendReply={handleSendThreadReply}
+          onReplyInThread={handleSendThreadReply}
         />
       )}
     </div>
   );
-}
+};
+
+export default Page;
