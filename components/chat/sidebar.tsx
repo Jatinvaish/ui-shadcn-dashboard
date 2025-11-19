@@ -43,6 +43,7 @@ interface SidebarProps {
   onCreateChannel?: (name: string, isPrivate: boolean, description: string) => void;
   onStartDirectMessage?: (userId: string) => void;
   onStatusChange?: (status: "active" | "away" | "offline", message: string) => void;
+  onMenuClick?: () => void;
 }
 
 export function Sidebar({
@@ -56,7 +57,8 @@ export function Sidebar({
   availableUsers = [],
   onCreateChannel,
   onStartDirectMessage,
-  onStatusChange
+  onStatusChange,
+  onMenuClick
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [createChannelOpen, setCreateChannelOpen] = React.useState(false);
@@ -85,12 +87,23 @@ export function Sidebar({
   };
 
   return (
-    <div className="bg-sidebar text-sidebar-foreground flex h-screen w-72 flex-col overflow-hidden border-r border-border">
+    <div className="bg-sidebar text-sidebar-foreground flex h-screen w-full lg:w-72 flex-col overflow-hidden border-r border-border">
       {/* Header */}
-      <div className="border-border flex h-14 flex-shrink-0 items-center justify-between border-b px-4">
-        <h2 className="font-display truncate text-base font-semibold">
+      <div className="border-border flex h-14 flex-shrink-0 items-center border-b px-4 gap-3">
+        {/* Mobile Menu Button */}
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors">
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+        {/* Title */}
+        <h2 className="font-display truncate text-base font-semibold flex-1">
           {activeTab === "chat" ? "Chat" : activeTab === "channels" ? "Teams" : "Activity"}
         </h2>
+
         <ChevronDown className="text-muted-foreground h-4 w-4 flex-shrink-0" />
       </div>
 

@@ -40,7 +40,7 @@ import {
 import toast from "react-hot-toast";
 import * as crypto from "crypto";
 import { selectUser } from "@/store/slices/authSlice";
-import { Menu } from "lucide-react";
+import { Menu, ArrowLeft } from "lucide-react";
 
 const encryptMessageContent = (content: string, channelKey: string) => {
   const ALGORITHM = "aes-256-gcm";
@@ -110,8 +110,8 @@ const Page = () => {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
+  const [isPrimarySidebarOpen, setIsPrimarySidebarOpen] = useState(false);
 
   useEffect(() => {
     const initializeChat = async () => {
@@ -217,11 +217,16 @@ const Page = () => {
         dispatch(setSelectedChannel(channel));
         setSelectedThreadId(null);
         setReplyingTo(null);
-        setIsSidebarOpen(false);
       }
     },
     [channels, dispatch]
   );
+
+  const handleBackToList = useCallback(() => {
+    dispatch(setSelectedChannel(null));
+    setSelectedThreadId(null);
+    setReplyingTo(null);
+  }, [dispatch]);
 
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -466,20 +471,24 @@ const Page = () => {
   const totalUnread = (sidebarDMs?.reduce((sum, dm) => sum + (dm.unread || 0), 0) || 0) +
     (sidebarChannels?.reduce((sum, ch) => sum + (ch.unread || 0), 0) || 0);
 
+  // Mobile: Show sidebar when no channel selected, show chat when channel selected
+  // Desktop: Always show both
+  const showSidebarOnMobile = !selectedChannel;
+  const showChatOnMobile = !!selectedChannel;
+
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
-      {/* Primary Sidebar */}
-      <div className="hidden lg:block">
-        <PrimarySidebar 
-          activeTab={activeTab} 
-          onTabChange={setActiveTab}
-          unreadCount={totalUnread}
-        />
-      </div>
+      {/* Primary Sidebar - Desktop vertical, Mobile modal */}
+      <PrimarySidebar 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab}
+        unreadCount={totalUnread}
+        isOpen={isPrimarySidebarOpen}
+        onClose={() => setIsPrimarySidebarOpen(false)}
+      />
 
-      {/* Secondary Sidebar */}
-      <div
-        className={`bg-background fixed inset-y-0 left-0 z-40 transform shadow-lg transition-transform duration-300 lg:relative lg:z-0 lg:flex ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      {/* Secondary Sidebar - Mobile: full screen when no channel, Desktop: always visible */}
+      <div className={`${showSidebarOnMobile ? 'flex' : 'hidden'} lg:flex`}>
         <Sidebar
           channels={sidebarChannels || []}
           directMessages={sidebarDMs || []}
@@ -492,48 +501,48 @@ const Page = () => {
           onCreateChannel={handleCreateChannel}
           onStartDirectMessage={() => {}}
           onStatusChange={() => {}}
+          onMenuClick={() => setIsPrimarySidebarOpen(true)}
         />
       </div>
 
-      {/* Mobile overlay */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main content */}
-      <div className="bg-background flex h-screen w-full flex-1 flex-col overflow-hidden">
-        {/* Mobile header */}
+      {/* Main Chat Content - Mobile: full screen when channel selected, Desktop: always visible */}
+      <div className={`bg-background flex h-screen w-full flex-1 flex-col overflow-hidden ${showChatOnMobile ? 'flex' : 'hidden'} lg:flex`}>
+        {/* Mobile header with back button */}
         <div className="border-border flex h-14 items-center border-b lg:hidden">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="hover:bg-muted flex h-14 w-14 items-center justify-center transition-colors">
-            <Menu className="h-5 w-5" />
-          </button>
           {selectedChannel && (
-            <div className="flex-1 px-3">
-              <h2 className="font-display truncate text-sm font-bold">{selectedChannel.name}</h2>
-            </div>
+            <>
+              <button
+                onClick={handleBackToList}
+                className="hover:bg-muted flex h-14 w-14 items-center justify-center transition-colors">
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div className="flex-1 px-3">
+                <h2 className="font-display truncate text-sm font-bold">{selectedChannel.name}</h2>
+              </div>
+            </>
           )}
         </div>
 
+        {/* Desktop header */}
+        {selectedChannel && (
+          <div className="hidden h-14 items-center lg:flex">
+            <ChatHeader
+              title={selectedChannel.name}
+              description={selectedChannel.description || `Welcome to ${selectedChannel.name}`}
+              memberCount={selectedChannel.member_count}
+              isPinned={pinnedIds.has(selectedChannel.id.toString())}
+              onPinChange={handlePinChange}
+              onUpdateChannel={handleUpdateChannel}
+              onArchiveChannel={handleArchiveChannel}
+              onLeaveChannel={handleLeaveChannel}
+              onInviteUsers={handleInviteUsers}
+            />
+          </div>
+        )}
+
+        {/* Messages and Input */}
         {selectedChannel ? (
           <>
-            <div className="hidden h-14 items-center lg:flex">
-              <ChatHeader
-                title={selectedChannel.name}
-                description={selectedChannel.description || `Welcome to ${selectedChannel.name}`}
-                memberCount={selectedChannel.member_count}
-                isPinned={pinnedIds.has(selectedChannel.id.toString())}
-                onPinChange={handlePinChange}
-                onUpdateChannel={handleUpdateChannel}
-                onArchiveChannel={handleArchiveChannel}
-                onLeaveChannel={handleLeaveChannel}
-                onInviteUsers={handleInviteUsers}
-              />
-            </div>
             <MessageList
               messages={currentMessages}
               currentUserId={currentUser?.id.toString() || "user-1"}
@@ -552,8 +561,8 @@ const Page = () => {
             />
           </>
         ) : (
-          <div className="text-muted-foreground flex flex-1 items-center justify-center">
-            <div className="text-center">
+          <div className="text-muted-foreground hidden lg:flex flex-1 items-center justify-center">
+            <div className="text-center px-4">
               <p className="text-base font-medium mb-2">Select a chat to start messaging</p>
               <p className="text-sm">Choose from your recent conversations or start a new one</p>
             </div>
