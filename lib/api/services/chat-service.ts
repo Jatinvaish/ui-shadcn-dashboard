@@ -1,19 +1,16 @@
-// lib/api/services/chat-service.ts - UPDATED v4.1 - FIXED RESPONSE HANDLING
+// lib/api/services/chat-service.ts - ULTRA-OPTIMIZED v5.0
 import { encryptedApiClient } from '../encrypted-client';
 import { API_ENDPOINTS } from '../endpoints';
 
-// ==================== HELPER TO EXTRACT DATA ====================
+// ==================== HELPER ====================
 const extractData = <T>(response: any): T => {
-  // Handle wrapped responses: { success, data, message, statusCode }
   if (response && typeof response === 'object' && 'data' in response) {
     return response.data as T;
   }
-  // Handle direct responses
   return response as T;
 };
 
 // ==================== ENUMS ====================
-
 export enum ChannelType {
   DIRECT = 'direct',
   GROUP = 'group',
@@ -37,52 +34,14 @@ export enum MessageType {
   VIDEO = 'video',
   AUDIO = 'audio',
   SYSTEM = 'system',
-  POLL = 'poll',
-  CODE = 'code',
 }
 
-// ==================== CHANNEL INTERFACES ====================
-
-export interface CreateChannelPayload {
-  name: string;
-  description?: string;
-  channelType: ChannelType;
-  relatedType?: string;
-  relatedId?: number;
-  isPrivate?: boolean;
-  memberIds?: number[];
-}
-
-export interface UpdateChannelPayload {
-  channelId: number;
-  name?: string;
-  description?: string;
-  isPrivate?: boolean;
-  settings?: any;
-}
-
-export interface ArchiveChannelPayload {
-  channelId: number;
-  isArchived: boolean;
-}
-
-export interface GetChannelsPayload {
-  channelType?: ChannelType;
-  isArchived?: boolean;
-  search?: string;
-  limit?: number;
-  offset?: number;
-}
-
+// ==================== INTERFACES ====================
 export interface Channel {
   id: number;
   name: string;
   description?: string;
-  channel_type: string;
-  isMuted: number;
-  unreadCount: number;
-  memberCount: number;
-  type: string;
+  channel_type: ChannelType;
   is_private: boolean;
   member_count: number;
   message_count: number;
@@ -90,46 +49,44 @@ export interface Channel {
   last_message_preview?: string;
   last_message_at?: string;
   last_activity_at: string;
-  user_role: string;
+  user_role: MemberRole;
   is_muted: boolean;
   last_read_message_id?: number;
   last_read_at?: string;
   encrypted_channel_key?: string;
-  encryptionEnabled?: boolean;
-  encryptionVersion?: string;
-  algorithm?: string;
+  encryption_version?: string;
+  encryption_algorithm?: string;
 }
 
-// ==================== MEMBER INTERFACES ====================
-
-export interface AddChannelMembersPayload {
-  channelId: number;
-  userIds: number[];
-  role?: MemberRole;
-}
-
-export interface RemoveChannelMemberPayload {
-  channelId: number;
-  userId: number;
-}
-
-export interface UpdateMemberRolePayload {
-  channelId: number;
-  userId: number;
-  role: MemberRole;
-}
-
-export interface UpdateMemberNotificationPayload {
-  channelId: number;
-  isMuted?: boolean;
-  notificationSettings?: any;
+export interface Message {
+  id: number;
+  channel_id: number;
+  sender_user_id: number;
+  sender_first_name: string;
+  sender_last_name: string;
+  sender_avatar_url?: string;
+  message_type: MessageType;
+  encrypted_content: string;
+  encryption_iv: string;
+  encryption_auth_tag: string;
+  content_hash?: string;
+  is_edited: boolean;
+  edited_at?: string;
+  is_deleted: boolean;
+  is_pinned: boolean;
+  reply_to_message_id?: number;
+  thread_id?: number;
+  sent_at: string;
+  created_at: string;
+  reaction_count: number;
+  reply_count: number;
 }
 
 export interface Member {
   id: number;
   user_id: number;
   channel_id: number;
-  role: string;
+  role: MemberRole;
   first_name: string;
   last_name: string;
   email: string;
@@ -139,8 +96,7 @@ export interface Member {
   is_muted: boolean;
 }
 
-// ==================== MESSAGE INTERFACES ====================
-
+// ==================== PAYLOADS ====================
 export interface SendMessagePayload {
   channelId: number;
   messageType?: MessageType;
@@ -149,17 +105,32 @@ export interface SendMessagePayload {
   encryptionAuthTag: string;
   replyToMessageId?: number;
   threadId?: number;
-  attachments?: AttachmentPayload[];
   mentions?: number[];
 }
 
-export interface AttachmentPayload {
-  filename: string;
-  fileUrl: string;
-  fileSize: number;
-  mimeType: string;
-  thumbnailUrl?: string;
-  encryptedFileKey?: string;
+export interface CreateChannelPayload {
+  name: string;
+  description?: string;
+  channelType: ChannelType;
+  isPrivate?: boolean;
+  memberIds?: number[];
+}
+
+export interface UpdateChannelPayload {
+  channelId: number;
+  name?: string;
+  description?: string;
+}
+
+export interface ArchiveChannelPayload {
+  channelId: number;
+  isArchived: boolean;
+}
+
+export interface UpdateMemberNotificationPayload {
+  channelId: number;
+  isMuted?: boolean;
+  notificationSettings?: any;
 }
 
 export interface EditMessagePayload {
@@ -174,87 +145,9 @@ export interface DeleteMessagePayload {
   hardDelete?: boolean;
 }
 
-export interface Message {
-  id: number;
-  channel_id: number;
-  sender_user_id: number;
-  sender_first_name: string;
-  sender_last_name: string;
-  sender_avatar_url?: string;
-  message_type: string;
-  encrypted_content: string;
-  encryption_iv: string;
-  encryption_auth_tag: string;
-  content_hash?: string;
-  is_edited: boolean;
-  edited_at?: string;
-  is_deleted: boolean;
-  deleted_at?: string;
-  is_pinned: boolean;
-  pinned_at?: string;
-  pinned_by?: number;
-  reply_to_message_id?: number;
-  thread_id?: number;
-  sent_at: string;
-  created_at: string;
-  reaction_count: number;
-  reply_count: number;
-  encryptionMetadata?: {
-    algorithm: string;
-    hasIntegrityTag: boolean;
-    requiresChannelKey: boolean;
-  };
-}
-
-export interface GetMessagesPayload {
-  channelId: number;
-  limit?: number;
-  offset?: number;
-  beforeMessageId?: number;
-  afterMessageId?: number;
-  includeDeleted?: boolean;
-}
-
-export interface ReactToMessagePayload {
-  messageId: number;
-  emoji: string;
-}
-
-export interface PinMessagePayload {
-  messageId: number;
-  isPinned: boolean;
-}
-
-export interface ForwardMessagePayload {
-  messageId: number;
-  targetChannelIds: number[];
-}
-
-export interface RotateChannelKeyPayload {
-  channelId: number;
-  reason: string;
-}
-
-// ==================== SEARCH & READ RECEIPT INTERFACES ====================
-
-export interface SearchMessagesPayload {
-  channelId?: number;
-  userId?: number;
-  messageType?: MessageType;
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-  offset?: number;
-}
-
 export interface MarkAsReadPayload {
   channelId: number;
   messageId?: number;
-}
-
-export interface BulkMarkAsReadPayload {
-  channelId: number;
-  messageIds: number[];
 }
 
 export interface GetThreadMessagesPayload {
@@ -263,25 +156,70 @@ export interface GetThreadMessagesPayload {
   offset?: number;
 }
 
-// ==================== DIRECT MESSAGE INTERFACES ====================
-
-export interface CreateDirectMessagePayload {
-  recipientUserId: number;
-  encryptedContent: string;
-  encryptionIv: string;
-  encryptionAuthTag: string;
-  attachments?: AttachmentPayload[];
-}
-
 // ==================== CHAT SERVICE ====================
-
 export class ChatService {
-  // ==================== CHANNELS ====================
+  // ==================== ULTRA-FAST ENDPOINTS (V2) ====================
 
   /**
-   * Get all channels for current user
+   * ✅ Send message using ultra-fast endpoint (<80ms target)
    */
-  static async getUserChannels(payload: GetChannelsPayload) {
+  static async sendMessageUltraFast(payload: SendMessagePayload): Promise<Message> {
+    const response = await encryptedApiClient.post(
+      API_ENDPOINTS.CHAT.V2.SEND,
+      payload
+    );
+    return extractData<Message>(response);
+  }
+
+  /**
+   * ✅ Get messages using ultra-fast endpoint (<50ms target)
+   */
+  static async getMessagesUltraFast(
+    channelId: number,
+    limit: number = 50,
+    beforeId?: number
+  ): Promise<Message[]> {
+    const response = await encryptedApiClient.get(
+      API_ENDPOINTS.CHAT.V2.GET_MESSAGES,
+      {
+        params: { channelId, limit, beforeId },
+      }
+    );
+    return extractData<Message[]>(response);
+  }
+
+  /**
+   * ✅ Batch send messages
+   */
+  static async sendMessageBatch(messages: SendMessagePayload[]): Promise<any> {
+    const response = await encryptedApiClient.post(
+      API_ENDPOINTS.CHAT.V2.BATCH_SEND,
+      { messages }
+    );
+    return extractData(response);
+  }
+
+  /**
+   * ✅ Mark as read (fire and forget - 202 Accepted)
+   */
+  static async markAsReadUltraFast(channelId: number, messageId?: number): Promise<void> {
+    await encryptedApiClient.post(API_ENDPOINTS.CHAT.V2.MARK_READ, {
+      channelId,
+      messageId,
+    });
+  }
+
+  /**
+   * ✅ Get unread count (cached)
+   */
+  static async getUnreadCountUltraFast(): Promise<any> {
+    const response = await encryptedApiClient.get(API_ENDPOINTS.CHAT.V2.UNREAD_COUNT);
+    return extractData(response);
+  }
+
+  // ==================== CHANNELS ====================
+
+  static async getUserChannels(payload: any = {}): Promise<Channel[]> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.CHANNELS.LIST,
       payload
@@ -289,10 +227,7 @@ export class ChatService {
     return extractData<Channel[]>(response);
   }
 
-  /**
-   * Get specific channel by ID
-   */
-  static async getChannelById(channelId: number) {
+  static async getChannelById(channelId: number): Promise<Channel> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.CHANNELS.GET_BY_ID,
       { channelId }
@@ -300,10 +235,7 @@ export class ChatService {
     return extractData<Channel>(response);
   }
 
-  /**
-   * Create new channel with E2E encryption
-   */
-  static async createChannel(payload: CreateChannelPayload) {
+  static async createChannel(payload: CreateChannelPayload): Promise<Channel> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.CHANNELS.CREATE,
       payload
@@ -311,10 +243,7 @@ export class ChatService {
     return extractData<Channel>(response);
   }
 
-  /**
-   * Update channel details
-   */
-  static async updateChannel(payload: UpdateChannelPayload) {
+  static async updateChannel(payload: UpdateChannelPayload): Promise<Channel> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.CHANNELS.UPDATE,
       payload
@@ -322,10 +251,7 @@ export class ChatService {
     return extractData<Channel>(response);
   }
 
-  /**
-   * Archive or unarchive channel
-   */
-  static async archiveChannel(payload: ArchiveChannelPayload) {
+  static async archiveChannel(payload: ArchiveChannelPayload): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.CHANNELS.ARCHIVE,
       payload
@@ -333,10 +259,7 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Delete channel (owner only)
-   */
-  static async deleteChannel(channelId: number) {
+  static async deleteChannel(channelId: number): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.CHANNELS.DELETE,
       { channelId }
@@ -344,10 +267,7 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Leave channel
-   */
-  static async leaveChannel(channelId: number) {
+  static async leaveChannel(channelId: number): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.CHANNELS.LEAVE,
       { channelId }
@@ -355,45 +275,9 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Get channel settings (admin only)
-   */
-  static async getChannelSettings(channelId: number) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.CHANNELS.SETTINGS_GET,
-      { channelId }
-    );
-    return extractData(response);
-  }
+  // ==================== MEMBERS ====================
 
-  /**
-   * Update channel settings (admin only)
-   */
-  static async updateChannelSettings(channelId: number, settings: any) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.CHANNELS.SETTINGS_UPDATE,
-      { channelId, settings }
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Rotate channel encryption key (owner only)
-   */
-  static async rotateChannelKey(payload: RotateChannelKeyPayload) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.CHANNELS.ROTATE_KEY,
-      payload
-    );
-    return extractData(response);
-  }
-
-  // ==================== CHANNEL MEMBERS ====================
-
-  /**
-   * Get all members in channel
-   */
-  static async getChannelMembers(channelId: number) {
+  static async getChannelMembers(channelId: number): Promise<Member[]> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MEMBERS.LIST,
       { channelId }
@@ -401,10 +285,7 @@ export class ChatService {
     return extractData<Member[]>(response);
   }
 
-  /**
-   * Add members to channel
-   */
-  static async addChannelMembers(payload: AddChannelMembersPayload) {
+  static async addChannelMembers(payload: any): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MEMBERS.ADD,
       payload
@@ -412,10 +293,7 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Remove member from channel
-   */
-  static async removeChannelMember(payload: RemoveChannelMemberPayload) {
+  static async removeChannelMember(payload: any): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MEMBERS.REMOVE,
       payload
@@ -423,21 +301,9 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Update member role (owner only)
-   */
-  static async updateMemberRole(payload: UpdateMemberRolePayload) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.MEMBERS.UPDATE_ROLE,
-      payload
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Update member notification settings
-   */
-  static async updateMemberNotification(payload: UpdateMemberNotificationPayload) {
+  static async updateMemberNotification(
+    payload: UpdateMemberNotificationPayload
+  ): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.NOTIFICATIONS.UPDATE,
       payload
@@ -447,21 +313,15 @@ export class ChatService {
 
   // ==================== MESSAGES ====================
 
-  /**
-   * Get messages from channel (returns encrypted content)
-   */
-  static async getMessages(payload: GetMessagesPayload) {
+  static async getMessages(channelId: number, payload: any = {}): Promise<Message[]> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MESSAGES.LIST,
-      payload
+      { channelId, ...payload }
     );
     return extractData<Message[]>(response);
   }
 
-  /**
-   * Send encrypted message
-   */
-  static async sendMessage(payload: SendMessagePayload) {
+  static async sendMessage(payload: SendMessagePayload): Promise<Message> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MESSAGES.SEND,
       payload
@@ -469,10 +329,7 @@ export class ChatService {
     return extractData<Message>(response);
   }
 
-  /**
-   * Edit encrypted message
-   */
-  static async editMessage(payload: EditMessagePayload) {
+  static async editMessage(payload: EditMessagePayload): Promise<Message> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MESSAGES.EDIT,
       payload
@@ -480,10 +337,7 @@ export class ChatService {
     return extractData<Message>(response);
   }
 
-  /**
-   * Delete message
-   */
-  static async deleteMessage(payload: DeleteMessagePayload) {
+  static async deleteMessage(payload: DeleteMessagePayload): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MESSAGES.DELETE,
       payload
@@ -491,102 +345,25 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Bulk delete messages
-   */
-  static async bulkDeleteMessages(messageIds: number[]) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.MESSAGES.BULK_DELETE,
-      { messageIds }
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Forward message to multiple channels
-   */
-  static async forwardMessage(payload: ForwardMessagePayload) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.MESSAGES.FORWARD,
-      payload
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Get message delivery status
-   */
-  static async getMessageStatus(messageId: number) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.MESSAGES.STATUS,
-      { messageId }
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Get bulk message delivery status
-   */
-  static async getBulkMessageStatus(messageIds: number[]) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.MESSAGES.STATUS_BULK,
-      { messageIds }
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Pin/unpin message
-   */
-  static async pinMessage(payload: PinMessagePayload) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.MESSAGES.PIN,
-      payload
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Get pinned messages in channel
-   */
-  static async getPinnedMessages(channelId: number) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.CHANNELS.PINNED_MESSAGES,
-      { channelId }
-    );
-    return extractData<Message[]>(response);
-  }
-
-  // ==================== MESSAGE REACTIONS ====================
-
-  /**
-   * React to message with emoji
-   */
-  static async reactToMessage(payload: ReactToMessagePayload) {
+  static async reactToMessage(messageId: number, emoji: string): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.REACTIONS.ADD,
-      payload
+      { messageId, emoji }
     );
     return extractData(response);
   }
 
-  /**
-   * Get reactions on message
-   */
-  static async getMessageReactions(messageId: number) {
+  static async pinMessage(messageId: number, isPinned: boolean): Promise<any> {
     const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.REACTIONS.LIST,
-      { messageId }
+      API_ENDPOINTS.CHAT.MESSAGES.PIN,
+      { messageId, isPinned }
     );
     return extractData(response);
   }
 
   // ==================== THREADS ====================
 
-  /**
-   * Get messages in thread
-   */
-  static async getThreadMessages(payload: GetThreadMessagesPayload) {
+  static async getThreadMessages(payload: GetThreadMessagesPayload): Promise<Message[]> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.THREADS.MESSAGES,
       payload
@@ -594,10 +371,7 @@ export class ChatService {
     return extractData<Message[]>(response);
   }
 
-  /**
-   * Reply to thread
-   */
-  static async replyToThread(payload: SendMessagePayload) {
+  static async replyToThread(payload: SendMessagePayload): Promise<Message> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.THREADS.REPLY,
       payload
@@ -605,39 +379,9 @@ export class ChatService {
     return extractData<Message>(response);
   }
 
-  // ==================== SEARCH ====================
-
-  /**
-   * Search messages by metadata
-   * Note: Content search must be done client-side due to E2E encryption
-   */
-  static async searchMessages(payload: SearchMessagesPayload) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.SEARCH,
-      payload
-    );
-    return extractData<Message[]>(response);
-  }
-
-  // ==================== DIRECT MESSAGES ====================
-
-  /**
-   * Send direct message to user
-   */
-  static async createDirectMessage(payload: CreateDirectMessagePayload) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.DIRECT.SEND,
-      payload
-    );
-    return extractData<Message>(response);
-  }
-
   // ==================== READ RECEIPTS ====================
 
-  /**
-   * Mark message as read
-   */
-  static async markAsRead(payload: MarkAsReadPayload) {
+  static async markAsRead(payload: MarkAsReadPayload): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.MARK_READ,
       payload
@@ -645,21 +389,7 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Bulk mark messages as read
-   */
-  static async bulkMarkAsRead(payload: BulkMarkAsReadPayload) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.MARK_READ_BULK,
-      payload
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Get unread count
-   */
-  static async getUnreadCount() {
+  static async getUnreadCount(): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.UNREAD.COUNT,
       {}
@@ -667,48 +397,9 @@ export class ChatService {
     return extractData(response);
   }
 
-  // ==================== FILES ====================
-
-  /**
-   * Get files in channel
-   */
-  static async getChannelFiles(
-    channelId: number,
-    limit: number = 50,
-    offset: number = 0
-  ) {
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.FILES.LIST,
-      { channelId, limit, offset }
-    );
-    return extractData(response);
-  }
-
-  /**
-   * Upload file to channel
-   */
-  static async uploadFile(channelId: number, file: File, caption?: string) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('channelId', channelId.toString());
-    if (caption) formData.append('caption', caption);
-
-    const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.FILES.UPLOAD,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
-    );
-    return extractData(response);
-  }
-
   // ==================== PRESENCE ====================
 
-  /**
-   * Update user presence status
-   */
-  static async updatePresence(status: 'online' | 'away' | 'offline') {
+  static async updatePresence(status: 'online' | 'away' | 'offline'): Promise<any> {
     const response = await encryptedApiClient.post(
       API_ENDPOINTS.CHAT.PRESENCE.UPDATE,
       { status }
@@ -716,14 +407,25 @@ export class ChatService {
     return extractData(response);
   }
 
-  /**
-   * Get online users
-   */
-  static async getOnlineUsers() {
+  static async startTyping(channelId: number): Promise<void> {
+    await encryptedApiClient.post(API_ENDPOINTS.CHAT.PRESENCE.TYPING_START, {
+      channelId,
+    });
+  }
+
+  static async stopTyping(channelId: number): Promise<void> {
+    await encryptedApiClient.post(API_ENDPOINTS.CHAT.PRESENCE.TYPING_STOP, {
+      channelId,
+    });
+  }
+
+  // ==================== SEARCH ====================
+
+  static async searchMessages(payload: any): Promise<Message[]> {
     const response = await encryptedApiClient.post(
-      API_ENDPOINTS.CHAT.PRESENCE.ONLINE,
-      {}
+      API_ENDPOINTS.CHAT.SEARCH,
+      payload
     );
-    return extractData(response);
+    return extractData<Message[]>(response);
   }
 }

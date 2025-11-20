@@ -1,6 +1,7 @@
+// app/dashboard/chat/page.tsx - ULTRA-FAST WITH WEBSOCKET
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { PrimarySidebar } from "@/components/chat/primary-sidebar";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatHeader } from "@/components/chat/chat-header";
@@ -12,8 +13,8 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchUserChannels,
   fetchChannelMembers,
-  fetchMessages,
-  sendMessage,
+  fetchMessagesFast,
+  sendMessageFast,
   createChannel,
   updateChannel,
   archiveChannel,
@@ -26,7 +27,8 @@ import {
   removeMessageFromChannel,
   fetchThreadMessages,
   replyToThread,
-  fetchUnreadCount
+  fetchUnreadCount,
+  markAsReadFast,
 } from "@/store/slices/chatSlice";
 import {
   ChannelType,
@@ -35,12 +37,13 @@ import {
   CreateChannelPayload,
   UpdateChannelPayload,
   ArchiveChannelPayload,
-  UpdateMemberNotificationPayload
+  UpdateMemberNotificationPayload,
 } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
 import * as crypto from "crypto";
 import { selectUser } from "@/store/slices/authSlice";
 import { Menu, ArrowLeft } from "lucide-react";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 const encryptMessageContent = (content: string, channelKey: string) => {
   const ALGORITHM = "aes-256-gcm";
@@ -57,7 +60,7 @@ const encryptMessageContent = (content: string, channelKey: string) => {
     return {
       encryptedContent: encrypted.toString("base64"),
       encryptionIv: iv.toString("base64"),
-      encryptionAuthTag: authTag.toString("base64")
+      encryptionAuthTag: authTag.toString("base64"),
     };
   } catch (error) {
     console.error("Message encryption failed:", error);
@@ -98,20 +101,31 @@ const Page = () => {
     messages,
     members,
     threadMessages,
+    typingUsers,
     isLoadingChannels,
     isLoadingMessages,
     isSendingMessage,
     error,
-    successMessage
+    successMessage,
   } = useAppSelector((state) => state.chat);
 
   const currentUser = useAppSelector(selectUser);
+  const token = useAppSelector((state) => state.auth.token);
+
+  // WebSocket connection
+  const { sendMessage: sendMessageWS, startTyping, stopTyping, isConnected } = useWebSocket(
+    token,
+    currentUser?.id || null
+  );
 
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
   const [isPrimarySidebarOpen, setIsPrimarySidebarOpen] = useState(false);
+
+  // Typing debounce
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const initializeChat = async () => {
@@ -132,9 +146,17 @@ const Page = () => {
       const loadChannelData = async () => {
         try {
           await Promise.all([
-            dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap(),
-            dispatch(fetchChannelMembers(selectedChannel.id)).unwrap()
+            dispatch(
+              fetchMessagesFast({
+                channelId: selectedChannel.id,
+                limit: 50,
+              })
+            ).unwrap(),
+            dispatch(fetchChannelMembers(selectedChannel.id)).unwrap(),
           ]);
+
+          // Mark as read
+          dispatch(markAsReadFast({ channelId: selectedChannel.id }));
         } catch (error: any) {
           console.error("Failed to load channel data:", error);
           toast.error("Failed to load channel messages");
@@ -163,6 +185,7 @@ const Page = () => {
     (backendMessage: any): Message => {
       const channelKey = selectedChannel?.encrypted_channel_key || "default-key";
       let decryptedContent = backendMessage.encrypted_content;
+      
       try {
         if (backendMessage.encryption_iv && backendMessage.encryption_auth_tag) {
           decryptedContent = decryptMessageContent(
@@ -190,9 +213,9 @@ const Page = () => {
           ? {
               messageId: backendMessage.reply_to_message_id.toString(),
               authorName: "Previous User",
-              content: "Previous message"
+              content: "Previous message",
             }
-          : undefined
+          : undefined,
       };
     },
     [selectedChannel]
@@ -245,18 +268,48 @@ const Page = () => {
           encryptedContent,
           encryptionIv,
           encryptionAuthTag,
-          replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined
+          replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         };
 
-        await dispatch(sendMessage(payload)).unwrap();
+        // Use WebSocket if connected, otherwise HTTP
+        if (isConnected) {
+          sendMessageWS(payload);
+        } else {
+          await dispatch(sendMessageFast(payload)).unwrap();
+        }
+
         setReplyingTo(null);
       } catch (error: any) {
         console.error("Failed to send message:", error);
         toast.error("Failed to send message");
       }
     },
-    [selectedChannel, replyingTo, dispatch]
+    [selectedChannel, replyingTo, dispatch, isConnected, sendMessageWS]
   );
+
+  const handleTypingStart = useCallback(() => {
+    if (!selectedChannel) return;
+
+    startTyping(selectedChannel.id);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      stopTyping(selectedChannel.id);
+    }, 3000);
+  }, [selectedChannel, startTyping, stopTyping]);
+
+  const handleTypingStop = useCallback(() => {
+    if (!selectedChannel) return;
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    stopTyping(selectedChannel.id);
+  }, [selectedChannel, stopTyping]);
 
   const handleSendThreadReply = useCallback(
     async (content: string, parentId: string) => {
@@ -275,7 +328,7 @@ const Page = () => {
           encryptedContent,
           encryptionIv,
           encryptionAuthTag,
-          threadId: parseInt(parentId)
+          threadId: parseInt(parentId),
         };
 
         await dispatch(replyToThread(payload)).unwrap();
@@ -296,7 +349,7 @@ const Page = () => {
           dispatch(
             removeMessageFromChannel({
               channelId: selectedChannel.id,
-              messageId: parseInt(messageId)
+              messageId: parseInt(messageId),
             })
           );
         }
@@ -326,7 +379,7 @@ const Page = () => {
         await dispatch(
           fetchThreadMessages({
             threadId: parseInt(messageId),
-            limit: 50
+            limit: 50,
           })
         ).unwrap();
       } catch (error: any) {
@@ -344,7 +397,7 @@ const Page = () => {
           name,
           description,
           channelType: ChannelType.GROUP,
-          isPrivate
+          isPrivate,
         };
 
         await dispatch(createChannel(payload)).unwrap();
@@ -365,7 +418,7 @@ const Page = () => {
         const payload: UpdateChannelPayload = {
           channelId: selectedChannel.id,
           name,
-          description
+          description,
         };
 
         await dispatch(updateChannel(payload)).unwrap();
@@ -383,7 +436,7 @@ const Page = () => {
     try {
       const payload: ArchiveChannelPayload = {
         channelId: selectedChannel.id,
-        isArchived: true
+        isArchived: true,
       };
 
       await dispatch(archiveChannel(payload)).unwrap();
@@ -420,7 +473,7 @@ const Page = () => {
 
       const newPinned = new Set(pinnedIds);
       const channelId = selectedChannel.id.toString();
-      
+
       if (isPinned) {
         newPinned.add(channelId);
       } else {
@@ -431,7 +484,7 @@ const Page = () => {
       try {
         const payload: UpdateMemberNotificationPayload = {
           channelId: selectedChannel.id,
-          notificationSettings: { isPinned }
+          notificationSettings: { isPinned },
         };
         await dispatch(updateMemberNotification(payload)).unwrap();
       } catch (error) {
@@ -448,7 +501,7 @@ const Page = () => {
       name: ch.name,
       isPrivate: ch.is_private,
       isPinned: pinnedIds.has(ch.id.toString()),
-      unread: ch.unread_count
+      unread: ch.unread_count,
     }));
 
   const sidebarDMs = channels
@@ -456,7 +509,7 @@ const Page = () => {
     ?.map((ch) => ({
       id: ch.id.toString(),
       name: ch.name,
-      unread: ch.unread_count
+      unread: ch.unread_count,
     }));
 
   const currentUserForSidebar = currentUser
@@ -464,31 +517,40 @@ const Page = () => {
         id: currentUser.id.toString(),
         name: `${currentUser.firstName} ${currentUser.lastName}`,
         email: currentUser.email,
-        status: "active" as const
+        status: "active" as const,
       }
     : undefined;
 
-  const totalUnread = (sidebarDMs?.reduce((sum, dm) => sum + (dm.unread || 0), 0) || 0) +
+  const totalUnread =
+    (sidebarDMs?.reduce((sum, dm) => sum + (dm.unread || 0), 0) || 0) +
     (sidebarChannels?.reduce((sum, ch) => sum + (ch.unread || 0), 0) || 0);
 
-  // Mobile: Show sidebar when no channel selected, show chat when channel selected
-  // Tablet+: Always show both
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
 
+  // Get typing users for current channel
+  const currentTypingUsers = selectedChannel
+    ? typingUsers[selectedChannel.id]?.filter((id) => id !== currentUser?.id) || []
+    : [];
+
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
-      {/* Primary Sidebar - Desktop/Tablet vertical (md+), Mobile overlay */}
-      <PrimarySidebar 
-        activeTab={activeTab} 
+      {/* Connection Status Indicator */}
+      {!isConnected && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white text-center py-1 text-xs">
+          ⚠️ Reconnecting to chat server...
+        </div>
+      )}
+
+      <PrimarySidebar
+        activeTab={activeTab}
         onTabChange={setActiveTab}
         unreadCount={totalUnread}
         isOpen={isPrimarySidebarOpen}
         onClose={() => setIsPrimarySidebarOpen(false)}
       />
 
-      {/* Secondary Sidebar - Mobile: full screen when no channel, Tablet+: always visible */}
-      <div className={`${showSidebarOnMobile ? 'flex' : 'hidden'} md:flex`}>
+      <div className={`${showSidebarOnMobile ? "flex" : "hidden"} md:flex`}>
         <Sidebar
           channels={sidebarChannels || []}
           directMessages={sidebarDMs || []}
@@ -505,25 +567,29 @@ const Page = () => {
         />
       </div>
 
-      {/* Main Chat Content - Mobile: full screen when channel selected, Tablet+: always visible */}
-      <div className={`bg-background flex h-screen w-full flex-1 flex-col overflow-hidden ${showChatOnMobile ? 'flex' : 'hidden'} md:flex`}>
-        {/* Mobile header with back button */}
+      <div
+        className={`bg-background flex h-screen w-full flex-1 flex-col overflow-hidden ${
+          showChatOnMobile ? "flex" : "hidden"
+        } md:flex`}
+      >
         <div className="border-border flex h-14 items-center border-b md:hidden">
           {selectedChannel && (
             <>
               <button
                 onClick={handleBackToList}
-                className="hover:bg-muted flex h-14 w-14 items-center justify-center transition-colors">
+                className="hover:bg-muted flex h-14 w-14 items-center justify-center transition-colors"
+              >
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="flex-1 px-3">
-                <h2 className="font-display truncate text-sm font-bold">{selectedChannel.name}</h2>
+                <h2 className="font-display truncate text-sm font-bold">
+                  {selectedChannel.name}
+                </h2>
               </div>
             </>
           )}
         </div>
 
-        {/* Desktop/Tablet header */}
         {selectedChannel && (
           <div className="hidden h-14 items-center md:flex">
             <ChatHeader
@@ -540,7 +606,6 @@ const Page = () => {
           </div>
         )}
 
-        {/* Messages and Input */}
         {selectedChannel ? (
           <>
             <MessageList
@@ -553,24 +618,39 @@ const Page = () => {
               onDelete={handleDeleteMessage}
               onReplyInThread={handleOpenThread}
             />
+
+            {/* Typing Indicator */}
+            {currentTypingUsers.length > 0 && (
+              <div className="px-4 py-2 text-xs text-muted-foreground">
+                {currentTypingUsers.length === 1
+                  ? "Someone is typing..."
+                  : `${currentTypingUsers.length} people are typing...`}
+              </div>
+            )}
+
             <MessageInput
               onSend={handleSendMessage}
               replyingTo={replyingTo}
               onClearReply={() => setReplyingTo(null)}
               disabled={isSendingMessage}
+              onTypingStart={handleTypingStart}
+              onTypingStop={handleTypingStop}
             />
           </>
         ) : (
           <div className="text-muted-foreground hidden md:flex flex-1 items-center justify-center">
             <div className="text-center px-4">
-              <p className="text-base font-medium mb-2">Select a chat to start messaging</p>
-              <p className="text-sm">Choose from your recent conversations or start a new one</p>
+              <p className="text-base font-medium mb-2">
+                Select a chat to start messaging
+              </p>
+              <p className="text-sm">
+                Choose from your recent conversations or start a new one
+              </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Thread sidebar */}
       {selectedThreadId && (
         <ThreadSidebar
           threadId={selectedThreadId}

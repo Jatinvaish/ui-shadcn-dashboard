@@ -1,22 +1,25 @@
-"use client"
+// components/chat/message-input.tsx - WITH TYPING SUPPORT
+"use client";
 
-import React from "react"
-import { Button } from "@/components/ui/button"
-import { MinimalTiptapEditor } from "@/components/ui/custom/minimal-tiptap"
-import { Send, X } from 'lucide-react'
-import { AttachmentPopover } from "./popovers/attachment-popover"
-import { EmojiPopover } from "./popovers/emoji-popover"
-import type { Content } from "@tiptap/react"
-import type { Message } from "./message-list"
+import React, { useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { MinimalTiptapEditor } from "@/components/ui/custom/minimal-tiptap";
+import { Send, X } from "lucide-react";
+import { AttachmentPopover } from "./popovers/attachment-popover";
+import { EmojiPopover } from "./popovers/emoji-popover";
+import type { Content } from "@tiptap/react";
+import type { Message } from "./message-list";
 
 interface MessageInputProps {
-  placeholder?: string
-  onSend?: (message: string) => void
-  onAttachment?: (type: string) => void
-  onEmoji?: (emoji: string) => void
-  disabled?: boolean
-  replyingTo?: Message | null
-  onClearReply?: () => void
+  placeholder?: string;
+  onSend?: (message: string) => void;
+  onAttachment?: (type: string) => void;
+  onEmoji?: (emoji: string) => void;
+  disabled?: boolean;
+  replyingTo?: Message | null;
+  onClearReply?: () => void;
+  onTypingStart?: () => void;
+  onTypingStop?: () => void;
 }
 
 export function MessageInput({
@@ -27,26 +30,62 @@ export function MessageInput({
   disabled,
   replyingTo,
   onClearReply,
+  onTypingStart,
+  onTypingStop,
 }: MessageInputProps) {
-  const [content, setContent] = React.useState<Content>("")
-  const editorRef = React.useRef<HTMLDivElement>(null)
+  const [content, setContent] = React.useState<Content>("");
+  const editorRef = React.useRef<HTMLDivElement>(null);
+  const isTypingRef = useRef(false);
 
   const handleSend = () => {
     if (editorRef.current) {
-      const textContent = editorRef.current.innerText?.trim()
+      const textContent = editorRef.current.innerText?.trim();
       if (textContent) {
-        onSend?.(textContent)
-        setContent("")
+        onSend?.(textContent);
+        setContent("");
+        
+        // Stop typing on send
+        if (isTypingRef.current) {
+          onTypingStop?.();
+          isTypingRef.current = false;
+        }
       }
     }
-  }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+      e.preventDefault();
+      handleSend();
     }
-  }
+  };
+
+  const handleContentChange = (newContent: Content) => {
+    setContent(newContent);
+
+    const textContent = editorRef.current?.innerText?.trim();
+    
+    if (textContent && textContent.length > 0) {
+      if (!isTypingRef.current) {
+        onTypingStart?.();
+        isTypingRef.current = true;
+      }
+    } else {
+      if (isTypingRef.current) {
+        onTypingStop?.();
+        isTypingRef.current = false;
+      }
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (isTypingRef.current) {
+        onTypingStop?.();
+      }
+    };
+  }, [onTypingStop]);
 
   return (
     <div className="bg-background px-4 md:px-6 py-3 md:py-4 flex flex-col gap-2">
@@ -54,8 +93,12 @@ export function MessageInput({
         {replyingTo && (
           <div className="flex items-center gap-2 rounded-l-lg border-l-2 border-primary bg-muted p-2">
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-primary">{replyingTo.authorName}</div>
-              <div className="line-clamp-1 text-xs text-muted-foreground">{replyingTo.content}</div>
+              <div className="text-xs font-medium text-primary">
+                {replyingTo.authorName}
+              </div>
+              <div className="line-clamp-1 text-xs text-muted-foreground">
+                {replyingTo.content}
+              </div>
             </div>
             <button
               onClick={onClearReply}
@@ -68,12 +111,11 @@ export function MessageInput({
         )}
 
         <div className="flex flex-col gap-2 rounded-lg border border-input bg-background shadow-sm focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all duration-200">
-          {/* Editor */}
           <div className="relative">
             <MinimalTiptapEditor
               ref={editorRef}
               value={content}
-              onChange={setContent}
+              onChange={handleContentChange}
               placeholder={placeholder}
               editorProps={{
                 attributes: {
@@ -86,7 +128,6 @@ export function MessageInput({
             />
           </div>
 
-          {/* Bottom action bar */}
           <div className="flex items-center justify-between px-3 md:px-4 py-2 md:py-3 gap-2 bg-background rounded-b-lg">
             <div className="flex gap-1">
               <AttachmentPopover onFileSelect={onAttachment} disabled={disabled} />
@@ -107,5 +148,5 @@ export function MessageInput({
         </div>
       </div>
     </div>
-  )
+  );
 }
