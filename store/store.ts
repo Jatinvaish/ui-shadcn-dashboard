@@ -5,6 +5,7 @@ import menuPermissionsReducer from './slices/menu-permissions.slice';
 import chatReducer from './slices/chatSlice';
 import rolesReducer from './slices/roles.slice';
 import permissionsReducer from './slices/permissions.slice';
+import tenantReducer from './slices/tenantSlice';
 
 export const store = configureStore({
   reducer: {
@@ -13,6 +14,7 @@ export const store = configureStore({
     chat: chatReducer,
     roles: rolesReducer,
     permissions: permissionsReducer,
+    tenant: tenantReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -1,7 +1,7 @@
 // lib/api/services/auth.service.ts - COMPLETE
-import { encryptedApiClient } from '../encrypted-client';
-import { API_ENDPOINTS } from '../endpoints';
-import Cookies from 'js-cookie';
+import { encryptedApiClient } from "../encrypted-client";
+import { API_ENDPOINTS } from "../endpoints";
+import Cookies from "js-cookie";
 
 export interface RegisterPayload {
   email: string;
@@ -60,6 +60,25 @@ export interface ResetPasswordPayload {
   newPassword: string;
 }
 
+export interface SendInvitePayload {
+  inviteeEmail: string;
+  inviteeName: string;
+  inviteeType: "staff" | "brand" | "creator" | "manager";
+  roleId: number;
+  invitationMessage?: string;
+}
+
+export interface AcceptInvitePayload {
+  token: string;
+  firstName?: string;
+  lastName?: string;
+  password: string;
+}
+
+export interface ResendInvitePayload {
+  invitationId: number;
+}
+
 export class AuthService {
   // Register
   static async register(payload: RegisterPayload) {
@@ -70,7 +89,6 @@ export class AuthService {
   static async login(payload: LoginPayload) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGIN, payload);
   }
-
 
   // Verify Registration
   static async verifyRegistration(payload: VerifyRegistrationPayload) {
@@ -122,6 +140,26 @@ export class AuthService {
     return encryptedApiClient.get(API_ENDPOINTS.AUTH.SESSIONS);
   }
 
+  // Send Invite
+  static async sendInvite(payload: SendInvitePayload) {
+    return encryptedApiClient.post(API_ENDPOINTS.AUTH.INVITE_SEND, payload);
+  }
+
+  // Accept Invite
+  static async acceptInvite(payload: AcceptInvitePayload) {
+    return encryptedApiClient.post(API_ENDPOINTS.AUTH.INVITE_ACCEPT, payload);
+  }
+
+  // Resend Invite
+  static async resendInvite(invitationId: number) {
+    return encryptedApiClient.post(API_ENDPOINTS.AUTH.INVITE_RESEND, { invitationId });
+  }
+
+  // Cancel Invite
+  static async cancelInvite(invitationId: number) {
+    return encryptedApiClient.post(API_ENDPOINTS.AUTH.INVITE_CANCEL, { invitationId });
+  }
+  
   // Logout
   static async logout() {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
@@ -129,21 +167,21 @@ export class AuthService {
   static updateAuthCookies(data: { accessToken?: string; refreshToken?: string; user?: any }) {
     const cookieOptions = {
       expires: 7,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
-      path: '/',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+      path: "/"
     };
 
     if (data.accessToken) {
-      Cookies.set('accessToken', data.accessToken, cookieOptions);
+      Cookies.set("accessToken", data.accessToken, cookieOptions);
     }
 
     if (data.refreshToken) {
-      Cookies.set('refreshToken', data.refreshToken, cookieOptions);
+      Cookies.set("refreshToken", data.refreshToken, cookieOptions);
     }
 
     if (data.user) {
-      Cookies.set('user', JSON.stringify(data.user), cookieOptions);
+      Cookies.set("user", JSON.stringify(data.user), cookieOptions);
     }
   }
 }

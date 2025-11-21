@@ -12,7 +12,14 @@ export const API_ENDPOINTS = {
     ME: "/auth/me",
     PASSWORD_RESET_REQUEST: "/auth/password-reset/request",
     PASSWORD_RESET_CONFIRM: "/auth/password-reset/confirm",
-    SESSIONS: "/auth/sessions"
+    CREATE_AGENCY: "/auth/create-agency",
+    CREATE_BRAND: "/auth/create-brand",
+    CREATE_CREATOR: "/auth/create-creator",
+    SESSIONS: "/auth/sessions",
+    INVITE_ACCEPT: "/auth/invitation/accept",
+    INVITE_SEND: "/auth/invitation/send",
+    INVITE_RESEND: "/auth/invitation/resend",
+    INVITE_CANCEL: "/auth/invitation/cancel"
   },
 
   // ==================== CHAT V2 (Ultra-Fast) ====================
@@ -123,7 +130,7 @@ export const API_ENDPOINTS = {
       GET: "/rbac/permissions/get",
       CREATE: "/rbac/permissions/create",
       DELETE: "/rbac/permissions/delete",
-      ASSIGNABLE: "/rbac/permissions/assignable"
+      ASSIGNABLE: "/rbac/permissions/assignable" // ✅ ADD THIS
     },
 
     ROLE_PERMISSIONS: {
@@ -157,6 +164,38 @@ export const API_ENDPOINTS = {
       CHECK: "/rbac/resource-permissions/check",
       CHECK_BATCH: "/rbac/resource-permissions/check-batch",
       LIST: "/rbac/resource-permissions/list"
+    },
+
+    ROLE_LIMITS: {
+      CREATE: "/rbac/role-limits/create",
+      UPDATE: "/rbac/role-limits/update",
+      GET: "/rbac/role-limits/get"
+    },
+
+    ENHANCED: {
+      BULK_ASSIGN_ROLES: "/rbac/users/roles/bulk-assign",
+      BULK_REMOVE_ROLES: "/rbac/users/roles/bulk-remove",
+      BULK_ASSIGN_USERS: "/rbac/roles/users/bulk-assign",
+      CLONE_ROLE: "/rbac/roles/clone",
+      COMPARE_ROLES: "/rbac/roles/compare",
+      SEARCH_PERMISSIONS: "/rbac/permissions/search",
+      AVAILABLE_PERMISSIONS: "/rbac/permissions/available",
+      MENU_HIERARCHY: "/rbac/menu-permissions/hierarchy",
+      BLOCKED_MENUS: "/rbac/menu-permissions/blocked",
+      TENANT_ROLES: "/rbac/roles/tenant",
+      TRANSFER_ROLE: "/rbac/roles/transfer",
+      ROLE_ANALYTICS: "/rbac/roles/analytics",
+      VALIDATE_ASSIGNMENT: "/rbac/roles/validate-assignment",
+      VALIDATE_NAME: "/rbac/roles/validate-name",
+      ROLE_ASSIGNMENT_HISTORY: "/rbac/audit/role-assignments",
+      PERMISSION_CHANGE_HISTORY: "/rbac/audit/permission-changes",
+      USER_ACCESS_REPORT: "/rbac/reports/user-access",
+      CREATE_TEMPLATE: "/rbac/role-templates/create",
+      LIST_TEMPLATES: "/rbac/role-templates/list",
+      APPLY_TEMPLATE: "/rbac/role-templates/apply",
+      ROLES_BY_HIERARCHY: "/rbac/roles/by-hierarchy",
+      UNASSIGNED_USERS: "/rbac/users/unassigned",
+      ROLE_USAGE_STATS: "/rbac/roles/usage-stats"
     }
   },
 

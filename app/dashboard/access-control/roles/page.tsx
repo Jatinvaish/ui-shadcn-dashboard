@@ -1,4 +1,4 @@
-// app/dashboard/access-control/roles/page.tsx - COMPLETE VERSION
+// app/dashboard/access-control/roles/page.tsx - RESPONSIVE VERSION
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -12,7 +12,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { ChevronRight, Plus, Search, X, Edit, Trash2, Users, Shield, Lock, Copy, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, Plus, Search, X, Edit, Trash2, Users, Shield, Lock, Copy, MoreHorizontal, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardFooter, CardHeader, CardTable } from '@/components/ui/card';
 import { DataGrid } from '@/components/ui/data-grid';
@@ -100,6 +100,7 @@ const RolesListPage = () => {
     { id: 'created_at', desc: true },
   ]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [scopeFilter, setScopeFilter] = useState<'all' | 'system' | 'tenant'>('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
@@ -125,6 +126,27 @@ const RolesListPage = () => {
       search: searchQuery,
     }));
   }, [dispatch, pagination.pageIndex, pagination.pageSize, scopeFilter, searchQuery]);
+
+  const handleSearch = () => {
+    setSearchQuery(searchInput);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSearchQuery('');
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const handleRefresh = () => {
+    dispatch(fetchRoles({
+      page: pagination.pageIndex + 1,
+      limit: pagination.pageSize,
+      scope: scopeFilter,
+      search: searchQuery,
+    }));
+    toast.success('Refreshing roles...');
+  };
 
   const handleDeleteClick = (role: Role) => {
     if (role.is_system_role) {
@@ -199,8 +221,8 @@ const RolesListPage = () => {
           
           return (
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Shield className="h-5 w-5 text-primary" />
+              <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
+                <Shield className="text-primary h-4 w-4" />
               </div>
               <div className="space-y-px">
                 <div className="flex items-center gap-2">
@@ -356,19 +378,20 @@ const RolesListPage = () => {
                     Clone Role
                   </DropdownMenuItem>
 
-                  <DropdownMenuSeparator />
-                  
                   {canDelete && (
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(role);
-                      }}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Role
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(role);
+                        }}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Role
+                      </DropdownMenuItem>
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -412,79 +435,8 @@ const RolesListPage = () => {
     manualFiltering: true,
   });
 
-  const DataGridToolbar = () => {
-    const [inputValue, setInputValue] = useState(searchQuery);
-
-    const handleSearch = () => {
-      setSearchQuery(inputValue);
-      setPagination({ ...pagination, pageIndex: 0 });
-    };
-
-    return (
-      <CardHeader className="flex-col flex-wrap sm:flex-row items-stretch sm:items-center py-5">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-          <div className="relative">
-            <Search className="size-4 text-muted-foreground absolute start-3 top-1/2 -translate-y-1/2" />
-            <Input
-              placeholder="Search roles"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              disabled={isLoading}
-              className="ps-9 w-full sm:w-64"
-            />
-            {searchQuery.length > 0 && (
-              <Button
-                mode="icon"
-                variant="dim"
-                className="absolute end-1.5 top-1/2 -translate-y-1/2 h-6 w-6"
-                onClick={() => setSearchQuery('')}
-              >
-                <X />
-              </Button>
-            )}
-          </div>
-          <Select
-            onValueChange={(value) => setScopeFilter(value as 'all' | 'system' | 'tenant')}
-            value={scopeFilter}
-            disabled={isLoading}
-          >
-            <SelectTrigger className="w-full sm:w-36">
-              <SelectValue placeholder="Filter by scope" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="system">System</SelectItem>
-              <SelectItem value="tenant">Custom</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <IfHasAccess menuKey="access-control.roles.bulk-assign">
-            <Button
-              variant="outline"
-              disabled={isLoading}
-              onClick={() => router.push('/dashboard/access-control/roles/bulk-assign')}
-            >
-              Bulk Assign
-            </Button>
-          </IfHasAccess>
-          <IfHasAccess menuKey="access-control.roles.create">
-            <Button
-              disabled={isLoading}
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              <Plus />
-              Create Role
-            </Button>
-          </IfHasAccess>
-        </div>
-      </CardHeader>
-    );
-  };
-
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <ProtectedBreadcrumb
         items={[
           { label: 'Access Control', menuKey: 'access-control', href: '/dashboard/access-control' },
@@ -497,25 +449,128 @@ const RolesListPage = () => {
         recordCount={paginationMeta.totalItems}
         isLoading={isLoading}
         onRowClick={handleRowClick}
-        tableLayout={{
-          columnsResizable: true,
-          columnsPinnable: true,
-          columnsMovable: true,
-          columnsVisibility: true,
-        }}
-        tableClassNames={{
-          edgeCell: 'px-5',
-        }}
       >
         <Card>
-          <DataGridToolbar />
-          <CardTable>
-            <ScrollArea>
+          <CardHeader className="px-2 sm:px-2">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:gap-3">
+                {/* Search Bar - Full width on mobile, auto on large screens */}
+                <div className="relative w-full lg:flex-1">
+                  <Button
+                    mode="icon"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute start-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                    onClick={handleSearch}
+                    disabled={isLoading}
+                  >
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  <Input
+                    placeholder="Search roles by name or description"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    className="w-full ps-9 text-sm sm:text-base"
+                    disabled={isLoading}
+                  />
+                  {searchQuery && (
+                    <Button
+                      mode="icon"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute end-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                      onClick={handleClearSearch}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Buttons - Stacked on small screens, inline on large screens */}
+                <div className="xs:flex-row xs:gap-2 flex w-full flex-col gap-2 sm:gap-3 lg:w-auto">
+
+                  <div className="w-full lg:w-auto lg:flex-row lg:gap-2 xs:flex-row xs:gap-2 flex flex-col gap-2 sm:gap-3">
+                    <Select
+                      onValueChange={(value) => {
+                        setScopeFilter(value as 'all' | 'system' | 'tenant');
+                        setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+                      }}
+                      value={scopeFilter}
+                      disabled={isLoading}
+                    >
+                      <SelectTrigger className="xs:w-auto w-full">
+                        <SelectValue placeholder="Filter by scope" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="system">System</SelectItem>
+                        <SelectItem value="tenant">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Button
+                      onClick={handleRefresh}
+                      disabled={isLoading}
+                      variant="outline"
+                      className="xs:w-auto flex w-full items-center gap-2 bg-transparent"
+                    >
+                      <Loader2
+                        className={`h-4 w-4 flex-shrink-0 ${isLoading ? 'animate-spin' : ''}`}
+                      />
+                      <span>Refresh</span>
+                    </Button>
+
+                    <IfHasAccess menuKey="access-control.roles.bulk-assign">
+                      <Button
+                        variant="outline"
+                        disabled={isLoading}
+                        onClick={() => router.push('/dashboard/access-control/roles/bulk-assign')}
+                        className="xs:w-auto flex w-full items-center gap-2 bg-transparent"
+                      >
+                        <Users className="h-4 w-4 flex-shrink-0" />
+                        <span>Bulk Assign</span>
+                      </Button>
+                    </IfHasAccess>
+
+                    <IfHasAccess menuKey="access-control.roles.create">
+                      <Button
+                        disabled={isLoading}
+                        onClick={() => setCreateDialogOpen(true)}
+                        className="xs:w-auto flex w-full items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4 flex-shrink-0" />
+                        <span>Create Role</span>
+                      </Button>
+                    </IfHasAccess>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs sm:gap-2 sm:text-sm">
+                <span>
+                  {filteredRoles.length} role{filteredRoles.length !== 1 ? 's' : ''}
+                </span>
+                <span>•</span>
+                <span>
+                  {filteredRoles.filter((r) => r.is_system_role).length} system
+                </span>
+                <span>•</span>
+                <span>
+                  {filteredRoles.filter((r) => !r.is_system_role).length} custom
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardTable className="overflow-x-auto">
+            <ScrollArea className="w-full">
               <DataGridTable />
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
           </CardTable>
-          <CardFooter>
+
+          <CardFooter className="px-2 sm:px-3">
             <DataGridPagination />
           </CardFooter>
         </Card>
@@ -550,26 +605,31 @@ const RolesListPage = () => {
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="mx-auto w-[95vw] sm:w-full">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Role</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{roleToDelete?.display_name || roleToDelete?.name}"? This action cannot be undone.
+            <AlertDialogTitle className="text-lg sm:text-xl">Delete Role</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm sm:text-base">
+              Are you sure you want to delete <strong>"{roleToDelete?.display_name || roleToDelete?.name}"</strong>? 
+              <br />
+              <br />
+              This action cannot be undone.
               {(roleToDelete?.users_count || 0) > 0 && (
-                <div className="mt-2 text-destructive">
-                  Warning: This role is assigned to {roleToDelete?.users_count} user(s).
+                <div className="mt-2 text-destructive font-medium">
+                  ⚠️ Warning: This role is assigned to {roleToDelete?.users_count} user(s).
                 </div>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row">
+            <AlertDialogCancel className="w-full sm:w-auto" disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? 'Deleting...' : 'Delete Role'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

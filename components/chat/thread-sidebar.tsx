@@ -1,11 +1,12 @@
+// components/chat/thread-sidebar.tsx - COMPLETE
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { X } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { X, Send } from 'lucide-react';
 import { MessageItem } from "./message-item";
-import { MessageInput } from "./message-input";
 import type { Message } from "./message-list";
 
 interface ThreadSidebarProps {
@@ -23,37 +24,62 @@ export function ThreadSidebar({
   onClose,
   onReplyInThread,
 }: ThreadSidebarProps) {
-  const threadMessages = messages.filter((m) => m.parentId === threadId);
+  const [replyContent, setReplyContent] = useState("");
+
+  const handleSendReply = () => {
+    if (replyContent.trim() && threadId) {
+      onReplyInThread?.(replyContent.trim(), threadId);
+      setReplyContent("");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendReply();
+    }
+  };
 
   return (
     <>
+      {/* Overlay for mobile */}
       <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />
       
-      <div className="fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col lg:h-screen lg:w-72 lg:fixed lg:inset-y-0 lg:right-0 bg-background border-l border-border overflow-hidden w-72">
+      {/* Sidebar */}
+      <div className="fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col lg:h-screen lg:w-96 bg-background border-l border-border overflow-hidden w-full sm:w-96 shadow-2xl lg:shadow-none">
         {/* Header */}
-        <div className="px-3 md:px-4 py-3 md:py-4 h-16 flex items-center justify-between border-b border-border flex-shrink-0">
-          <h3 className="font-display text-sm md:text-base font-bold">Thread</h3>
+        <div className="px-4 py-4 h-16 flex items-center justify-between border-b border-border flex-shrink-0 bg-background">
+          <div>
+            <h3 className="font-display text-base font-bold">Thread</h3>
+            <p className="text-xs text-muted-foreground">
+              {messages.length} {messages.length === 1 ? 'reply' : 'replies'}
+            </p>
+          </div>
           <Button
             size="icon"
             variant="ghost"
             onClick={onClose}
-            className="h-6 w-6 hover:bg-muted"
+            className="h-8 w-8 hover:bg-muted"
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1">
-          <div className="p-2 md:p-3 space-y-2">
-            {threadMessages.length === 0 ? (
-              <div className="text-center text-xs md:text-sm text-muted-foreground py-8">No replies yet</div>
+        <ScrollArea className="flex-1 bg-background">
+          <div className="p-3 space-y-0">
+            {messages.length === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-12">
+                <p className="font-medium mb-1">No replies yet</p>
+                <p className="text-xs">Start the conversation in this thread</p>
+              </div>
             ) : (
-              threadMessages.map((message) => (
+              messages.map((message) => (
                 <MessageItem
                   key={message.id}
                   message={message}
                   isOwn={message.authorId === currentUserId}
+                  isDirect={true}
                   onReply={() => {}}
                 />
               ))
@@ -62,12 +88,25 @@ export function ThreadSidebar({
         </ScrollArea>
 
         {/* Input */}
-        <div className="px-0 py-0 h-auto border-t border-border flex-shrink-0 flex items-center">
-          <MessageInput
-            placeholder="Reply in thread..."
-            onSend={(message) => onReplyInThread?.(message, threadId || "")}
-            disabled={!threadId}
-          />
+        <div className="border-t border-border flex-shrink-0 bg-background p-4">
+          <div className="flex gap-2">
+            <Input
+              value={replyContent}
+              onChange={(e) => setReplyContent(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Reply in thread..."
+              disabled={!threadId}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSendReply}
+              disabled={!replyContent.trim() || !threadId}
+              size="icon"
+              className="flex-shrink-0"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </>

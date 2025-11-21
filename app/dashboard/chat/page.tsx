@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - PLAIN TEXT (NO ENCRYPTION)
+// app/dashboard/chat/page.tsx - COMPLETE & FIXED
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -36,7 +36,6 @@ import { selectUser } from "@/store/slices/authSlice";
 import { ArrowLeft } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
-// ==================== MAIN COMPONENT ====================
 const ChatPage = () => {
   const dispatch = useAppDispatch();
   const {
@@ -53,7 +52,7 @@ const ChatPage = () => {
   } = useAppSelector((state) => state.chat);
 
   const currentUser = useAppSelector(selectUser);
-  const token = useAppSelector((state) => state.auth.token);
+  const token = useAppSelector((state) => state.auth.accessToken);
 
   // WebSocket connection
   const { sendMessage: sendMessageWS, startTyping, stopTyping, isConnected } = useWebSocket(
@@ -67,11 +66,12 @@ const ChatPage = () => {
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
   const [isPrimarySidebarOpen, setIsPrimarySidebarOpen] = useState(false);
+  const [showThreadSidebar, setShowThreadSidebar] = useState(false);
 
   // Typing debounce
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ==================== INITIALIZATION ====================
+  // INITIALIZATION
   useEffect(() => {
     const initializeChat = async () => {
       try {
@@ -88,7 +88,7 @@ const ChatPage = () => {
     initializeChat();
   }, [dispatch]);
 
-  // ==================== LOAD CHANNEL DATA ====================
+  // LOAD CHANNEL DATA
   useEffect(() => {
     if (selectedChannel) {
       const loadChannelData = async () => {
@@ -100,7 +100,7 @@ const ChatPage = () => {
             })
           ).unwrap();
 
-          // Mark first message as read
+          // Mark latest message as read
           const channelMessages = messages[selectedChannel.id];
           if (channelMessages && channelMessages.length > 0) {
             const latestMessage = channelMessages[channelMessages.length - 1];
@@ -123,7 +123,7 @@ const ChatPage = () => {
     }
   }, [selectedChannel?.id, dispatch]);
 
-  // ==================== NOTIFICATIONS ====================
+  // NOTIFICATIONS
   useEffect(() => {
     if (successMessage) {
       toast.success(successMessage);
@@ -138,7 +138,7 @@ const ChatPage = () => {
     }
   }, [error, dispatch]);
 
-  // ==================== MESSAGE CONVERSION ====================
+  // MESSAGE CONVERSION
   const convertToFrontendMessage = useCallback((backendMessage: any): Message => {
     return {
       id: backendMessage.id.toString(),
@@ -147,12 +147,14 @@ const ChatPage = () => {
         backendMessage.sender_last_name || ""
       }`.trim(),
       authorAvatar: backendMessage.sender_avatar_url,
-      content: backendMessage.content, // Plain text - no decryption needed
+      content: backendMessage.content,
       timestamp: new Date(backendMessage.sent_at || backendMessage.created_at),
       edited: backendMessage.is_edited || false,
       reactions: backendMessage.reactions || [],
       threadReplies: backendMessage.reply_count || 0,
       isPinned: backendMessage.is_pinned || false,
+      threadId: backendMessage.thread_id?.toString(),
+      parentId: backendMessage.reply_to_message_id?.toString(),
       replyTo: backendMessage.reply_to_message_id
         ? {
             messageId: backendMessage.reply_to_message_id.toString(),
@@ -169,8 +171,13 @@ const ChatPage = () => {
     return channelMessages.map(convertToFrontendMessage);
   }, [selectedChannel, messages, convertToFrontendMessage]);
 
-  // ==================== HANDLERS ====================
+  // Get thread messages
+  const threadMessages = React.useMemo(() => {
+    if (!selectedThreadId) return [];
+    return currentMessages.filter(m => m.parentId === selectedThreadId.toString());
+  }, [selectedThreadId, currentMessages]);
 
+  // HANDLERS
   const handleChannelClick = useCallback(
     (channelId: string) => {
       const channel = channels?.find((c) => c.id.toString() === channelId);
@@ -178,6 +185,7 @@ const ChatPage = () => {
         dispatch(setSelectedChannel(channel));
         setSelectedThreadId(null);
         setReplyingTo(null);
+        setShowThreadSidebar(false);
       }
     },
     [channels, dispatch]
@@ -187,6 +195,7 @@ const ChatPage = () => {
     dispatch(setSelectedChannel(null));
     setSelectedThreadId(null);
     setReplyingTo(null);
+    setShowThreadSidebar(false);
   }, [dispatch]);
 
   const handleSendMessage = useCallback(
@@ -196,9 +205,10 @@ const ChatPage = () => {
       try {
         const payload: SendMessagePayload = {
           channelId: selectedChannel.id,
-          content: content.trim(), // Plain text - no encryption
+          content: content.trim(),
           messageType: MessageType.TEXT,
           replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
+          threadId: selectedThreadId || undefined,
         };
 
         // Try WebSocket first, fallback to HTTP
@@ -212,12 +222,14 @@ const ChatPage = () => {
         }
 
         setReplyingTo(null);
+        return true; // Signal success for input clear
       } catch (error: any) {
         console.error("Failed to send message:", error);
         toast.error("Failed to send message");
+        return false;
       }
     },
-    [selectedChannel, replyingTo, dispatch, isConnected, sendMessageWS]
+    [selectedChannel, replyingTo, selectedThreadId, dispatch, isConnected, sendMessageWS]
   );
 
   const handleTypingStart = useCallback(() => {
@@ -286,6 +298,42 @@ const ChatPage = () => {
     [dispatch]
   );
 
+  const handleOpenThread = useCallback(
+    (messageId: string) => {
+      setSelectedThreadId(parseInt(messageId));
+      setShowThreadSidebar(true);
+    },
+    []
+  );
+
+  const handleReplyInThread = useCallback(
+    async (content: string, parentId: string) => {
+      if (!selectedChannel || !content.trim()) return;
+
+      try {
+        const payload: SendMessagePayload = {
+          channelId: selectedChannel.id,
+          content: content.trim(),
+          messageType: MessageType.TEXT,
+          replyToMessageId: parseInt(parentId),
+          threadId: parseInt(parentId),
+        };
+
+        if (isConnected) {
+          sendMessageWS(payload);
+        } else {
+          await dispatch(sendMessage(payload)).unwrap();
+        }
+
+        toast.success("Reply sent");
+      } catch (error: any) {
+        console.error("Failed to send reply:", error);
+        toast.error("Failed to send reply");
+      }
+    },
+    [selectedChannel, dispatch, isConnected, sendMessageWS]
+  );
+
   const handleCreateChannel = useCallback(
     async (name: string, isPrivate: boolean, description: string) => {
       if (!currentUser) return;
@@ -295,7 +343,7 @@ const ChatPage = () => {
           name: name || undefined,
           description: description || undefined,
           channelType: ChannelType.GROUP,
-          participantIds: [currentUser.id], // Include self
+          participantIds: [currentUser.id],
         };
 
         await dispatch(createChannel(payload)).unwrap();
@@ -327,7 +375,7 @@ const ChatPage = () => {
     [selectedChannel, pinnedIds]
   );
 
-  // ==================== SIDEBAR DATA ====================
+  // SIDEBAR DATA
   const sidebarChannels = React.useMemo(() => {
     if (!Array.isArray(channels)) return [];
 
@@ -370,7 +418,6 @@ const ChatPage = () => {
     ? typingUsers[selectedChannel.id]?.filter((id) => id !== currentUser?.id) || []
     : [];
 
-  // ==================== RENDER ====================
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
       {/* Connection Status */}
@@ -452,9 +499,9 @@ const ChatPage = () => {
               isDirect={selectedChannel.channel_type === ChannelType.DIRECT}
               onReply={handleReplyToMessage}
               onReact={handleReaction}
-              onOpenThread={() => {}}
+              onOpenThread={handleOpenThread}
               onDelete={handleDeleteMessage}
-              onReplyInThread={() => {}}
+              onReplyInThread={handleReplyInThread}
             />
 
             {currentTypingUsers.length > 0 && (
@@ -483,6 +530,16 @@ const ChatPage = () => {
           </div>
         )}
       </div>
+
+      {showThreadSidebar && selectedThreadId && (
+        <ThreadSidebar
+          threadId={selectedThreadId.toString()}
+          messages={threadMessages}
+          currentUserId={currentUser?.id.toString()}
+          onClose={() => setShowThreadSidebar(false)}
+          onReplyInThread={handleReplyInThread}
+        />
+      )}
     </div>
   );
 };
