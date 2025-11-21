@@ -1,3 +1,4 @@
+// components/chat/message-item.tsx - ENHANCED WITH ALL FEATURES
 "use client"
 
 import React from "react"
@@ -5,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { EmojiPopover } from "./popovers/emoji-popover"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
 import type { Message } from "./message-list"
+import { MessageCircle, Pin } from "lucide-react"
 
 interface MessageItemProps {
   message: Message
@@ -36,6 +38,23 @@ export function MessageItem({
     })
   }
 
+  // Extract mentions from content
+  const renderContent = (content: string) => {
+    const mentionRegex = /@(\w+)/g;
+    const parts = content.split(mentionRegex);
+    
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        return (
+          <span key={index} className="text-blue-500 font-semibold bg-blue-50 dark:bg-blue-950 px-1 rounded">
+            @{part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
     <div
       className="flex gap-3 group/message py-2 items-start hover:bg-muted/30 rounded px-3 transition-colors duration-150"
@@ -51,6 +70,12 @@ export function MessageItem({
           <span className="text-sm font-medium">{message.authorName}</span>
           <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
           {message.edited && <span className="text-xs text-muted-foreground italic">(edited)</span>}
+          {message.isPinned && (
+            <div className="flex items-center gap-1 text-xs text-primary">
+              <Pin className="h-3 w-3" />
+              <span>Pinned</span>
+            </div>
+          )}
         </div>
 
         {/* Reply bubble */}
@@ -61,8 +86,10 @@ export function MessageItem({
           </div>
         )}
 
-        {/* Message text */}
-        <p className="break-words text-sm leading-relaxed">{message.content}</p>
+        {/* Message text with mentions */}
+        <p className="break-words text-sm leading-relaxed">
+          {renderContent(message.content)}
+        </p>
 
         {/* Files */}
         {message.files && message.files.length > 0 && (
@@ -70,7 +97,7 @@ export function MessageItem({
             {message.files.map((file) => (
               <div
                 key={file.name}
-                className="inline-flex items-center gap-2 rounded border border-border bg-muted px-3 py-1 text-xs hover:bg-muted/80 transition-colors"
+                className="inline-flex items-center gap-2 rounded border border-border bg-muted px-3 py-1 text-xs hover:bg-muted/80 transition-colors cursor-pointer"
               >
                 📎 {file.name}
               </div>
@@ -81,9 +108,9 @@ export function MessageItem({
         {/* Reactions */}
         {message.reactions && message.reactions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
-            {message.reactions.map((reaction) => (
+            {message.reactions.map((reaction, index) => (
               <button
-                key={reaction.emoji}
+                key={`${reaction.emoji}-${index}`}
                 onClick={() => onReact?.(message.id, reaction.emoji)}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs transition-colors hover:bg-accent",
@@ -102,9 +129,10 @@ export function MessageItem({
             onClick={() => {
               onOpenThread?.(message.id)
             }}
-            className="text-xs text-primary hover:underline font-medium pt-1"
+            className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium pt-1 w-fit"
           >
-            {message.threadReplies} {message.threadReplies === 1 ? "reply" : "replies"}
+            <MessageCircle className="h-3 w-3" />
+            <span>{message.threadReplies} {message.threadReplies === 1 ? "reply" : "replies"}</span>
           </button>
         )}
       </div>
