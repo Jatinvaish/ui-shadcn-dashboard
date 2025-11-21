@@ -18,6 +18,7 @@ export interface TenantMember {
   role_id: number;
   role_name: string;
   member_type: string;
+  status: string;
   is_active: boolean;
   joined_at: string;
   email: string;
