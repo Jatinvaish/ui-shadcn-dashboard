@@ -12,7 +12,7 @@ import { setMenuAccess } from "./menu-permissions.slice";
 
 // User interface
 interface User {
-  id: string;
+  id: any;
   email: string;
   firstName: string;
   lastName: string;
