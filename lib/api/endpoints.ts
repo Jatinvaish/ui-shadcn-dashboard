@@ -15,7 +15,10 @@ export const API_ENDPOINTS = {
     CREATE_AGENCY: "/auth/create-agency",
     CREATE_BRAND: "/auth/create-brand",
     CREATE_CREATOR: "/auth/create-creator",
-    SESSIONS: "/auth/sessions"
+    SESSIONS: "/auth/sessions",
+    INVITE_ACCEPT: "/auth/invitation/accept",
+    INVITE_SEND: "/auth/invitation/send",
+    INVITE_RESEND: "/auth/invitation/resend"
   },
 
   // ==================== TENANTS ====================

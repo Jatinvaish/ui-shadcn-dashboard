@@ -1,10 +1,14 @@
 // store/slices/authSlice.ts - FIXED WITH INITIALIZATION
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { AuthService, type RegisterPayload, type LoginPayload, RbacService } from '@/lib/api';
-import Cookies from 'js-cookie';
-import { CreateAgencyPayload, CreateBrandPayload, CreateCreatorPayload } from '@/lib/api/services/auth-service';
-import type { RootState } from '@/store/store';
-import { setMenuAccess } from './menu-permissions.slice';
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { AuthService, type RegisterPayload, type LoginPayload, RbacService } from "@/lib/api";
+import Cookies from "js-cookie";
+import {
+  CreateAgencyPayload,
+  CreateBrandPayload,
+  CreateCreatorPayload
+} from "@/lib/api/services/auth-service";
+import type { RootState } from "@/store/store";
+import { setMenuAccess } from "./menu-permissions.slice";
 
 // User interface
 interface User {
@@ -54,9 +58,24 @@ const initialState: AuthState = {
 
 // Helper: Store User & Tokens
 const storeAuthData = (user: User, accessToken: string, refreshToken: string) => {
-  Cookies.set('accessToken', accessToken, { expires: 7, path: '/', secure: true, sameSite: 'strict' });
-  Cookies.set('refreshToken', refreshToken, { expires: 7, path: '/', secure: true, sameSite: 'strict' });
-  Cookies.set('user', JSON.stringify(user), { expires: 7, path: '/', secure: true, sameSite: 'strict' });
+  Cookies.set("accessToken", accessToken, {
+    expires: 7,
+    path: "/",
+    secure: true,
+    sameSite: "strict"
+  });
+  Cookies.set("refreshToken", refreshToken, {
+    expires: 7,
+    path: "/",
+    secure: true,
+    sameSite: "strict"
+  });
+  Cookies.set("user", JSON.stringify(user), {
+    expires: 7,
+    path: "/",
+    secure: true,
+    sameSite: "strict"
+  });
 };
 
 function normalizeUserData(userData: any) {
@@ -65,15 +84,15 @@ function normalizeUserData(userData: any) {
   return {
     ...userData,
     // ✅ Map user_type from DB to userType for consistency
-    userType: userData.userType || userData.user_type || 'pending',
+    userType: userData.userType || userData.user_type || "pending",
     // Keep original for compatibility
-    user_type: userData.user_type || userData.userType || 'pending',
+    user_type: userData.user_type || userData.userType || "pending"
   };
 }
 
 // Async Thunks
 export const register = createAsyncThunk(
-  'auth/register',
+  "auth/register",
   async (payload: RegisterPayload, { rejectWithValue }) => {
     try {
       const response = await AuthService.register(payload);
@@ -85,7 +104,7 @@ export const register = createAsyncThunk(
 );
 
 export const verifyRegistration = createAsyncThunk(
-  'auth/verifyRegistration',
+  "auth/verifyRegistration",
   async (payload: { email: string; code: string }, { dispatch, rejectWithValue }) => {
     try {
       const response = await AuthService.verifyRegistration(payload);
@@ -94,21 +113,25 @@ export const verifyRegistration = createAsyncThunk(
 
       // ✅ Load menu permissions after verification
       try {
-        const permResponse:any = await RbacService.getMyAccessibleMenus();
+        const permResponse: any = await RbacService.getMyAccessibleMenus();
         if (permResponse.data?.success && permResponse.data?.data) {
-          dispatch(setMenuAccess({
-            accessibleMenus: permResponse.data.accessibleMenus || [],
-            userPermissions: permResponse.data.userPermissions || [],
-          }));
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: permResponse.data.accessibleMenus || [],
+              userPermissions: permResponse.data.userPermissions || []
+            })
+          );
         }
       } catch (permError) {
-        console.error('Failed to load permissions after verification:', permError);
-        const userType = user?.userType || user?.user_type || '';
-        if (userType === 'super_admin' || userType === 'saas_admin') {
-          dispatch(setMenuAccess({
-            accessibleMenus: [],
-            userPermissions: [],
-          }));
+        console.error("Failed to load permissions after verification:", permError);
+        const userType = user?.userType || user?.user_type || "";
+        if (userType === "super_admin" || userType === "saas_admin") {
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: [],
+              userPermissions: []
+            })
+          );
         }
       }
 
@@ -120,7 +143,7 @@ export const verifyRegistration = createAsyncThunk(
 );
 
 export const resendVerification = createAsyncThunk(
-  'auth/resendVerification',
+  "auth/resendVerification",
   async (email: string, { rejectWithValue }) => {
     try {
       const response = await AuthService.resendVerification(email);
@@ -132,7 +155,7 @@ export const resendVerification = createAsyncThunk(
 );
 
 export const login = createAsyncThunk(
-  'auth/login',
+  "auth/login",
   async (payload: LoginPayload, { dispatch, rejectWithValue }) => {
     try {
       const response = await AuthService.login(payload);
@@ -141,21 +164,25 @@ export const login = createAsyncThunk(
 
       // ✅ Load menu permissions after login
       try {
-        const permResponse:any = await RbacService.getMyAccessibleMenus();
+        const permResponse: any = await RbacService.getMyAccessibleMenus();
         if (permResponse.data?.success && permResponse.data?.data) {
-          dispatch(setMenuAccess({
-            accessibleMenus: permResponse.data.accessibleMenus || [],
-            userPermissions: permResponse.data.userPermissions || [],
-          }));
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: permResponse.data.accessibleMenus || [],
+              userPermissions: permResponse.data.userPermissions || []
+            })
+          );
         }
       } catch (permError) {
-        console.error('Failed to load permissions after login:', permError);
-        const userType = user?.userType || user?.user_type || '';
-        if (userType === 'super_admin' || userType === 'saas_admin') {
-          dispatch(setMenuAccess({
-            accessibleMenus: [],
-            userPermissions: [],
-          }));
+        console.error("Failed to load permissions after login:", permError);
+        const userType = user?.userType || user?.user_type || "";
+        if (userType === "super_admin" || userType === "saas_admin") {
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: [],
+              userPermissions: []
+            })
+          );
         }
       }
 
@@ -167,7 +194,7 @@ export const login = createAsyncThunk(
 );
 
 export const createAgency = createAsyncThunk(
-  'auth/createAgency',
+  "auth/createAgency",
   async (payload: CreateAgencyPayload, { dispatch, rejectWithValue }) => {
     try {
       const response = await AuthService.createAgency(payload);
@@ -176,15 +203,17 @@ export const createAgency = createAsyncThunk(
 
       // ✅ Load menu permissions
       try {
-        const permResponse:any = await RbacService.getMyAccessibleMenus();
+        const permResponse: any = await RbacService.getMyAccessibleMenus();
         if (permResponse.data?.success && permResponse.data?.data) {
-          dispatch(setMenuAccess({
-            accessibleMenus: permResponse.data.accessibleMenus || [],
-            userPermissions: permResponse.data.userPermissions || [],
-          }));
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: permResponse.data.accessibleMenus || [],
+              userPermissions: permResponse.data.userPermissions || []
+            })
+          );
         }
       } catch (permError) {
-        console.error('Failed to load permissions:', permError);
+        console.error("Failed to load permissions:", permError);
       }
 
       return { user, accessToken, tenantId };
@@ -195,7 +224,7 @@ export const createAgency = createAsyncThunk(
 );
 
 export const createBrand = createAsyncThunk(
-  'auth/createBrand',
+  "auth/createBrand",
   async (payload: CreateBrandPayload, { dispatch, rejectWithValue }) => {
     try {
       const response = await AuthService.createBrand(payload);
@@ -204,15 +233,17 @@ export const createBrand = createAsyncThunk(
 
       // ✅ Load menu permissions
       try {
-        const permResponse:any = await RbacService.getMyAccessibleMenus();
+        const permResponse: any = await RbacService.getMyAccessibleMenus();
         if (permResponse.data?.success && permResponse.data?.data) {
-          dispatch(setMenuAccess({
-            accessibleMenus: permResponse.data.accessibleMenus || [],
-            userPermissions: permResponse.data.userPermissions || [],
-          }));
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: permResponse.data.accessibleMenus || [],
+              userPermissions: permResponse.data.userPermissions || []
+            })
+          );
         }
       } catch (permError) {
-        console.error('Failed to load permissions:', permError);
+        console.error("Failed to load permissions:", permError);
       }
 
       return { user, accessToken, tenantId };
@@ -223,7 +254,7 @@ export const createBrand = createAsyncThunk(
 );
 
 export const createCreator = createAsyncThunk(
-  'auth/createCreator',
+  "auth/createCreator",
   async (payload: CreateCreatorPayload, { dispatch, rejectWithValue }) => {
     try {
       const response = await AuthService.createCreator(payload);
@@ -232,15 +263,17 @@ export const createCreator = createAsyncThunk(
 
       // ✅ Load menu permissions
       try {
-        const permResponse:any = await RbacService.getMyAccessibleMenus();
+        const permResponse: any = await RbacService.getMyAccessibleMenus();
         if (permResponse.data?.success && permResponse.data?.data) {
-          dispatch(setMenuAccess({
-            accessibleMenus: permResponse.data.accessibleMenus || [],
-            userPermissions: permResponse.data.userPermissions || [],
-          }));
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: permResponse.data.accessibleMenus || [],
+              userPermissions: permResponse.data.userPermissions || []
+            })
+          );
         }
       } catch (permError) {
-        console.error('Failed to load permissions:', permError);
+        console.error("Failed to load permissions:", permError);
       }
 
       return { user, accessToken, tenantId };
@@ -250,26 +283,23 @@ export const createCreator = createAsyncThunk(
   }
 );
 
-export const logout = createAsyncThunk(
-  'auth/logout',
-  async (_, { rejectWithValue }) => {
-    try {
-      await AuthService.logout();
-      Cookies.remove('accessToken', { path: '/' });
-      Cookies.remove('refreshToken', { path: '/' });
-      Cookies.remove('user', { path: '/' });
-      return null;
-    } catch (error: any) {
-      Cookies.remove('accessToken', { path: '/' });
-      Cookies.remove('refreshToken', { path: '/' });
-      Cookies.remove('user', { path: '/' });
-      return rejectWithValue(error.response?.data?.message || error.message);
-    }
+export const logout = createAsyncThunk("auth/logout", async (_, { rejectWithValue }) => {
+  try {
+    await AuthService.logout();
+    Cookies.remove("accessToken", { path: "/" });
+    Cookies.remove("refreshToken", { path: "/" });
+    Cookies.remove("user", { path: "/" });
+    return null;
+  } catch (error: any) {
+    Cookies.remove("accessToken", { path: "/" });
+    Cookies.remove("refreshToken", { path: "/" });
+    Cookies.remove("user", { path: "/" });
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
-);
+});
 
 export const forgotPassword = createAsyncThunk(
-  'auth/forgotPassword',
+  "auth/forgotPassword",
   async (email: string, { rejectWithValue }) => {
     try {
       const response = await AuthService.forgotPassword({ email });
@@ -281,7 +311,7 @@ export const forgotPassword = createAsyncThunk(
 );
 
 export const resetPassword = createAsyncThunk(
-  'auth/resetPassword',
+  "auth/resetPassword",
   async (payload: { token: string; newPassword: string }, { rejectWithValue }) => {
     try {
       const response = await AuthService.resetPassword(payload);
@@ -293,7 +323,7 @@ export const resetPassword = createAsyncThunk(
 );
 
 export const getCurrentUser = createAsyncThunk(
-  'auth/getCurrentUser',
+  "auth/getCurrentUser",
   async (_, { rejectWithValue }) => {
     try {
       const response = await AuthService.getCurrentUser();
@@ -307,61 +337,132 @@ export const getCurrentUser = createAsyncThunk(
 // ✅ FIXED: Load user from cookies with proper initialization
 
 export const loadUserFromCookies = createAsyncThunk(
-  'auth/loadUserFromCookies',
+  "auth/loadUserFromCookies",
   async (_, { rejectWithValue, dispatch }) => {
     try {
-      const accessToken = Cookies.get('accessToken');
-      const refreshToken = Cookies.get('refreshToken');
-      const userCookie = Cookies.get('user');
+      const accessToken = Cookies.get("accessToken");
+      const refreshToken = Cookies.get("refreshToken");
+      const userCookie = Cookies.get("user");
 
       // ✅ CRITICAL: Return early if no cookies (public pages)
       if (!accessToken || !userCookie) {
-        console.log('⚠️ No authentication cookies found');
-        return rejectWithValue('No authentication data found');
+        console.log("⚠️ No authentication cookies found");
+        return rejectWithValue("No authentication data found");
       }
 
       const userData = JSON.parse(userCookie);
       const normalizedUser = normalizeUserData(userData);
 
-      console.log('✅ User loaded from cookies:', {
+      console.log("✅ User loaded from cookies:", {
         id: normalizedUser.id,
         email: normalizedUser.email,
         userType: normalizedUser.userType,
-        user_type: normalizedUser.user_type,
+        user_type: normalizedUser.user_type
       });
 
       // ✅ CRITICAL: Fetch menu permissions immediately after loading user
       try {
-        const permissionsResponse:any = await RbacService.getMyAccessibleMenus();
+        const permissionsResponse: any = await RbacService.getMyAccessibleMenus();
 
         if (permissionsResponse?.data) {
           dispatch(setUserPermissions(permissionsResponse.data));
 
-          console.log('✅ Menu permissions loaded:', {
+          console.log("✅ Menu permissions loaded:", {
             count: permissionsResponse.data.accessibleMenus?.length || 0,
-            menus: permissionsResponse.data.accessibleMenus,
+            menus: permissionsResponse.data.accessibleMenus
           });
         }
       } catch (permError) {
-        console.error('❌ Failed to load menu permissions:', permError);
+        console.error("❌ Failed to load menu permissions:", permError);
         // Don't reject - allow login to proceed
       }
 
       return {
         user: normalizedUser,
         accessToken,
-        refreshToken,
+        refreshToken
       };
     } catch (error: any) {
-      console.error('❌ Error loading user from cookies:', error);
-      return rejectWithValue(error.message || 'Failed to load user data');
+      console.error("❌ Error loading user from cookies:", error);
+      return rejectWithValue(error.message || "Failed to load user data");
+    }
+  }
+);
+
+export const sendInvite = createAsyncThunk(
+  "auth/sendInvite",
+  async (
+    payload: {
+      inviteeEmail: string;
+      inviteeName: string;
+      inviteeType: string;
+      roleId: number;
+      invitationMessage?: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await AuthService.sendInvite(payload);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+
+export const resendInvite = createAsyncThunk(
+  "auth/resendInvite",
+  async (
+    payload: {
+      invitationId: number;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await AuthService.resendInvite(payload);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+export const acceptInvite = createAsyncThunk(
+  "auth/acceptInvite",
+  async (
+    payload: { token: string; firstName?: string; lastName?: string; password: string },
+    { dispatch, rejectWithValue }
+  ) => {
+    try {
+      const response = await AuthService.acceptInvite(payload);
+      const { user, accessToken, refreshToken } = response.data;
+      storeAuthData(user, accessToken, refreshToken);
+
+      try {
+        const permResponse: any = await RbacService.getMyAccessibleMenus();
+        if (permResponse.data?.success && permResponse.data?.data) {
+          dispatch(
+            setMenuAccess({
+              accessibleMenus: permResponse.data.accessibleMenus || [],
+              userPermissions: permResponse.data.userPermissions || []
+            })
+          );
+        }
+      } catch (permError) {
+        console.error("Failed to load permissions:", permError);
+      }
+
+      return { user, accessToken };
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
 );
 
 // Slice
 const authSlice = createSlice({
-  name: 'auth',
+  name: "auth",
   initialState,
   reducers: {
     clearError: (state) => {
@@ -374,13 +475,18 @@ const authSlice = createSlice({
     setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
       state.isAuthenticated = true;
-      state.accessToken = Cookies.get('accessToken') || null;
+      state.accessToken = Cookies.get("accessToken") || null;
       state.initialized = true; // ✅ Mark as initialized
     },
     updateUser: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
-        Cookies.set('user', JSON.stringify(state.user), { expires: 7, path: '/', secure: true, sameSite: 'strict' });
+        Cookies.set("user", JSON.stringify(state.user), {
+          expires: 7,
+          path: "/",
+          secure: true,
+          sameSite: "strict"
+        });
       }
     },
     resetAuthState: (state) => {
@@ -392,7 +498,10 @@ const authSlice = createSlice({
       state.verificationEmail = null;
       state.initialized = false; // ✅ Reset initialization
     },
-    setCredentials: (state, action: PayloadAction<{ user: any; accessToken: string; refreshToken: string }>) => {
+    setCredentials: (
+      state,
+      action: PayloadAction<{ user: any; accessToken: string; refreshToken: string }>
+    ) => {
       const normalizedUser = normalizeUserData(action.payload.user);
       state.user = normalizedUser;
       state.accessToken = action.payload.accessToken;
@@ -417,12 +526,10 @@ const authSlice = createSlice({
       state.initialized = false;
       state.error = null;
 
-      Cookies.remove('accessToken');
-      Cookies.remove('refreshToken');
-      Cookies.remove('user');
-    },
-
-
+      Cookies.remove("accessToken");
+      Cookies.remove("refreshToken");
+      Cookies.remove("user");
+    }
   },
 
   extraReducers: (builder) => {
@@ -479,7 +586,7 @@ const authSlice = createSlice({
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
-        if ((action.payload as string).includes('not verified')) {
+        if ((action.payload as string).includes("not verified")) {
           state.requiresVerification = true;
         }
         state.initialized = true; // ✅ Mark as initialized
@@ -614,20 +721,60 @@ const authSlice = createSlice({
         state.error = action.payload as string;
         state.isLoading = false;
         state.initialized = true; // ✅ CRITICAL: Mark as initialized even on error
+      })
+      // Add these cases in extraReducers
+      .addCase(sendInvite.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(sendInvite.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(sendInvite.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(resendInvite.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(resendInvite.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(resendInvite.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(acceptInvite.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(acceptInvite.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.initialized = true;
+      })
+      .addCase(acceptInvite.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+        state.initialized = true;
       });
-  },
+  }
 });
-
-
 
 // ✅ SELECTORS
 
-
-
-export const { setCredentials, clearError, setUserPermissions, clearVerification,
+export const {
+  setCredentials,
+  clearError,
+  setUserPermissions,
+  clearVerification,
   setUser,
   updateUser,
-  resetAuthState } = authSlice.actions;
+  resetAuthState
+} = authSlice.actions;
 
 // ✅ CRITICAL: Export selectors that handle both field names
 export const selectAccessToken = (state: RootState) => state.auth.accessToken;
@@ -638,7 +785,7 @@ export const selectVerificationEmail = (state: RootState) => state.auth.verifica
 export const selectUser = (state: RootState) => state.auth.user;
 export const selectUserType = (state: RootState) => {
   const user = state.auth.user;
-  return user?.userType || user?.user_type || 'pending';
+  return user?.userType || user?.user_type || "pending";
 };
 export const selectIsAuthenticated = (state: RootState) => state.auth.isAuthenticated;
 export const selectAuthLoading = (state: RootState) => state.auth.loading;
