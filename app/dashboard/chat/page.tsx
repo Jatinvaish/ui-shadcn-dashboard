@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - ULTRA-FAST WITH WEBSOCKET
+// app/dashboard/chat/page.tsx - PLAIN TEXT (NO ENCRYPTION)
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -12,101 +12,44 @@ import type { Message } from "@/components/chat/message-list";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchUserChannels,
-  fetchChannelMembers,
-  fetchMessagesFast,
-  sendMessageFast,
+  fetchMessages,
+  sendMessage,
   createChannel,
-  updateChannel,
-  archiveChannel,
-  leaveChannel,
-  deleteMessage,
-  updateMemberNotification,
+  markAsRead,
+  fetchUnreadCount,
   setSelectedChannel,
   clearError,
   clearSuccessMessage,
-  removeMessageFromChannel,
-  fetchThreadMessages,
-  replyToThread,
-  fetchUnreadCount,
-  markAsReadFast,
+  addReaction,
+  removeReaction,
+  deleteMessage,
+  resetUnreadCount,
 } from "@/store/slices/chatSlice";
 import {
   ChannelType,
   SendMessagePayload,
   MessageType,
   CreateChannelPayload,
-  UpdateChannelPayload,
-  ArchiveChannelPayload,
-  UpdateMemberNotificationPayload,
 } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
-import * as crypto from "crypto";
 import { selectUser } from "@/store/slices/authSlice";
-import { Menu, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
-const encryptMessageContent = (content: string, channelKey: string) => {
-  const ALGORITHM = "aes-256-gcm";
-  const IV_LENGTH = 16;
-
-  try {
-    const key = crypto.pbkdf2Sync(channelKey, "message-salt", 100000, 32, "sha256");
-    const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-
-    const encrypted = Buffer.concat([cipher.update(content, "utf8"), cipher.final()]);
-    const authTag = cipher.getAuthTag();
-
-    return {
-      encryptedContent: encrypted.toString("base64"),
-      encryptionIv: iv.toString("base64"),
-      encryptionAuthTag: authTag.toString("base64"),
-    };
-  } catch (error) {
-    console.error("Message encryption failed:", error);
-    throw new Error("Failed to encrypt message");
-  }
-};
-
-const decryptMessageContent = (
-  encryptedContent: string,
-  encryptionIv: string,
-  encryptionAuthTag: string,
-  channelKey: string
-): string => {
-  const ALGORITHM = "aes-256-gcm";
-
-  try {
-    const key = crypto.pbkdf2Sync(channelKey, "message-salt", 100000, 32, "sha256");
-    const iv = Buffer.from(encryptionIv, "base64");
-    const authTag = Buffer.from(encryptionAuthTag, "base64");
-    const encrypted = Buffer.from(encryptedContent, "base64");
-
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
-
-    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-    return decrypted.toString("utf8");
-  } catch (error) {
-    console.error("Message decryption failed:", error);
-    return "[Encrypted message - cannot decrypt]";
-  }
-};
-
-const Page = () => {
+// ==================== MAIN COMPONENT ====================
+const ChatPage = () => {
   const dispatch = useAppDispatch();
   const {
     channels,
     selectedChannel,
     messages,
-    members,
-    threadMessages,
     typingUsers,
     isLoadingChannels,
     isLoadingMessages,
     isSendingMessage,
     error,
     successMessage,
+    unreadCount,
   } = useAppSelector((state) => state.chat);
 
   const currentUser = useAppSelector(selectUser);
@@ -118,8 +61,9 @@ const Page = () => {
     currentUser?.id || null
   );
 
+  // UI State
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
   const [isPrimarySidebarOpen, setIsPrimarySidebarOpen] = useState(false);
@@ -127,11 +71,14 @@ const Page = () => {
   // Typing debounce
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ==================== INITIALIZATION ====================
   useEffect(() => {
     const initializeChat = async () => {
       try {
-        await dispatch(fetchUserChannels({})).unwrap();
-        await dispatch(fetchUnreadCount()).unwrap();
+        await Promise.all([
+          dispatch(fetchUserChannels(100)).unwrap(),
+          dispatch(fetchUnreadCount()).unwrap(),
+        ]);
       } catch (error: any) {
         console.error("Failed to initialize chat:", error);
         toast.error("Failed to load chat data");
@@ -141,22 +88,31 @@ const Page = () => {
     initializeChat();
   }, [dispatch]);
 
+  // ==================== LOAD CHANNEL DATA ====================
   useEffect(() => {
     if (selectedChannel) {
       const loadChannelData = async () => {
         try {
-          await Promise.all([
-            dispatch(
-              fetchMessagesFast({
-                channelId: selectedChannel.id,
-                limit: 50,
-              })
-            ).unwrap(),
-            dispatch(fetchChannelMembers(selectedChannel.id)).unwrap(),
-          ]);
+          await dispatch(
+            fetchMessages({
+              channelId: selectedChannel.id,
+              limit: 50,
+            })
+          ).unwrap();
 
-          // Mark as read
-          dispatch(markAsReadFast({ channelId: selectedChannel.id }));
+          // Mark first message as read
+          const channelMessages = messages[selectedChannel.id];
+          if (channelMessages && channelMessages.length > 0) {
+            const latestMessage = channelMessages[channelMessages.length - 1];
+            dispatch(
+              markAsRead({
+                channelId: selectedChannel.id,
+                messageId: latestMessage.id,
+              })
+            );
+          }
+
+          dispatch(resetUnreadCount(selectedChannel.id));
         } catch (error: any) {
           console.error("Failed to load channel data:", error);
           toast.error("Failed to load channel messages");
@@ -165,8 +121,9 @@ const Page = () => {
 
       loadChannelData();
     }
-  }, [selectedChannel, dispatch]);
+  }, [selectedChannel?.id, dispatch]);
 
+  // ==================== NOTIFICATIONS ====================
   useEffect(() => {
     if (successMessage) {
       toast.success(successMessage);
@@ -181,45 +138,30 @@ const Page = () => {
     }
   }, [error, dispatch]);
 
-  const convertToFrontendMessage = useCallback(
-    (backendMessage: any): Message => {
-      const channelKey = selectedChannel?.encrypted_channel_key || "default-key";
-      let decryptedContent = backendMessage.encrypted_content;
-      
-      try {
-        if (backendMessage.encryption_iv && backendMessage.encryption_auth_tag) {
-          decryptedContent = decryptMessageContent(
-            backendMessage.encrypted_content,
-            backendMessage.encryption_iv,
-            backendMessage.encryption_auth_tag,
-            channelKey
-          );
-        }
-      } catch (error) {
-        console.error("Decryption failed for message:", backendMessage.id);
-      }
-
-      return {
-        id: backendMessage.id.toString(),
-        authorId: backendMessage.sender_user_id.toString(),
-        authorName: `${backendMessage.sender_first_name} ${backendMessage.sender_last_name}`,
-        authorAvatar: backendMessage.sender_avatar_url,
-        content: decryptedContent,
-        timestamp: new Date(backendMessage.sent_at || backendMessage.created_at),
-        edited: backendMessage.is_edited,
-        reactions: [],
-        threadReplies: backendMessage.reply_count || 0,
-        replyTo: backendMessage.reply_to_message_id
-          ? {
-              messageId: backendMessage.reply_to_message_id.toString(),
-              authorName: "Previous User",
-              content: "Previous message",
-            }
-          : undefined,
-      };
-    },
-    [selectedChannel]
-  );
+  // ==================== MESSAGE CONVERSION ====================
+  const convertToFrontendMessage = useCallback((backendMessage: any): Message => {
+    return {
+      id: backendMessage.id.toString(),
+      authorId: backendMessage.sender_user_id.toString(),
+      authorName: `${backendMessage.sender_first_name || "User"} ${
+        backendMessage.sender_last_name || ""
+      }`.trim(),
+      authorAvatar: backendMessage.sender_avatar_url,
+      content: backendMessage.content, // Plain text - no decryption needed
+      timestamp: new Date(backendMessage.sent_at || backendMessage.created_at),
+      edited: backendMessage.is_edited || false,
+      reactions: backendMessage.reactions || [],
+      threadReplies: backendMessage.reply_count || 0,
+      isPinned: backendMessage.is_pinned || false,
+      replyTo: backendMessage.reply_to_message_id
+        ? {
+            messageId: backendMessage.reply_to_message_id.toString(),
+            authorName: "Previous User",
+            content: "Previous message",
+          }
+        : undefined,
+    };
+  }, []);
 
   const currentMessages: Message[] = React.useMemo(() => {
     if (!selectedChannel) return [];
@@ -227,11 +169,7 @@ const Page = () => {
     return channelMessages.map(convertToFrontendMessage);
   }, [selectedChannel, messages, convertToFrontendMessage]);
 
-  const currentThreadMessages: Message[] = React.useMemo(() => {
-    if (!selectedThreadId) return [];
-    const threadMsgs = threadMessages[parseInt(selectedThreadId)] || [];
-    return threadMsgs.map(convertToFrontendMessage);
-  }, [selectedThreadId, threadMessages, convertToFrontendMessage]);
+  // ==================== HANDLERS ====================
 
   const handleChannelClick = useCallback(
     (channelId: string) => {
@@ -256,26 +194,21 @@ const Page = () => {
       if (!selectedChannel || !content.trim()) return;
 
       try {
-        const channelKey = selectedChannel.encrypted_channel_key || "default-key";
-        const { encryptedContent, encryptionIv, encryptionAuthTag } = encryptMessageContent(
-          content,
-          channelKey
-        );
-
         const payload: SendMessagePayload = {
           channelId: selectedChannel.id,
+          content: content.trim(), // Plain text - no encryption
           messageType: MessageType.TEXT,
-          encryptedContent,
-          encryptionIv,
-          encryptionAuthTag,
           replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         };
 
-        // Use WebSocket if connected, otherwise HTTP
+        // Try WebSocket first, fallback to HTTP
         if (isConnected) {
-          sendMessageWS(payload);
+          const sent = sendMessageWS(payload);
+          if (!sent) {
+            await dispatch(sendMessage(payload)).unwrap();
+          }
         } else {
-          await dispatch(sendMessageFast(payload)).unwrap();
+          await dispatch(sendMessage(payload)).unwrap();
         }
 
         setReplyingTo(null);
@@ -311,54 +244,19 @@ const Page = () => {
     stopTyping(selectedChannel.id);
   }, [selectedChannel, stopTyping]);
 
-  const handleSendThreadReply = useCallback(
-    async (content: string, parentId: string) => {
-      if (!selectedChannel || !content.trim()) return;
-
-      try {
-        const channelKey = selectedChannel.encrypted_channel_key || "default-key";
-        const { encryptedContent, encryptionIv, encryptionAuthTag } = encryptMessageContent(
-          content,
-          channelKey
-        );
-
-        const payload: SendMessagePayload = {
-          channelId: selectedChannel.id,
-          messageType: MessageType.TEXT,
-          encryptedContent,
-          encryptionIv,
-          encryptionAuthTag,
-          threadId: parseInt(parentId),
-        };
-
-        await dispatch(replyToThread(payload)).unwrap();
-      } catch (error: any) {
-        console.error("Failed to send thread reply:", error);
-        toast.error("Failed to send reply");
-      }
-    },
-    [selectedChannel, dispatch]
-  );
-
   const handleDeleteMessage = useCallback(
     async (messageId: string) => {
-      try {
-        await dispatch(deleteMessage({ messageId: parseInt(messageId) })).unwrap();
+      if (!confirm("Are you sure you want to delete this message?")) return;
 
-        if (selectedChannel) {
-          dispatch(
-            removeMessageFromChannel({
-              channelId: selectedChannel.id,
-              messageId: parseInt(messageId),
-            })
-          );
-        }
+      try {
+        await dispatch(deleteMessage(parseInt(messageId))).unwrap();
+        toast.success("Message deleted");
       } catch (error: any) {
         console.error("Failed to delete message:", error);
         toast.error("Failed to delete message");
       }
     },
-    [selectedChannel, dispatch]
+    [dispatch]
   );
 
   const handleReplyToMessage = useCallback(
@@ -371,20 +269,18 @@ const Page = () => {
     [currentMessages]
   );
 
-  const handleOpenThread = useCallback(
-    async (messageId: string) => {
-      setSelectedThreadId(messageId);
-
+  const handleReaction = useCallback(
+    async (messageId: string, emoji: string) => {
       try {
         await dispatch(
-          fetchThreadMessages({
-            threadId: parseInt(messageId),
-            limit: 50,
+          addReaction({
+            messageId: parseInt(messageId),
+            emoji,
           })
         ).unwrap();
       } catch (error: any) {
-        console.error("Failed to load thread messages:", error);
-        toast.error("Failed to load thread");
+        console.error("Failed to add reaction:", error);
+        toast.error("Failed to add reaction");
       }
     },
     [dispatch]
@@ -392,12 +288,14 @@ const Page = () => {
 
   const handleCreateChannel = useCallback(
     async (name: string, isPrivate: boolean, description: string) => {
+      if (!currentUser) return;
+
       try {
         const payload: CreateChannelPayload = {
-          name,
-          description,
+          name: name || undefined,
+          description: description || undefined,
           channelType: ChannelType.GROUP,
-          isPrivate,
+          participantIds: [currentUser.id], // Include self
         };
 
         await dispatch(createChannel(payload)).unwrap();
@@ -407,64 +305,7 @@ const Page = () => {
         toast.error("Failed to create channel");
       }
     },
-    [dispatch]
-  );
-
-  const handleUpdateChannel = useCallback(
-    async (name: string, description: string) => {
-      if (!selectedChannel) return;
-
-      try {
-        const payload: UpdateChannelPayload = {
-          channelId: selectedChannel.id,
-          name,
-          description,
-        };
-
-        await dispatch(updateChannel(payload)).unwrap();
-      } catch (error: any) {
-        console.error("Failed to update channel:", error);
-        toast.error("Failed to update channel");
-      }
-    },
-    [selectedChannel, dispatch]
-  );
-
-  const handleArchiveChannel = useCallback(async () => {
-    if (!selectedChannel) return;
-
-    try {
-      const payload: ArchiveChannelPayload = {
-        channelId: selectedChannel.id,
-        isArchived: true,
-      };
-
-      await dispatch(archiveChannel(payload)).unwrap();
-      dispatch(setSelectedChannel(null));
-    } catch (error: any) {
-      console.error("Failed to archive channel:", error);
-      toast.error("Failed to archive channel");
-    }
-  }, [selectedChannel, dispatch]);
-
-  const handleLeaveChannel = useCallback(async () => {
-    if (!selectedChannel) return;
-
-    try {
-      await dispatch(leaveChannel(selectedChannel.id)).unwrap();
-      dispatch(setSelectedChannel(null));
-    } catch (error: any) {
-      console.error("Failed to leave channel:", error);
-      toast.error("Failed to leave channel");
-    }
-  }, [selectedChannel, dispatch]);
-
-  const handleInviteUsers = useCallback(
-    async (emails: string[]) => {
-      if (!selectedChannel) return;
-      toast.info("User invitation feature requires additional backend support");
-    },
-    [selectedChannel]
+    [dispatch, currentUser]
   );
 
   const handlePinChange = useCallback(
@@ -481,36 +322,37 @@ const Page = () => {
       }
       setPinnedIds(newPinned);
 
-      try {
-        const payload: UpdateMemberNotificationPayload = {
-          channelId: selectedChannel.id,
-          notificationSettings: { isPinned },
-        };
-        await dispatch(updateMemberNotification(payload)).unwrap();
-      } catch (error) {
-        console.error("Failed to update pin status:", error);
-      }
+      toast.success(isPinned ? "Channel pinned" : "Channel unpinned");
     },
-    [selectedChannel, pinnedIds, dispatch]
+    [selectedChannel, pinnedIds]
   );
 
-  const sidebarChannels = channels
-    ?.filter((ch) => ch.channel_type !== ChannelType.DIRECT)
-    ?.map((ch) => ({
-      id: ch.id.toString(),
-      name: ch.name,
-      isPrivate: ch.is_private,
-      isPinned: pinnedIds.has(ch.id.toString()),
-      unread: ch.unread_count,
-    }));
+  // ==================== SIDEBAR DATA ====================
+  const sidebarChannels = React.useMemo(() => {
+    if (!Array.isArray(channels)) return [];
 
-  const sidebarDMs = channels
-    ?.filter((ch) => ch.channel_type === ChannelType.DIRECT)
-    ?.map((ch) => ({
-      id: ch.id.toString(),
-      name: ch.name,
-      unread: ch.unread_count,
-    }));
+    return channels
+      .filter((ch) => ch.channel_type !== ChannelType.DIRECT)
+      .map((ch) => ({
+        id: ch.id?.toString() || "",
+        name: ch.name || "Unnamed Channel",
+        isPrivate: ch.is_private || false,
+        isPinned: pinnedIds.has(ch.id?.toString() || ""),
+        unread: ch.unread_count || 0,
+      }));
+  }, [channels, pinnedIds]);
+
+  const sidebarDMs = React.useMemo(() => {
+    if (!Array.isArray(channels)) return [];
+
+    return channels
+      .filter((ch) => ch.channel_type === ChannelType.DIRECT)
+      .map((ch) => ({
+        id: ch.id?.toString() || "",
+        name: ch.name || "Direct Message",
+        unread: ch.unread_count || 0,
+      }));
+  }, [channels]);
 
   const currentUserForSidebar = currentUser
     ? {
@@ -521,21 +363,17 @@ const Page = () => {
       }
     : undefined;
 
-  const totalUnread =
-    (sidebarDMs?.reduce((sum, dm) => sum + (dm.unread || 0), 0) || 0) +
-    (sidebarChannels?.reduce((sum, ch) => sum + (ch.unread || 0), 0) || 0);
-
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
 
-  // Get typing users for current channel
   const currentTypingUsers = selectedChannel
     ? typingUsers[selectedChannel.id]?.filter((id) => id !== currentUser?.id) || []
     : [];
 
+  // ==================== RENDER ====================
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
-      {/* Connection Status Indicator */}
+      {/* Connection Status */}
       {!isConnected && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white text-center py-1 text-xs">
           ⚠️ Reconnecting to chat server...
@@ -545,7 +383,7 @@ const Page = () => {
       <PrimarySidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        unreadCount={totalUnread}
+        unreadCount={unreadCount}
         isOpen={isPrimarySidebarOpen}
         onClose={() => setIsPrimarySidebarOpen(false)}
       />
@@ -594,14 +432,14 @@ const Page = () => {
           <div className="hidden h-14 items-center md:flex">
             <ChatHeader
               title={selectedChannel.name}
-              description={selectedChannel.description || `Welcome to ${selectedChannel.name}`}
+              description={`Welcome to ${selectedChannel.name}`}
               memberCount={selectedChannel.member_count}
               isPinned={pinnedIds.has(selectedChannel.id.toString())}
               onPinChange={handlePinChange}
-              onUpdateChannel={handleUpdateChannel}
-              onArchiveChannel={handleArchiveChannel}
-              onLeaveChannel={handleLeaveChannel}
-              onInviteUsers={handleInviteUsers}
+              onUpdateChannel={() => {}}
+              onArchiveChannel={() => {}}
+              onLeaveChannel={() => {}}
+              onInviteUsers={() => {}}
             />
           </div>
         )}
@@ -610,16 +448,15 @@ const Page = () => {
           <>
             <MessageList
               messages={currentMessages}
-              currentUserId={currentUser?.id.toString() || "user-1"}
+              currentUserId={currentUser?.id.toString() || ""}
               isDirect={selectedChannel.channel_type === ChannelType.DIRECT}
               onReply={handleReplyToMessage}
-              onReact={(id, emoji) => console.log("React", emoji, "to", id)}
-              onOpenThread={handleOpenThread}
+              onReact={handleReaction}
+              onOpenThread={() => {}}
               onDelete={handleDeleteMessage}
-              onReplyInThread={handleOpenThread}
+              onReplyInThread={() => {}}
             />
 
-            {/* Typing Indicator */}
             {currentTypingUsers.length > 0 && (
               <div className="px-4 py-2 text-xs text-muted-foreground">
                 {currentTypingUsers.length === 1
@@ -640,28 +477,14 @@ const Page = () => {
         ) : (
           <div className="text-muted-foreground hidden md:flex flex-1 items-center justify-center">
             <div className="text-center px-4">
-              <p className="text-base font-medium mb-2">
-                Select a chat to start messaging
-              </p>
-              <p className="text-sm">
-                Choose from your recent conversations or start a new one
-              </p>
+              <p className="text-base font-medium mb-2">Select a chat to start messaging</p>
+              <p className="text-sm">Choose from your recent conversations or start a new one</p>
             </div>
           </div>
         )}
       </div>
-
-      {selectedThreadId && (
-        <ThreadSidebar
-          threadId={selectedThreadId}
-          messages={currentThreadMessages}
-          currentUserId={currentUser?.id.toString() || "user-1"}
-          onClose={() => setSelectedThreadId(null)}
-          onReplyInThread={handleSendThreadReply}
-        />
-      )}
     </div>
   );
 };
 
-export default Page;
+export default ChatPage;
