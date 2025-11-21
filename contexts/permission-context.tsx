@@ -68,7 +68,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         blockedMenus: result.blockedMenus?.length || 0,
         userPermissions: result.userPermissions?.length || 0,
       });
-    } catch (error: any) {
+    } catch (error: any) { 
       console.error('❌ getMyAccessibleMenus error:', error);
     } finally {
       loadingRef.current = false;

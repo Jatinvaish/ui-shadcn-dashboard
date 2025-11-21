@@ -14,6 +14,7 @@ export const ROUTE_MENU_MAP: Record<string, string> = {
   '/dashboard/access-control/permissions': 'access-control.permissions',
   '/dashboard/access-control/menu-permissions': 'access-control.menu-permissions',
   '/dashboard/access-control/user-roles': 'access-control.user-roles',
+  '/dashboard/access-control/roles/[id]/bulk-assign': 'access-control.user-roles',
   '/dashboard/access-control/resource-attributes': 'access-control.resource-attributes',
   
   // Apps

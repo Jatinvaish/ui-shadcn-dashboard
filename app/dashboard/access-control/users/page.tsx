@@ -51,7 +51,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { IfHasAccess } from "@/components/guards/if-has-access";
 import { ProtectedBreadcrumb } from "@/components/guards/protected-breadcrumb";
-import { resendInvite, selectUser, sendInvite } from "@/store/slices/authSlice";
+import { cancelInvite, resendInvite, selectUser, sendInvite } from "@/store/slices/authSlice";
 import {
   fetchTenantMembers,
   selectTenantMembers,
@@ -207,16 +207,41 @@ export default function UsersPage() {
     setDeleteDialogOpen(true);
   };
 
+  // const handleDeleteConfirm = async () => {
+  //   if (!userToDelete) return;
+
+  //   try {
+  //     toast.success("User removed from tenant successfully");
+  //     setDeleteDialogOpen(false);
+  //     setUserToDelete(null);
+  //     handleRefresh();
+  //   } catch (error: any) {
+  //     toast.error(error?.message || "Failed to remove user from tenant");
+  //   }
+  // };
+
   const handleDeleteConfirm = async () => {
     if (!userToDelete) return;
 
+    const isPendingInvite = userToDelete.id <= 0;
+
     try {
-      toast.success("User removed from tenant successfully");
+      if (isPendingInvite) {
+        // Cancel pending invitation
+        await dispatch(cancelInvite({ invitationId: userToDelete.memberId })).unwrap();
+        toast.success("Invitation cancelled successfully");
+      } else {
+        // TODO: Implement remove user from tenant API call
+        // await dispatch(removeUserFromTenant({ memberId: userToDelete.memberId })).unwrap();
+        toast.success("User removed from tenant successfully");
+      }
+
       setDeleteDialogOpen(false);
       setUserToDelete(null);
       handleRefresh();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to remove user from tenant");
+      const action = isPendingInvite ? "cancel invitation" : "remove user from tenant";
+      toast.error(error?.message || `Failed to ${action}`);
     }
   };
 
@@ -432,12 +457,20 @@ export default function UsersPage() {
 
       <DataGrid table={table} recordCount={users.length} isLoading={isLoadingMembers}>
         <Card>
-          <CardHeader className="px-4 py-4 sm:px-6 sm:py-5">
+          <CardHeader className="px-2 sm:px-2">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:gap-3">
                 {/* Search Bar - Full width on mobile, auto on large screens */}
                 <div className="relative w-full lg:flex-1">
-                  <Search className="text-muted-foreground absolute start-3 top-1/2 size-4 -translate-y-1/2" />
+                  <Button
+                    mode="icon"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute start-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                    onClick={handleSearch}
+                    disabled={isLoadingMembers}>
+                    <Search className="text-muted-foreground h-4 w-4" />
+                  </Button>
                   <Input
                     placeholder="Search users by email, name, or role"
                     value={searchInput}
@@ -460,19 +493,7 @@ export default function UsersPage() {
 
                 {/* Buttons - Stacked on small screens, inline on large screens */}
                 <div className="xs:flex-row xs:gap-2 flex w-full flex-col gap-2 sm:gap-3 lg:w-auto">
-                  {searchInput !== searchQuery && (
-                    <Button
-                      onClick={handleSearch}
-                      disabled={isLoadingMembers}
-                      variant="outline"
-                      size="sm"
-                      className="xs:w-auto flex w-full items-center gap-2 bg-transparent">
-                      <Search className="h-4 w-4 flex-shrink-0" />
-                      <span>Search</span>
-                    </Button>
-                  )}
-
-                  <div className="w-full lg:w-auto lg:flex-row lg:gap-2 xs:flex-row xs:gap-2 flex flex-col gap-2 sm:gap-3">
+                  <div className="xs:flex-row xs:gap-2 flex w-full flex-col gap-2 sm:gap-3 lg:w-auto lg:flex-row lg:gap-2">
                     <Button
                       onClick={handleRefresh}
                       disabled={isLoadingMembers}
@@ -525,7 +546,7 @@ export default function UsersPage() {
             </ScrollArea>
           </CardTable>
 
-          <CardFooter className="px-4 py-3 sm:px-6 sm:py-4">
+          <CardFooter className="px-2 sm:px-3">
             <DataGridPagination />
           </CardFooter>
         </Card>

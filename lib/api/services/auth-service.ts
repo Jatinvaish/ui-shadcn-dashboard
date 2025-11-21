@@ -155,6 +155,11 @@ export class AuthService {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.INVITE_RESEND, { invitationId });
   }
 
+  // Cancel Invite
+  static async cancelInvite(invitationId: number) {
+    return encryptedApiClient.post(API_ENDPOINTS.AUTH.INVITE_CANCEL, { invitationId });
+  }
+  
   // Logout
   static async logout() {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);

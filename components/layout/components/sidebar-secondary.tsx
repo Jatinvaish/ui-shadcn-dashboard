@@ -36,12 +36,6 @@ const MENU_STRUCTURES: Record<string, any[]> = {
           icon: 'Users',
           path: '/dashboard/access-control/users'
         },
-        {
-          key: 'access-control.user-roles',
-          title: 'User Roles',
-          icon: 'UserCheck',
-          path: '/dashboard/access-control/user-roles'
-        },
       ],
     },
     {

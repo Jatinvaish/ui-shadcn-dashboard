@@ -428,6 +428,23 @@ export const resendInvite = createAsyncThunk(
   }
 );
 
+export const cancelInvite = createAsyncThunk(
+  "auth/cancelInvite",
+  async (
+    payload: {
+      invitationId: number;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await AuthService.cancelInvite(payload.invitationId);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
 export const acceptInvite = createAsyncThunk(
   "auth/acceptInvite",
   async (
@@ -742,6 +759,17 @@ const authSlice = createSlice({
         state.isLoading = false;
       })
       .addCase(resendInvite.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(cancelInvite.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(cancelInvite.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(cancelInvite.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       })
