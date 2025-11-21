@@ -53,7 +53,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { IfHasAccess } from "@/components/guards/if-has-access";
 import { ProtectedBreadcrumb } from "@/components/guards/protected-breadcrumb";
-import { selectUser, sendInvite } from "@/store/slices/authSlice";
+import { resendInvite, selectUser, sendInvite } from "@/store/slices/authSlice";
 import {
   fetchTenantMembers,
   selectTenantMembers,
@@ -65,6 +65,7 @@ import { RbacService, type Role } from "@/lib/api";
 
 interface User {
   id: number;
+  memberId: number;
   email: string;
   firstName?: string;
   lastName?: string;
@@ -143,6 +144,7 @@ export default function UsersPage() {
     if (tenantMembers && tenantMembers.length > 0) {
       const transformedUsers: User[] = tenantMembers.map((member) => ({
         id: member.user_id,
+        memberId: member.member_id,
         email: member.email,
         firstName: member.first_name,
         lastName: member.last_name,
@@ -229,15 +231,7 @@ export default function UsersPage() {
     setResendingInvites((prev) => new Set(prev).add(user.id));
 
     try {
-      await dispatch(
-        sendInvite({
-          inviteeEmail: user.email,
-          inviteeName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : "",
-          inviteeType: "staff",
-          roleId: user.roles[0].id,
-          invitationMessage: `You have been invited to join the tenant.`
-        })
-      ).unwrap();
+      await dispatch(resendInvite( { invitationId: user.memberId } )).unwrap();
 
       toast.success(`Invitation resent to ${user.email}`);
     } catch (error: any) {
@@ -321,8 +315,8 @@ export default function UsersPage() {
             {row.original.status === "active"
               ? "Active"
               : row.original.status === "pending"
-              ? "Pending"
-              : "Inactive"}
+                ? "Pending"
+                : "Inactive"}
           </Badge>
         ),
         size: 100
@@ -369,9 +363,7 @@ export default function UsersPage() {
 
           return (
             <span className="text-muted-foreground text-sm">
-              {row.original.joinedAt
-                ? new Date(row.original.joinedAt).toLocaleDateString()
-                : "N/A"}
+              {row.original.joinedAt ? new Date(row.original.joinedAt).toLocaleDateString() : "N/A"}
             </span>
           );
         },
@@ -399,8 +391,8 @@ export default function UsersPage() {
                     {row.original.id === currentUser?.id
                       ? "Cannot remove yourself"
                       : row.original.id <= 0
-                      ? "Cancel invitation"
-                      : "Remove from tenant"}
+                        ? "Cancel invitation"
+                        : "Remove from tenant"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

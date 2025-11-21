@@ -12,6 +12,7 @@ export interface UpdateTenantPayload {
 
 export interface TenantMember {
   id: number;
+  member_id: number;
   user_id: number;
   tenant_id: number;
   role_id: number;

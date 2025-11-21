@@ -420,7 +420,7 @@ export const resendInvite = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await AuthService.resendInvite(payload);
+      const response = await AuthService.resendInvite(payload.invitationId);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);

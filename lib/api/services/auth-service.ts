@@ -75,6 +75,10 @@ export interface AcceptInvitePayload {
   password: string;
 }
 
+export interface ResendInvitePayload {
+  invitationId: number;
+}
+
 export class AuthService {
   // Register
   static async register(payload: RegisterPayload) {
