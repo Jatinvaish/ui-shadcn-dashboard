@@ -1,5 +1,3 @@
-// app/dashboard/access-control/users/page.tsx - UPDATE
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -231,7 +229,7 @@ export default function UsersPage() {
     setResendingInvites((prev) => new Set(prev).add(user.id));
 
     try {
-      await dispatch(resendInvite( { invitationId: user.memberId } )).unwrap();
+      await dispatch(resendInvite({ invitationId: user.memberId })).unwrap();
 
       toast.success(`Invitation resent to ${user.email}`);
     } catch (error: any) {
@@ -419,7 +417,7 @@ export default function UsersPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <ProtectedBreadcrumb
         items={[
           { label: "Access Control", menuKey: "access-control", href: "/dashboard/access-control" },
@@ -434,76 +432,100 @@ export default function UsersPage() {
 
       <DataGrid table={table} recordCount={users.length} isLoading={isLoadingMembers}>
         <Card>
-          <CardHeader className="py-5">
-            <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
-              <div className="relative max-w-md flex-1">
-                <Search className="text-muted-foreground absolute start-3 top-1/2 size-4 -translate-y-1/2" />
-                <Input
-                  placeholder="Search users by email, name, or role"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  className="w-full ps-9"
-                  disabled={isLoadingMembers}
-                />
-                {searchQuery && (
-                  <Button
-                    mode="icon"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute end-1 top-1/2 h-7 w-7 -translate-y-1/2"
-                    onClick={handleClearSearch}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
+          <CardHeader className="px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:gap-3">
+                {/* Search Bar - Full width on mobile, auto on large screens */}
+                <div className="relative w-full lg:flex-1">
+                  <Search className="text-muted-foreground absolute start-3 top-1/2 size-4 -translate-y-1/2" />
+                  <Input
+                    placeholder="Search users by email, name, or role"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    className="w-full ps-9 text-sm sm:text-base"
+                    disabled={isLoadingMembers}
+                  />
+                  {searchQuery && (
+                    <Button
+                      mode="icon"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute end-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                      onClick={handleClearSearch}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Buttons - Stacked on small screens, inline on large screens */}
+                <div className="xs:flex-row xs:gap-2 flex w-full flex-col gap-2 sm:gap-3 lg:w-auto">
+                  {searchInput !== searchQuery && (
+                    <Button
+                      onClick={handleSearch}
+                      disabled={isLoadingMembers}
+                      variant="outline"
+                      size="sm"
+                      className="xs:w-auto flex w-full items-center gap-2 bg-transparent">
+                      <Search className="h-4 w-4 flex-shrink-0" />
+                      <span>Search</span>
+                    </Button>
+                  )}
+
+                  <div className="w-full lg:w-auto lg:flex-row lg:gap-2 xs:flex-row xs:gap-2 flex flex-col gap-2 sm:gap-3">
+                    <Button
+                      onClick={handleRefresh}
+                      disabled={isLoadingMembers}
+                      variant="outline"
+                      // size="sm"
+                      className="xs:w-auto flex w-full items-center gap-2 bg-transparent">
+                      <Loader2
+                        className={`h-4 w-4 flex-shrink-0 ${isLoadingMembers ? "animate-spin" : ""}`}
+                      />
+                      <span>Refresh</span>
+                    </Button>
+
+                    <IfHasAccess menuKey="access-control.users">
+                      <Button
+                        onClick={() => setAddUserDialogOpen(true)}
+                        disabled={isLoadingMembers}
+                        // size="sm"
+                        className="xs:w-auto flex w-full items-center gap-2">
+                        <Plus className="h-4 w-4 flex-shrink-0" />
+                        <span>Add User</span>
+                      </Button>
+                    </IfHasAccess>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                {searchInput !== searchQuery && (
-                  <Button onClick={handleSearch} disabled={isLoadingMembers} variant="outline">
-                    <Search className="h-4 w-4" />
-                    Search
-                  </Button>
-                )}
-
-                <Button onClick={handleRefresh} disabled={isLoadingMembers} variant="outline">
-                  <Loader2 className={`h-4 w-4 ${isLoadingMembers ? "animate-spin" : ""}`} />
-                  Refresh
-                </Button>
-
-                <IfHasAccess menuKey="access-control.users">
-                  <Button onClick={() => setAddUserDialogOpen(true)} disabled={isLoadingMembers}>
-                    <Plus className="h-4 w-4" />
-                    Add User
-                  </Button>
-                </IfHasAccess>
-              </div>
+              {currentTenant && (
+                <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs sm:gap-2 sm:text-sm">
+                  <Badge variant="outline" className="text-xs">
+                    {currentTenant.name}
+                  </Badge>
+                  <span>•</span>
+                  <span>
+                    {users.length} member{users.length !== 1 ? "s" : ""}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {users.filter((u) => u.status === "pending").length} pending invitation
+                    {users.filter((u) => u.status === "pending").length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
             </div>
-
-            {currentTenant && (
-              <div className="text-muted-foreground mt-3 flex items-center gap-2 text-sm">
-                <Badge variant="outline">{currentTenant.name}</Badge>
-                <span>•</span>
-                <span>
-                  {users.length} member{users.length !== 1 ? "s" : ""}
-                </span>
-                <span>•</span>
-                <span>
-                  {users.filter((u) => u.status === "pending").length} pending invitation
-                  {users.filter((u) => u.status === "pending").length !== 1 ? "s" : ""}
-                </span>
-              </div>
-            )}
           </CardHeader>
 
-          <CardTable>
-            <ScrollArea>
+          <CardTable className="overflow-x-auto">
+            <ScrollArea className="w-full">
               <DataGridTable />
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
           </CardTable>
 
-          <CardFooter>
+          <CardFooter className="px-4 py-3 sm:px-6 sm:py-4">
             <DataGridPagination />
           </CardFooter>
         </Card>
@@ -522,14 +544,14 @@ export default function UsersPage() {
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="mx-auto w-[95vw] sm:w-full">
           <AlertDialogHeader>
-            <AlertDialogTitle>
+            <AlertDialogTitle className="text-lg sm:text-xl">
               {userToDelete?.id && userToDelete.id <= 0
                 ? "Cancel Invitation"
                 : "Remove User from Tenant"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm sm:text-base">
               {userToDelete?.id && userToDelete.id <= 0 ? (
                 <>
                   Are you sure you want to cancel the invitation for{" "}
@@ -551,11 +573,11 @@ export default function UsersPage() {
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto">
               {userToDelete?.id && userToDelete.id <= 0 ? "Cancel Invitation" : "Remove User"}
             </AlertDialogAction>
           </AlertDialogFooter>
