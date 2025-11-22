@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = [
   "/forgot-password",
   "/reset-password",
   "/verify",
+  "/accept-invitation",
   "/auth", // For OAuth callbacks
 ];
 
@@ -16,6 +17,7 @@ const AUTH_ROUTES = [
   "/sign-in",
   "/sign-up",
   "/forgot-password",
+  "/accept-invitation",
   "/verify"
 ];
 
