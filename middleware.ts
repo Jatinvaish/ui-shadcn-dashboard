@@ -121,16 +121,23 @@ export async function middleware(request: NextRequest) {
     userData?.onboardingCompleted === true;
 
   // User needs onboarding but trying to access protected routes
-  if (!onboardingComplete && requiresOnboarding && pathname !== "/onboarding") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/onboarding";
-    return NextResponse.redirect(url);
-  }
-
-  // User completed onboarding but trying to access onboarding page
   if (onboardingComplete && pathname === "/onboarding") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // User needs onboarding but trying to access protected routes
+  if (!onboardingComplete && requiresOnboarding && pathname !== "/onboarding") {
+    // ✅ Exception: if user just accepted invitation, allow dashboard access
+    const justAcceptedInvitation = request.headers.get('x-invitation-accepted') === 'true';
+
+    if (justAcceptedInvitation) {
+      return NextResponse.next();
+    }
+
+    const url = request.nextUrl.clone();
+    url.pathname = "/onboarding";
     return NextResponse.redirect(url);
   }
   // ==================== CASE 4: Authenticated User on Auth Routes ====================

@@ -26,6 +26,7 @@ import { Loader2, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { z } from "zod";
 import { Label } from "@/components/ui/label";
+import Cookies from "js-cookie";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3060/api/v1';
 
@@ -147,13 +148,29 @@ export default function AcceptInvitationPage() {
       if (result.user?.email) {
         toast.success("Invitation accepted! Logging you in...");
 
-        // Small delay to show success message
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // ✅ Store user with onboarding completed
+        const userData = {
+          ...result.user,
+          onboardingRequired: false,
+          onboardingCompleted: true,
+        };
 
-        await dispatch(login({
-          email: result.user.email,
-          password: data.password,
-        })).unwrap();
+        Cookies.set("user", JSON.stringify(userData), {
+          expires: 7,
+          path: "/",
+          secure: true,
+          sameSite: "strict"
+        });
+
+        Cookies.set("accessToken", result.accessToken, {
+          expires: 7,
+          path: "/",
+          secure: true,
+          sameSite: "strict"
+        });
+
+        // ✅ Redirect to dashboard, NOT onboarding
+        window.location.href = "/dashboard";
       }
     } catch (err: any) {
       console.error("Accept invitation error:", err);
