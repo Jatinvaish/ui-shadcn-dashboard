@@ -58,8 +58,10 @@ import {
   selectTenantLoading,
   selectCurrentTenant
 } from "@/store/slices/tenantSlice";
+import { fetchRoles, selectRoles, selectRolesLoading } from "@/store/slices/roles.slice";
 import { useMenuPermissions } from "@/hooks/use-menu-permissions";
-import { RbacService, type Role } from "@/lib/api";
+import { type Role } from "@/lib/api";
+import { Combobox } from "@/components/ui/combobox";
 
 interface User {
   id: number;
@@ -69,7 +71,7 @@ interface User {
   lastName?: string;
   userType?: string;
   createdAt?: string;
-  status?: "active" | "inactive" | "pending";
+  status?: string;
   isActive?: boolean;
   memberType?: string;
   joinedAt?: string;
@@ -84,14 +86,16 @@ export default function UsersPage() {
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector(selectUser);
   const tenantMembers = useAppSelector(selectTenantMembers);
-
-  console.log("tenantMembers:", tenantMembers);
   const isLoadingMembers = useAppSelector(selectTenantLoading);
   const currentTenant = useAppSelector(selectCurrentTenant);
   const { accessibleMenus, userPermissions, isSystemAdmin } = useMenuPermissions();
 
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [rolesLoading, setRolesLoading] = useState(false);
+  // Fetch roles from roles slice
+  const allRoles = useAppSelector(selectRoles);
+  const rolesLoading = useAppSelector(selectRolesLoading);
+
+  console.log("tenantMembers:", tenantMembers);
+
   const [users, setUsers] = useState<User[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -100,6 +104,7 @@ export default function UsersPage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [roleSearchQuery, setRoleSearchQuery] = useState("");
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -107,26 +112,20 @@ export default function UsersPage() {
 
   const hasInitialized = useRef(false);
 
+  // Fetch roles with hardcoded pagination
   useEffect(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
 
-      // Fetch roles by hierarchy
-      const fetchRolesByHierarchy = async () => {
-        setRolesLoading(true);
-        try {
-          const response = await RbacService.getRolesByHierarchy({
-            tenantId: currentUser?.tenantId || currentTenant?.id
-          });
-          setRoles(response.data.roles);
-        } catch (error: any) {
-          toast.error(error?.message || "Failed to fetch roles");
-        } finally {
-          setRolesLoading(false);
-        }
-      };
-
-      fetchRolesByHierarchy();
+      // Fetch roles with page 1 and size 20
+      dispatch(
+        fetchRoles({
+          page: 1,
+          limit: 20,
+          scope: "all",
+          search: roleSearchQuery
+        })
+      );
 
       // Fetch tenant members
       const tenantId = currentUser?.tenantId || currentTenant?.id;
@@ -136,7 +135,7 @@ export default function UsersPage() {
         toast.error("No tenant selected. Please select a tenant first.");
       }
     }
-  }, [dispatch, currentUser?.tenantId, currentTenant?.id]);
+  }, [dispatch, currentUser?.tenantId, currentTenant?.id, roleSearchQuery]);
 
   useEffect(() => {
     if (tenantMembers && tenantMembers.length > 0) {
@@ -147,7 +146,7 @@ export default function UsersPage() {
         firstName: member.first_name,
         lastName: member.last_name,
         userType: member.member_type,
-        status: member.user_id <= 0 ? "pending" : member.is_active ? "active" : "inactive",
+        status: member.status,
         isActive: member.is_active,
         memberType: member.member_type,
         createdAt: member.joined_at,
@@ -206,19 +205,6 @@ export default function UsersPage() {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
   };
-
-  // const handleDeleteConfirm = async () => {
-  //   if (!userToDelete) return;
-
-  //   try {
-  //     toast.success("User removed from tenant successfully");
-  //     setDeleteDialogOpen(false);
-  //     setUserToDelete(null);
-  //     handleRefresh();
-  //   } catch (error: any) {
-  //     toast.error(error?.message || "Failed to remove user from tenant");
-  //   }
-  // };
 
   const handleDeleteConfirm = async () => {
     if (!userToDelete) return;
@@ -339,7 +325,7 @@ export default function UsersPage() {
               ? "Active"
               : row.original.status === "pending"
                 ? "Pending"
-                : "Inactive"}
+                : "Cancelled"}
           </Badge>
         ),
         size: 100
@@ -457,7 +443,7 @@ export default function UsersPage() {
 
       <DataGrid table={table} recordCount={users.length} isLoading={isLoadingMembers}>
         <Card>
-          <CardHeader className="px-2 sm:px-2">
+          <CardHeader className="px-4 sm:px-4">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:gap-3">
                 {/* Search Bar - Full width on mobile, auto on large screens */}
@@ -476,7 +462,7 @@ export default function UsersPage() {
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    className="w-full ps-9 text-sm sm:text-base"
+                    className="w-full max-w-md ps-9 text-sm sm:text-base"
                     disabled={isLoadingMembers}
                   />
                   {searchQuery && (
@@ -498,7 +484,6 @@ export default function UsersPage() {
                       onClick={handleRefresh}
                       disabled={isLoadingMembers}
                       variant="outline"
-                      // size="sm"
                       className="xs:w-auto flex w-full items-center gap-2 bg-transparent">
                       <Loader2
                         className={`h-4 w-4 flex-shrink-0 ${isLoadingMembers ? "animate-spin" : ""}`}
@@ -510,7 +495,6 @@ export default function UsersPage() {
                       <Button
                         onClick={() => setAddUserDialogOpen(true)}
                         disabled={isLoadingMembers}
-                        // size="sm"
                         className="xs:w-auto flex w-full items-center gap-2">
                         <Plus className="h-4 w-4 flex-shrink-0" />
                         <span>Add User</span>
@@ -546,7 +530,7 @@ export default function UsersPage() {
             </ScrollArea>
           </CardTable>
 
-          <CardFooter className="px-2 sm:px-3">
+          <CardFooter className="px-4 sm:px-4">
             <DataGridPagination />
           </CardFooter>
         </Card>
@@ -555,8 +539,10 @@ export default function UsersPage() {
       <AddUserDialog
         open={addUserDialogOpen}
         onOpenChange={setAddUserDialogOpen}
-        roles={roles}
+        roles={allRoles}
         rolesLoading={rolesLoading}
+        roleSearchQuery={roleSearchQuery}
+        onRoleSearchChange={setRoleSearchQuery}
         tenantId={currentUser?.tenantId || currentTenant?.id}
         onSuccess={() => {
           setAddUserDialogOpen(false);
@@ -608,18 +594,42 @@ export default function UsersPage() {
   );
 }
 
-function AddUserDialog({ open, onOpenChange, roles, rolesLoading, tenantId, onSuccess }: any) {
+function AddUserDialog({
+  open,
+  onOpenChange,
+  roles,
+  rolesLoading,
+  roleSearchQuery,
+  onRoleSearchChange,
+  tenantId,
+  onSuccess
+}: any) {
   const dispatch = useAppDispatch();
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [roleId, setRoleId] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [internalRoleSearch, setInternalRoleSearch] = useState("");
+
+  // Filter roles based on search
+  const filteredRoles = useMemo(() => {
+    if (!internalRoleSearch) return roles;
+    const searchLower = internalRoleSearch.toLowerCase();
+    return roles.filter((role: Role) => {
+      const displayName = role.display_name || role.displayName || role.name || "";
+      const name = role.name || "";
+      return (
+        displayName.toLowerCase().includes(searchLower) || name.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [roles, internalRoleSearch]);
 
   useEffect(() => {
     if (!open) {
       setUserName("");
       setUserEmail("");
       setRoleId("");
+      setInternalRoleSearch("");
     }
   }, [open]);
 
@@ -667,6 +677,12 @@ function AddUserDialog({ open, onOpenChange, roles, rolesLoading, tenantId, onSu
     }
   };
 
+  const comboboxItems = roles.map((role: Role) => ({
+    id: role.id,
+    label: role.display_name || role.displayName || role.name,
+    description: role.is_system_role ? "(System Role)" : undefined
+  }));
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent>
@@ -707,25 +723,17 @@ function AddUserDialog({ open, onOpenChange, roles, rolesLoading, tenantId, onSu
 
           <div className="space-y-2">
             <Label htmlFor="role">Role *</Label>
-            <Select value={roleId} onValueChange={setRoleId} disabled={isAdding || rolesLoading}>
-              <SelectTrigger id="role">
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((role: Role) => (
-                  <SelectItem key={role.id} value={role.id.toString()}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {role.display_name || role.displayName || role.name}
-                      </span>
-                      {role.is_system_role && (
-                        <span className="text-muted-foreground text-xs">(System Role)</span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Combobox
+                value={roleId}
+                onValueChange={setRoleId}
+                items={comboboxItems}
+                placeholder="Select a role..."
+                emptyMessage="No roles found."
+                disabled={isAdding}
+                isLoading={rolesLoading}
+              />
+            </div>
             <p className="text-muted-foreground text-xs">Select the role to assign to this user</p>
           </div>
         </div>
