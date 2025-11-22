@@ -24,96 +24,77 @@ export const API_ENDPOINTS = {
 
   // ==================== CHAT V2 (Ultra-Fast) ====================
   CHAT: {
-    // Ultra-Fast Endpoints (v2)
-    V2: {
-      SEND: "/chat/v2/messages/send",
-      GET_MESSAGES: "/chat/v2/messages",
-      BATCH_SEND: "/chat/v2/messages/batch",
-      MARK_READ: "/chat/v2/messages/mark-read",
-      UNREAD_COUNT: "/chat/v2/unread",
-      CHANNELS_LIST: "/chat/v2/channels",
-      CHANNELS_CREATE: "/chat/v2/channels/create",
-      CHANNEL_BY_ID: "/chat/v2/channels/:id",
-      HEALTH: "/chat/v2/health"
-    },
-
-    // Standard Endpoints
-    CHANNELS: {
-      LIST: "/chat/channels/list",
-      CREATE: "/chat/channels/create",
-      GET_BY_ID: "/chat/channels/get-by-id",
-      UPDATE: "/chat/channels/update",
-      ARCHIVE: "/chat/channels/archive",
-      DELETE: "/chat/channels/delete",
-      LEAVE: "/chat/channels/leave",
-      PINNED_MESSAGES: "/chat/channels/pinned-messages",
-      SETTINGS_GET: "/chat/channels/settings/get",
-      SETTINGS_UPDATE: "/chat/channels/settings/update",
-      ROTATE_KEY: "/chat/channels/rotate-key"
-    },
-
-    MEMBERS: {
-      LIST: "/chat/channels/members/list",
-      ADD: "/chat/channels/members/add",
-      REMOVE: "/chat/channels/members/remove",
-      UPDATE_ROLE: "/chat/channels/members/update-role"
-    },
-
-    NOTIFICATIONS: {
-      UPDATE: "/chat/channels/notifications/update"
-    },
-
+    // Messages
     MESSAGES: {
-      LIST: "/chat/messages/list",
       SEND: "/chat/messages/send",
-      EDIT: "/chat/messages/edit",
-      DELETE: "/chat/messages/delete",
-      BULK_DELETE: "/chat/messages/bulk-delete",
+      LIST: "/chat/messages",
+      EDIT: (id: number) => `/chat/messages/${id}`,
+      DELETE: (id: number) => `/chat/messages/${id}`,
+      MARK_READ: "/chat/messages/mark-read",
       PIN: "/chat/messages/pin",
+      PINNED: "/chat/messages/pinned",
       FORWARD: "/chat/messages/forward",
-      STATUS: "/chat/messages/status",
-      STATUS_BULK: "/chat/messages/status/bulk"
     },
 
+    // Reactions
     REACTIONS: {
-      ADD: "/chat/messages/reactions/add",
-      LIST: "/chat/messages/reactions/list"
+      ADD: "/chat/messages/reaction",
+      REMOVE: "/chat/messages/reaction/remove",
     },
 
+    // Threads
     THREADS: {
-      MESSAGES: "/chat/threads/messages",
-      REPLY: "/chat/threads/reply"
+      GET: (messageId: number) => `/chat/threads/${messageId}`,
+      REPLY: (messageId: number) => `/chat/threads/${messageId}/reply`,
     },
 
+    // Channels
+    CHANNELS: {
+      LIST: "/chat/channels",
+      CREATE: "/chat/channels/create",
+      GET: (id: number) => `/chat/channels/${id}`,
+      UPDATE: (id: number) => `/chat/channels/${id}`,
+      DELETE: (id: number) => `/chat/channels/${id}`,
+      ARCHIVE: (id: number) => `/chat/channels/${id}/archive`,
+      UNARCHIVE: (id: number) => `/chat/channels/${id}/unarchive`,
+      LEAVE: (id: number) => `/chat/channels/${id}/leave`,
+      PIN: (id: number) => `/chat/channels/${id}/pin`,
+      MUTE: (id: number) => `/chat/channels/${id}/mute`,
+      FILES: (id: number) => `/chat/channels/${id}/files`,
+    },
+
+    // Channel Members
+    MEMBERS: {
+      LIST: (channelId: number) => `/chat/channels/${channelId}/members`,
+      ADD: (channelId: number) => `/chat/channels/${channelId}/members`,
+      REMOVE: (channelId: number, userId: number) => `/chat/channels/${channelId}/members/${userId}`,
+      UPDATE_ROLE: (channelId: number, userId: number) => `/chat/channels/${channelId}/members/${userId}/role`,
+    },
+
+    // Search
     SEARCH: "/chat/search",
 
-    DIRECT: {
-      SEND: "/chat/direct/send"
+    // Team
+    TEAM: {
+      MEMBERS: "/chat/team/members",
+      AVAILABLE_MEMBERS: "/chat/team/available-members",
+      START_CHAT: "/chat/team/start-chat",
     },
 
-    MARK_READ: "/chat/mark-read",
-    MARK_READ_BULK: "/chat/mark-read/bulk",
-
-    UNREAD: {
-      COUNT: "/chat/unread/count"
-    },
-
-    FILES: {
-      LIST: "/chat/channels/files/list",
-      UPLOAD: "/chat/files/upload",
-      DOWNLOAD: "/chat/files/download"
-    },
-
+    // Presence
     PRESENCE: {
-      UPDATE: "/chat/presence/update",
       ONLINE: "/chat/presence/online",
-      TYPING_START: "/chat/presence/typing/start",
-      TYPING_STOP: "/chat/presence/typing/stop"
+      OFFLINE: "/chat/presence/offline",
+      ONLINE_USERS: "/chat/presence/online-users",
     },
 
-    // WebSocket endpoint
-    WS: "/chat"
+    // Unread
+    UNREAD: "/chat/unread",
+
+    // WebSocket
+    WS: "/chat",
   },
+
 
   // ==================== RBAC ====================
   RBAC: {
