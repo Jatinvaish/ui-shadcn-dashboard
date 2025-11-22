@@ -4,8 +4,8 @@ import { Badge } from "@/components/ui/badge"
 import { Info, Settings, Hash, Lock, Users } from 'lucide-react'
 import { useState } from "react"
 import { ChannelSettingsDialog } from "./dialogs/channel-settings-dialog"
-import { InviteDialog } from "./dialogs/invite-dialog"
 import { PinDialog } from "./dialogs/pin-dialog"
+import { InviteMembersDialog } from "./dialogs/invite-members-dialog"
 
 interface ChatHeaderProps {
   title: string
@@ -18,13 +18,15 @@ interface ChatHeaderProps {
   onUpdateChannel?: (name: string, description: string) => void
   onArchiveChannel?: () => void
   onLeaveChannel?: () => void
-  onInviteUsers?: (emails: string[]) => void
+  onInviteUsers?: () => void
   onPinChange?: (pinned: boolean) => void
+  channelId?: number  // Add this
 }
 
 export function ChatHeader({
   title,
   description,
+  channelId,
   isPrivate,
   memberCount,
   status,
@@ -96,18 +98,19 @@ export function ChatHeader({
         onArchiveChannel={onArchiveChannel}
         onLeaveChannel={onLeaveChannel}
       />
-      <InviteDialog
+      <InviteMembersDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
+        channelId={channelId || 0}  // Provide a default or make it required
         channelName={title}
-        onInviteUsers={onInviteUsers || (() => {})}
+        onMembersAdded={onInviteUsers}
       />
       <PinDialog
         open={pinOpen}
         onOpenChange={setPinOpen}
         channelName={title}
         isPinned={isPinned}
-        onPinChange={onPinChange || (() => {})}
+        onPinChange={onPinChange || (() => { })}
       />
     </>
   )

@@ -1,75 +1,110 @@
-"use client";
+// components/chat/chat-header.tsx - COMPLETE WITH ALL ACTIONS
+"use client"
 
-import React from "react";
-import { ArrowLeft, Ellipsis } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { generateAvatarFallback } from "@/lib/utils";
-import useChatStore from "@/app/dashboard/apps/chat/useChatStore";
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Info, Settings, Hash, Lock, Users, Pin, PinOff, Search, Bell, BellOff, Archive, LogOut, UserPlus, MoreVertical } from 'lucide-react'
+import { useState } from "react"
+import { ChannelSettingsDialog } from "@/components/chat/dialogs/channel-settings-dialog"
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  CallDialog,
-  ChatUserDropdown,
-  VideoCallDialog
-} from "@/app/dashboard/apps/chat/components";
-import { Avatar, AvatarFallback, AvatarImage, AvatarIndicator } from "@/components/ui/avatar";
-import { UserPropsTypes } from "@/app/dashboard/apps/chat/types";
+interface ChatHeaderProps {
+  title: string
+  description?: string
+  isPrivate?: boolean
+  memberCount?: number
+  status?: "active" | "away" | "offline"
+  isPinned?: boolean
+  isMuted?: boolean
+  onPinChange?: (pinned: boolean) => void
+  onUpdateChannel?: (name: string, description: string) => void
+  onArchiveChannel?: () => void
+  onLeaveChannel?: () => void
+  onInviteUsers?: () => void
+  onMembersClick?: () => void
+  onSearchClick?: () => void
+  onMuteChannel?: () => void
+  onInfoClick?: () => void
+}
 
-export function ChatHeader({ user }: { user: UserPropsTypes }) {
-  const { setSelectedChat } = useChatStore();
+export function ChatHeader({
+  title, description, isPrivate, memberCount, isPinned = false, isMuted = false,
+  onPinChange, onUpdateChannel, onArchiveChannel, onLeaveChannel, onInviteUsers,
+  onMembersClick, onSearchClick, onMuteChannel, onInfoClick,
+}: ChatHeaderProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
-    <div className="flex justify-between gap-4 lg:px-4">
-      <div className="flex gap-4">
-        <Button
-          size="sm"
-          variant="outline"
-          className="flex size-10 p-0 lg:hidden"
-          onClick={() => setSelectedChat(null)}>
-          <ArrowLeft />
-        </Button>
-        <Avatar className="overflow-visible lg:size-10">
-          <AvatarImage src={`${user?.avatar}`} alt="avatar image" />
-          {/*  TODO: Enable online status indicator */}
-          {/* <AvatarIndicator variant={user?.online_status  =='success'? 'success' :'error' } /> */}
-          <AvatarFallback>{generateAvatarFallback(user?.name)}</AvatarFallback>
-        </Avatar>
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-semibold">{user.name}</span>
-          {user.online_status == "success" ? (
-            <span className="text-xs text-green-500">Online</span>
-          ) : (
-            <span className="text-muted-foreground text-xs">{user.last_seen}</span>
-          )}
+    <>
+      <div className="bg-background px-4 py-3 h-16 flex items-center border-b border-border w-full">
+        <div className="flex items-center justify-between gap-3 w-full">
+          {/* Left side */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {isPrivate ? <Lock className="h-5 w-5 text-muted-foreground flex-shrink-0" /> : <Hash className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-sm font-bold truncate">{title}</h2>
+                {isPinned && <Pin className="h-3.5 w-3.5 text-primary" />}
+                {isMuted && <BellOff className="h-3.5 w-3.5 text-muted-foreground" />}
+              </div>
+              {description && <p className="text-xs text-muted-foreground truncate hidden sm:block">{description}</p>}
+            </div>
+          </div>
+
+          {/* Right side - Action buttons */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Members */}
+            <Button size="sm" variant="ghost" onClick={onMembersClick} title="View members" className="h-8 gap-1.5 px-2">
+              <Users className="h-4 w-4" />
+              {memberCount && <span className="text-xs">{memberCount}</span>}
+            </Button>
+
+            {/* Search */}
+            <Button size="icon" variant="ghost" onClick={onSearchClick} title="Search (⌘K)" className="h-8 w-8">
+              <Search className="h-4 w-4" />
+            </Button>
+
+            {/* More Actions */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={onInviteUsers}>
+                  <UserPlus className="h-4 w-4 mr-2" /> Add people
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onPinChange?.(!isPinned)}>
+                  {isPinned ? <PinOff className="h-4 w-4 mr-2" /> : <Pin className="h-4 w-4 mr-2" />}
+                  {isPinned ? "Unpin channel" : "Pin channel"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onMuteChannel}>
+                  {isMuted ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
+                  {isMuted ? "Unmute" : "Mute notifications"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                  <Settings className="h-4 w-4 mr-2" /> Channel settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onArchiveChannel} className="text-orange-600">
+                  <Archive className="h-4 w-4 mr-2" /> Archive channel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onLeaveChannel} className="text-destructive">
+                  <LogOut className="h-4 w-4 mr-2" /> Leave channel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
-      <div className="flex gap-2">
-        <div className="hidden lg:flex lg:gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <VideoCallDialog />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Start Video Chat</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <CallDialog />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Start Call</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <ChatUserDropdown>
-          <Button size="icon" variant="ghost">
-            <Ellipsis />
-          </Button>
-        </ChatUserDropdown>
-      </div>
-    </div>
-  );
+
+      <ChannelSettingsDialog
+        open={settingsOpen} onOpenChange={setSettingsOpen}
+        channelName={title} description={description} isPrivate={isPrivate}
+        onUpdateChannel={onUpdateChannel} onArchiveChannel={onArchiveChannel} onLeaveChannel={onLeaveChannel}
+      />
+    </>
+  )
 }

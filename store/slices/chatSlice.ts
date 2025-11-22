@@ -1,356 +1,306 @@
-// store/slices/chatSlice.ts - MATCHES BACKEND (NO ENCRYPTION)
+// store/slices/chatSlice.ts - COMPLETE SLACK-LIKE REDUX SLICE
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import {
-  ChatService,
-  Channel,
-  Message,
-  Member,
-  ChannelType,
-  SendMessagePayload,
-  CreateChannelPayload,
-} from '../../lib/api/services/chat-service';
+import { ChatService, Channel, Message, Member, ChannelType, SendMessagePayload, CreateChannelPayload, UpdateChannelPayload, SearchResults } from '../../lib/api/services/chat-service';
 
-// ==================== STATE INTERFACE ====================
 interface ChatState {
-  channels: Channel[];
-  selectedChannel: Channel | null;
-  isLoadingChannels: boolean;
-
-  messages: { [channelId: number]: Message[] };
-  isLoadingMessages: boolean;
-  isSendingMessage: boolean;
-
-  typingUsers: { [channelId: number]: number[] };
-  onlineUsers: number[];
-
-  unreadCount: number;
-  channelUnreadCounts: { [channelId: number]: number };
-
-  error: string | null;
-  successMessage: string | null;
+  channels: Channel[]; selectedChannel: Channel | null; isLoadingChannels: boolean;
+  messages: { [channelId: number]: Message[] }; isLoadingMessages: boolean; isSendingMessage: boolean;
+  channelMembers: { [channelId: number]: Member[] }; isLoadingMembers: boolean;
+  threadMessages: { [parentId: number]: Message[] }; isLoadingThread: boolean;
+  pinnedMessages: { [channelId: number]: Message[] };
+  searchResults: SearchResults | null; isSearching: boolean;
+  typingUsers: { [channelId: number]: number[] }; onlineUsers: number[];
+  unreadCount: number; channelUnreadCounts: { [channelId: number]: number };
+  teamMembers: Member[]; availableMembers: Member[];
+  error: string | null; successMessage: string | null;
 }
 
 const initialState: ChatState = {
-  channels: [],
-  selectedChannel: null,
-  isLoadingChannels: false,
-  messages: {},
-  isLoadingMessages: false,
-  isSendingMessage: false,
-  typingUsers: {},
-  onlineUsers: [],
-  unreadCount: 0,
-  channelUnreadCounts: {},
-  error: null,
-  successMessage: null,
+  channels: [], selectedChannel: null, isLoadingChannels: false,
+  messages: {}, isLoadingMessages: false, isSendingMessage: false,
+  channelMembers: {}, isLoadingMembers: false,
+  threadMessages: {}, isLoadingThread: false,
+  pinnedMessages: {},
+  searchResults: null, isSearching: false,
+  typingUsers: {}, onlineUsers: [],
+  unreadCount: 0, channelUnreadCounts: {},
+  teamMembers: [], availableMembers: [],
+  error: null, successMessage: null,
 };
 
-// ==================== HELPERS ====================
-const normalizeChannel = (channel: any): Channel => {
-  const id = parseInt(channel.id || channel.channel_id || 0);
-  return {
-    id,
-    channel_id: channel.channel_id || id.toString(),
-    name: channel.name || 'Unnamed Channel',
-    description: channel.description,
-    channel_type: channel.channel_type || ChannelType.GROUP,
-    is_private: channel.is_private || false,
-    member_count: channel.member_count || 0,
-    message_count: channel.message_count || 0,
-    unread_count: channel.unread_count || 0,
-    last_message_at: channel.last_message_at,
-    last_activity_at: channel.last_activity_at,
-    is_muted: channel.is_muted || false,
-    last_read_message_id: channel.last_read_message_id,
-    created_at: channel.created_at,
-    updated_at: channel.updated_at,
-  };
-};
+const normalizeChannel = (ch: any): Channel => ({
+  id: parseInt(ch.id || ch.channel_id || 0),
+  channel_id: ch.channel_id || ch.id?.toString(),
+  name: ch.name || 'Unnamed', description: ch.description,
+  channel_type: ch.channel_type || ChannelType.GROUP,
+  is_private: ch.is_private || false, is_archived: ch.is_archived || false,
+  member_count: ch.member_count || 0, message_count: ch.message_count || 0,
+  unread_count: ch.unread_count || 0, last_message_at: ch.last_message_at,
+  is_muted: ch.is_muted || false, is_pinned: ch.is_pinned || false,
+  role: ch.role, created_at: ch.created_at,
+});
 
 // ==================== ASYNC THUNKS ====================
 
 // CHANNELS
-export const fetchUserChannels = createAsyncThunk(
-  'chat/fetchUserChannels',
-  async (limit: number = 50, { rejectWithValue }) => {
-    try {
-      const response = await ChatService.getUserChannels(limit);
-      const channelsArray = Array.isArray(response) ? response : [];
-      return channelsArray.map(normalizeChannel);
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to fetch channels');
-    }
-  }
-);
+export const fetchUserChannels = createAsyncThunk('chat/fetchUserChannels', async (limit: number = 50, { rejectWithValue }) => {
+  try { const r = await ChatService.getUserChannels(limit); return (Array.isArray(r) ? r : []).map(normalizeChannel); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
-export const createChannel = createAsyncThunk(
-  'chat/createChannel',
-  async (payload: CreateChannelPayload, { rejectWithValue }) => {
-    try {
-      const channel = await ChatService.createChannel(payload);
-      return normalizeChannel(channel);
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to create channel');
-    }
-  }
-);
+export const createChannel = createAsyncThunk('chat/createChannel', async (payload: CreateChannelPayload, { rejectWithValue }) => {
+  try { return normalizeChannel(await ChatService.createChannel(payload)); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const updateChannel = createAsyncThunk('chat/updateChannel', async ({ channelId, payload }: { channelId: number; payload: UpdateChannelPayload }, { rejectWithValue }) => {
+  try { return normalizeChannel(await ChatService.updateChannel(channelId, payload)); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const archiveChannel = createAsyncThunk('chat/archiveChannel', async (channelId: number, { rejectWithValue }) => {
+  try { await ChatService.archiveChannel(channelId); return channelId; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const leaveChannel = createAsyncThunk('chat/leaveChannel', async (channelId: number, { rejectWithValue }) => {
+  try { await ChatService.leaveChannel(channelId); return channelId; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const deleteChannel = createAsyncThunk('chat/deleteChannel', async (channelId: number, { rejectWithValue }) => {
+  try { await ChatService.deleteChannel(channelId); return channelId; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const pinChannel = createAsyncThunk('chat/pinChannel', async ({ channelId, isPinned }: { channelId: number; isPinned: boolean }, { rejectWithValue }) => {
+  try { await ChatService.pinChannel(channelId, isPinned); return { channelId, isPinned }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const muteChannel = createAsyncThunk('chat/muteChannel', async ({ channelId, isMuted, muteUntil }: { channelId: number; isMuted: boolean; muteUntil?: string }, { rejectWithValue }) => {
+  try { await ChatService.muteChannel(channelId, isMuted, muteUntil); return { channelId, isMuted }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
 // MESSAGES
-export const fetchMessages = createAsyncThunk(
-  'chat/fetchMessages',
-  async (
-    { channelId, limit, beforeId }: { channelId: number; limit?: number; beforeId?: number },
-    { rejectWithValue }
-  ) => {
-    try {
-      const messages = await ChatService.getMessages(channelId, limit, beforeId);
-      return { channelId, messages: Array.isArray(messages) ? messages : [] };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to fetch messages');
-    }
-  }
-);
+export const fetchMessages = createAsyncThunk('chat/fetchMessages', async ({ channelId, limit, beforeId }: { channelId: number; limit?: number; beforeId?: number }, { rejectWithValue }) => {
+  try { const msgs = await ChatService.getMessages(channelId, limit, beforeId); return { channelId, messages: Array.isArray(msgs) ? msgs : [] }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
-export const sendMessage = createAsyncThunk(
-  'chat/sendMessage',
-  async (payload: SendMessagePayload, { rejectWithValue }) => {
-    try {
-      return await ChatService.sendMessage(payload);
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to send message');
-    }
-  }
-);
+export const sendMessage = createAsyncThunk('chat/sendMessage', async (payload: SendMessagePayload, { rejectWithValue }) => {
+  try { return await ChatService.sendMessage(payload); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
-export const deleteMessage = createAsyncThunk(
-  'chat/deleteMessage',
-  async (messageId: number, { rejectWithValue }) => {
-    try {
-      // Assuming you have a delete endpoint
-      return messageId;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to delete message');
-    }
-  }
-);
+export const editMessage = createAsyncThunk('chat/editMessage', async ({ messageId, content, channelId }: { messageId: number; content: string; channelId: number }, { rejectWithValue }) => {
+  try { await ChatService.editMessage(messageId, content); return { messageId, content, channelId }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const deleteMessage = createAsyncThunk('chat/deleteMessage', async ({ messageId, channelId }: { messageId: number; channelId: number }, { rejectWithValue }) => {
+  try { await ChatService.deleteMessage(messageId); return { messageId, channelId }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const pinMessage = createAsyncThunk('chat/pinMessage', async ({ messageId, isPinned, channelId }: { messageId: number; isPinned: boolean; channelId: number }, { rejectWithValue }) => {
+  try { await ChatService.pinMessage(messageId, isPinned); return { messageId, isPinned, channelId }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const fetchPinnedMessages = createAsyncThunk('chat/fetchPinnedMessages', async (channelId: number, { rejectWithValue }) => {
+  try { const msgs = await ChatService.getPinnedMessages(channelId); return { channelId, messages: msgs }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const forwardMessage = createAsyncThunk('chat/forwardMessage', async ({ messageId, targetChannelIds }: { messageId: number; targetChannelIds: number[] }, { rejectWithValue }) => {
+  try { return await ChatService.forwardMessage(messageId, targetChannelIds); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+// THREADS
+export const fetchThreadMessages = createAsyncThunk('chat/fetchThreadMessages', async ({ parentMessageId, limit }: { parentMessageId: number; limit?: number }, { rejectWithValue }) => {
+  try { const msgs = await ChatService.getThreadMessages(parentMessageId, limit); return { parentMessageId, messages: msgs }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const replyInThread = createAsyncThunk('chat/replyInThread', async ({ parentMessageId, content }: { parentMessageId: number; content: string }, { rejectWithValue }) => {
+  try { const msg = await ChatService.replyInThread(parentMessageId, content); return { parentMessageId, message: msg }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
 // REACTIONS
-export const addReaction = createAsyncThunk(
-  'chat/addReaction',
-  async ({ messageId, emoji }: { messageId: number; emoji: string }, { rejectWithValue }) => {
-    try {
-      await ChatService.addReaction(messageId, emoji);
-      return { messageId, emoji };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to add reaction');
-    }
-  }
-);
+export const addReaction = createAsyncThunk('chat/addReaction', async ({ messageId, emoji }: { messageId: number; emoji: string }, { rejectWithValue }) => {
+  try { await ChatService.addReaction(messageId, emoji); return { messageId, emoji }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
-export const removeReaction = createAsyncThunk(
-  'chat/removeReaction',
-  async ({ messageId, emoji }: { messageId: number; emoji: string }, { rejectWithValue }) => {
-    try {
-      await ChatService.removeReaction(messageId, emoji);
-      return { messageId, emoji };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to remove reaction');
-    }
-  }
-);
+export const removeReaction = createAsyncThunk('chat/removeReaction', async ({ messageId, emoji }: { messageId: number; emoji: string }, { rejectWithValue }) => {
+  try { await ChatService.removeReaction(messageId, emoji); return { messageId, emoji }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+// MEMBERS
+export const fetchChannelMembers = createAsyncThunk('chat/fetchChannelMembers', async (channelId: number, { rejectWithValue }) => {
+  try { const members = await ChatService.getChannelMembers(channelId); return { channelId, members }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const addMembers = createAsyncThunk('chat/addMembers', async ({ channelId, userIds }: { channelId: number; userIds: number[] }, { rejectWithValue }) => {
+  try { const r = await ChatService.addMembers(channelId, userIds); return { channelId, addedMembers: r.addedMembers }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const removeMember = createAsyncThunk('chat/removeMember', async ({ channelId, userId }: { channelId: number; userId: number }, { rejectWithValue }) => {
+  try { await ChatService.removeMember(channelId, userId); return { channelId, userId }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const updateMemberRole = createAsyncThunk('chat/updateMemberRole', async ({ channelId, userId, role }: { channelId: number; userId: number; role: string }, { rejectWithValue }) => {
+  try { await ChatService.updateMemberRole(channelId, userId, role); return { channelId, userId, role }; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const fetchAvailableMembers = createAsyncThunk('chat/fetchAvailableMembers', async (channelId: number, { rejectWithValue }) => {
+  try { return await ChatService.getAvailableMembersForChannel(channelId); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+// TEAM
+export const fetchTeamMembers = createAsyncThunk('chat/fetchTeamMembers', async (search?: string, { rejectWithValue }) => {
+  try { return await ChatService.getTeamMembers(search); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+export const startTeamChat = createAsyncThunk('chat/startTeamChat', async ({ memberIds, name }: { memberIds: number[]; name?: string }, { rejectWithValue }) => {
+  try { return normalizeChannel(await ChatService.startTeamChat(memberIds, name)); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+// SEARCH
+export const searchChat = createAsyncThunk('chat/search', async ({ query, opts }: { query: string; opts?: any }, { rejectWithValue }) => {
+  try { return await ChatService.search(query, opts); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
 // UNREAD
-export const markAsRead = createAsyncThunk(
-  'chat/markAsRead',
-  async ({ channelId, messageId }: { channelId: number; messageId: number }) => {
-    await ChatService.markAsRead(channelId, messageId);
-    return { channelId };
-  }
-);
+export const markAsRead = createAsyncThunk('chat/markAsRead', async ({ channelId, messageId }: { channelId: number; messageId: number }) => {
+  await ChatService.markAsRead(channelId, messageId); return { channelId };
+});
 
-export const fetchUnreadCount = createAsyncThunk(
-  'chat/fetchUnreadCount',
-  async (_, { rejectWithValue }) => {
-    try {
-      const result = await ChatService.getUnreadCount();
-      return result.unread;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to fetch unread count');
-    }
-  }
-);
+export const fetchUnreadCount = createAsyncThunk('chat/fetchUnreadCount', async (_, { rejectWithValue }) => {
+  try { const r = await ChatService.getUnreadCount(); return r.unread; }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
+
+// PRESENCE
+export const fetchOnlineUsers = createAsyncThunk('chat/fetchOnlineUsers', async (_, { rejectWithValue }) => {
+  try { return await ChatService.getOnlineUsers(); }
+  catch (e: any) { return rejectWithValue(e.message); }
+});
 
 // ==================== SLICE ====================
-
 const chatSlice = createSlice({
   name: 'chat',
   initialState,
   reducers: {
-    clearError: (state) => {
-      state.error = null;
-    },
-    clearSuccessMessage: (state) => {
-      state.successMessage = null;
-    },
-    setSelectedChannel: (state, action: PayloadAction<Channel | null>) => {
-      state.selectedChannel = action.payload;
-    },
+    clearError: (state) => { state.error = null; },
+    clearSuccessMessage: (state) => { state.successMessage = null; },
+    setSelectedChannel: (state, action: PayloadAction<Channel | null>) => { state.selectedChannel = action.payload; },
+    clearSearchResults: (state) => { state.searchResults = null; },
     addMessageToChannel: (state, action: PayloadAction<Message>) => {
-      const channelId = action.payload.channel_id;
-      if (!state.messages[channelId]) {
-        state.messages[channelId] = [];
-      }
-      const exists = state.messages[channelId].some((m) => m.id === action.payload.id);
-      if (!exists) {
-        state.messages[channelId].push(action.payload);
-      }
+      const cid = action.payload.channel_id;
+      if (!state.messages[cid]) state.messages[cid] = [];
+      if (!state.messages[cid].some(m => m.id === action.payload.id)) state.messages[cid].push(action.payload);
     },
     updateMessageInChannel: (state, action: PayloadAction<Message>) => {
-      const channelId = action.payload.channel_id;
-      if (state.messages[channelId]) {
-        const index = state.messages[channelId].findIndex((m) => m.id === action.payload.id);
-        if (index !== -1) {
-          state.messages[channelId][index] = action.payload;
-        }
+      const cid = action.payload.channel_id;
+      if (state.messages[cid]) {
+        const idx = state.messages[cid].findIndex(m => m.id === action.payload.id);
+        if (idx !== -1) state.messages[cid][idx] = action.payload;
       }
     },
-    removeMessageFromChannel: (
-      state,
-      action: PayloadAction<{ channelId: number; messageId: number }>
-    ) => {
+    removeMessageFromChannel: (state, action: PayloadAction<{ channelId: number; messageId: number }>) => {
       const { channelId, messageId } = action.payload;
-      if (state.messages[channelId]) {
-        state.messages[channelId] = state.messages[channelId].filter((m) => m.id !== messageId);
-      }
+      if (state.messages[channelId]) state.messages[channelId] = state.messages[channelId].filter(m => m.id !== messageId);
     },
     addTypingUser: (state, action: PayloadAction<{ channelId: number; userId: number }>) => {
       const { channelId, userId } = action.payload;
-      if (!state.typingUsers[channelId]) {
-        state.typingUsers[channelId] = [];
-      }
-      if (!state.typingUsers[channelId].includes(userId)) {
-        state.typingUsers[channelId].push(userId);
-      }
+      if (!state.typingUsers[channelId]) state.typingUsers[channelId] = [];
+      if (!state.typingUsers[channelId].includes(userId)) state.typingUsers[channelId].push(userId);
     },
     removeTypingUser: (state, action: PayloadAction<{ channelId: number; userId: number }>) => {
       const { channelId, userId } = action.payload;
-      if (state.typingUsers[channelId]) {
-        state.typingUsers[channelId] = state.typingUsers[channelId].filter((id) => id !== userId);
-      }
+      if (state.typingUsers[channelId]) state.typingUsers[channelId] = state.typingUsers[channelId].filter(id => id !== userId);
     },
-    setOnlineUsers: (state, action: PayloadAction<number[]>) => {
-      state.onlineUsers = action.payload;
-    },
+    setOnlineUsers: (state, action: PayloadAction<number[]>) => { state.onlineUsers = action.payload; },
     incrementUnreadCount: (state, action: PayloadAction<number>) => {
-      const channelId = action.payload;
       state.unreadCount += 1;
-      state.channelUnreadCounts[channelId] = (state.channelUnreadCounts[channelId] || 0) + 1;
+      state.channelUnreadCounts[action.payload] = (state.channelUnreadCounts[action.payload] || 0) + 1;
     },
     resetUnreadCount: (state, action: PayloadAction<number>) => {
-      const channelId = action.payload;
-      const channelUnread = state.channelUnreadCounts[channelId] || 0;
-      state.unreadCount = Math.max(0, state.unreadCount - channelUnread);
-      state.channelUnreadCounts[channelId] = 0;
+      const cid = action.payload;
+      state.unreadCount = Math.max(0, state.unreadCount - (state.channelUnreadCounts[cid] || 0));
+      state.channelUnreadCounts[cid] = 0;
     },
     resetChatState: () => initialState,
   },
   extraReducers: (builder) => {
-    // CHANNELS
-    builder
-      .addCase(fetchUserChannels.pending, (state) => {
-        state.isLoadingChannels = true;
-        state.error = null;
-      })
-      .addCase(fetchUserChannels.fulfilled, (state, action) => {
-        state.isLoadingChannels = false;
-        if (Array.isArray(action.payload)) {
-          state.channels = action.payload;
-        } else {
-          state.channels = [];
-        }
-      })
-      .addCase(fetchUserChannels.rejected, (state, action) => {
-        state.isLoadingChannels = false;
-        state.error = action.payload as string;
-      });
+    // Channels
+    builder.addCase(fetchUserChannels.pending, (s) => { s.isLoadingChannels = true; s.error = null; });
+    builder.addCase(fetchUserChannels.fulfilled, (s, a) => { s.isLoadingChannels = false; s.channels = a.payload || []; });
+    builder.addCase(fetchUserChannels.rejected, (s, a) => { s.isLoadingChannels = false; s.error = a.payload as string; });
+    builder.addCase(createChannel.fulfilled, (s, a) => { s.channels.unshift(a.payload); s.selectedChannel = a.payload; s.successMessage = 'Channel created'; });
+    builder.addCase(updateChannel.fulfilled, (s, a) => { const idx = s.channels.findIndex(c => c.id === a.payload.id); if (idx !== -1) s.channels[idx] = a.payload; if (s.selectedChannel?.id === a.payload.id) s.selectedChannel = a.payload; s.successMessage = 'Channel updated'; });
+    builder.addCase(archiveChannel.fulfilled, (s, a) => { s.channels = s.channels.filter(c => c.id !== a.payload); if (s.selectedChannel?.id === a.payload) s.selectedChannel = null; s.successMessage = 'Channel archived'; });
+    builder.addCase(leaveChannel.fulfilled, (s, a) => { s.channels = s.channels.filter(c => c.id !== a.payload); if (s.selectedChannel?.id === a.payload) s.selectedChannel = null; s.successMessage = 'Left channel'; });
+    builder.addCase(deleteChannel.fulfilled, (s, a) => { s.channels = s.channels.filter(c => c.id !== a.payload); if (s.selectedChannel?.id === a.payload) s.selectedChannel = null; s.successMessage = 'Channel deleted'; });
+    builder.addCase(pinChannel.fulfilled, (s, a) => { const idx = s.channels.findIndex(c => c.id === a.payload.channelId); if (idx !== -1) s.channels[idx].is_pinned = a.payload.isPinned; });
+    builder.addCase(muteChannel.fulfilled, (s, a) => { const idx = s.channels.findIndex(c => c.id === a.payload.channelId); if (idx !== -1) s.channels[idx].is_muted = a.payload.isMuted; });
 
-    builder.addCase(createChannel.fulfilled, (state, action) => {
-      state.channels.unshift(action.payload);
-      state.selectedChannel = action.payload;
-      state.successMessage = 'Channel created successfully';
-    });
+    // Messages
+    builder.addCase(fetchMessages.pending, (s) => { s.isLoadingMessages = true; });
+    builder.addCase(fetchMessages.fulfilled, (s, a) => { s.isLoadingMessages = false; s.messages[a.payload.channelId] = a.payload.messages; });
+    builder.addCase(fetchMessages.rejected, (s, a) => { s.isLoadingMessages = false; s.error = a.payload as string; });
+    builder.addCase(sendMessage.pending, (s) => { s.isSendingMessage = true; });
+    builder.addCase(sendMessage.fulfilled, (s, a) => { s.isSendingMessage = false; const cid = a.payload.channel_id; if (!s.messages[cid]) s.messages[cid] = []; s.messages[cid].push(a.payload); });
+    builder.addCase(sendMessage.rejected, (s, a) => { s.isSendingMessage = false; s.error = a.payload as string; });
+    builder.addCase(editMessage.fulfilled, (s, a) => { const msgs = s.messages[a.payload.channelId]; if (msgs) { const idx = msgs.findIndex(m => m.id === a.payload.messageId); if (idx !== -1) { msgs[idx].content = a.payload.content; msgs[idx].is_edited = true; } } s.successMessage = 'Message edited'; });
+    builder.addCase(deleteMessage.fulfilled, (s, a) => { if (s.messages[a.payload.channelId]) s.messages[a.payload.channelId] = s.messages[a.payload.channelId].filter(m => m.id !== a.payload.messageId); s.successMessage = 'Message deleted'; });
+    builder.addCase(pinMessage.fulfilled, (s, a) => { const msgs = s.messages[a.payload.channelId]; if (msgs) { const idx = msgs.findIndex(m => m.id === a.payload.messageId); if (idx !== -1) msgs[idx].is_pinned = a.payload.isPinned; } });
+    builder.addCase(fetchPinnedMessages.fulfilled, (s, a) => { s.pinnedMessages[a.payload.channelId] = a.payload.messages; });
 
-    // MESSAGES
-    builder
-      .addCase(fetchMessages.pending, (state) => {
-        state.isLoadingMessages = true;
-      })
-      .addCase(fetchMessages.fulfilled, (state, action) => {
-        state.isLoadingMessages = false;
-        state.messages[action.payload.channelId] = action.payload.messages;
-      })
-      .addCase(fetchMessages.rejected, (state, action) => {
-        state.isLoadingMessages = false;
-        state.error = action.payload as string;
-      });
+    // Threads
+    builder.addCase(fetchThreadMessages.pending, (s) => { s.isLoadingThread = true; });
+    builder.addCase(fetchThreadMessages.fulfilled, (s, a) => { s.isLoadingThread = false; s.threadMessages[a.payload.parentMessageId] = a.payload.messages; });
+    builder.addCase(replyInThread.fulfilled, (s, a) => { if (!s.threadMessages[a.payload.parentMessageId]) s.threadMessages[a.payload.parentMessageId] = []; s.threadMessages[a.payload.parentMessageId].push(a.payload.message); });
 
-    builder
-      .addCase(sendMessage.pending, (state) => {
-        state.isSendingMessage = true;
-      })
-      .addCase(sendMessage.fulfilled, (state, action) => {
-        state.isSendingMessage = false;
-        const channelId = action.payload.channel_id;
-        if (!state.messages[channelId]) {
-          state.messages[channelId] = [];
-        }
-        state.messages[channelId].push(action.payload);
-      })
-      .addCase(sendMessage.rejected, (state, action) => {
-        state.isSendingMessage = false;
-        state.error = action.payload as string;
-      });
+    // Members
+    builder.addCase(fetchChannelMembers.pending, (s) => { s.isLoadingMembers = true; });
+    builder.addCase(fetchChannelMembers.fulfilled, (s, a) => { s.isLoadingMembers = false; s.channelMembers[a.payload.channelId] = a.payload.members; });
+    builder.addCase(addMembers.fulfilled, (s, a) => { s.successMessage = `Added ${a.payload.addedMembers?.length || 0} members`; });
+    builder.addCase(removeMember.fulfilled, (s, a) => { if (s.channelMembers[a.payload.channelId]) s.channelMembers[a.payload.channelId] = s.channelMembers[a.payload.channelId].filter(m => m.user_id !== a.payload.userId); s.successMessage = 'Member removed'; });
+    builder.addCase(updateMemberRole.fulfilled, (s, a) => { const members = s.channelMembers[a.payload.channelId]; if (members) { const idx = members.findIndex(m => m.user_id === a.payload.userId); if (idx !== -1) members[idx].role = a.payload.role; } s.successMessage = 'Role updated'; });
+    builder.addCase(fetchAvailableMembers.fulfilled, (s, a) => { s.availableMembers = a.payload; });
 
-    builder.addCase(deleteMessage.fulfilled, (state, action) => {
-      const messageId = action.payload;
-      Object.keys(state.messages).forEach((channelIdStr) => {
-        const channelId = parseInt(channelIdStr);
-        state.messages[channelId] = state.messages[channelId].filter((m) => m.id !== messageId);
-      });
-      state.successMessage = 'Message deleted';
-    });
+    // Team
+    builder.addCase(fetchTeamMembers.fulfilled, (s, a) => { s.teamMembers = a.payload; });
+    builder.addCase(startTeamChat.fulfilled, (s, a) => { if (!a.payload.isExisting) s.channels.unshift(a.payload); s.selectedChannel = a.payload; });
 
-    // UNREAD
-    builder.addCase(markAsRead.fulfilled, (state, action) => {
-      const { channelId } = action.payload;
-      const channelIndex = state.channels.findIndex((c) => c.id === channelId);
-      if (channelIndex !== -1) {
-        state.channels[channelIndex].unread_count = 0;
-      }
-      const channelUnread = state.channelUnreadCounts[channelId] || 0;
-      state.unreadCount = Math.max(0, state.unreadCount - channelUnread);
-      state.channelUnreadCounts[channelId] = 0;
-    });
+    // Search
+    builder.addCase(searchChat.pending, (s) => { s.isSearching = true; });
+    builder.addCase(searchChat.fulfilled, (s, a) => { s.isSearching = false; s.searchResults = a.payload; });
+    builder.addCase(searchChat.rejected, (s) => { s.isSearching = false; });
 
-    builder.addCase(fetchUnreadCount.fulfilled, (state, action) => {
-      state.unreadCount = action.payload;
-    });
+    // Unread
+    builder.addCase(markAsRead.fulfilled, (s, a) => { const idx = s.channels.findIndex(c => c.id === a.payload.channelId); if (idx !== -1) s.channels[idx].unread_count = 0; const cu = s.channelUnreadCounts[a.payload.channelId] || 0; s.unreadCount = Math.max(0, s.unreadCount - cu); s.channelUnreadCounts[a.payload.channelId] = 0; });
+    builder.addCase(fetchUnreadCount.fulfilled, (s, a) => { s.unreadCount = a.payload; });
+
+    // Presence
+    builder.addCase(fetchOnlineUsers.fulfilled, (s, a) => { s.onlineUsers = a.payload; });
   },
 });
 
-export const {
-  clearError,
-  clearSuccessMessage,
-  setSelectedChannel,
-  addMessageToChannel,
-  updateMessageInChannel,
-  removeMessageFromChannel,
-  addTypingUser,
-  removeTypingUser,
-  setOnlineUsers,
-  incrementUnreadCount,
-  resetUnreadCount,
-  resetChatState,
-} = chatSlice.actions;
-
+export const { clearError, clearSuccessMessage, setSelectedChannel, clearSearchResults, addMessageToChannel, updateMessageInChannel, removeMessageFromChannel, addTypingUser, removeTypingUser, setOnlineUsers, incrementUnreadCount, resetUnreadCount, resetChatState } = chatSlice.actions;
 export default chatSlice.reducer;
