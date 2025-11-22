@@ -451,7 +451,7 @@ const RolesListPage = () => {
         onRowClick={handleRowClick}
       >
         <Card>
-          <CardHeader className="px-2 sm:px-2">
+          <CardHeader className="px-4 sm:px-4">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:gap-3">
                 {/* Search Bar - Full width on mobile, auto on large screens */}
@@ -471,7 +471,7 @@ const RolesListPage = () => {
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className="w-full ps-9 text-sm sm:text-base"
+                    className="w-full max-w-md ps-9 text-sm sm:text-base"
                     disabled={isLoading}
                   />
                   {searchQuery && (
@@ -570,7 +570,7 @@ const RolesListPage = () => {
             </ScrollArea>
           </CardTable>
 
-          <CardFooter className="px-2 sm:px-3">
+          <CardFooter className="px-4 sm:px-4">
             <DataGridPagination />
           </CardFooter>
         </Card>
