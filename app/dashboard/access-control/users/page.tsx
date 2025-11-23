@@ -4,8 +4,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   type ColumnDef,
   getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
   type PaginationState,
   type SortingState,
   useReactTable
@@ -22,15 +20,6 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -44,156 +33,186 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { IfHasAccess } from "@/components/guards/if-has-access";
 import { ProtectedBreadcrumb } from "@/components/guards/protected-breadcrumb";
-import { cancelInvite, resendInvite, selectUser, sendInvite } from "@/store/slices/authSlice";
+import { cancelInvite, resendInvite, selectUser } from "@/store/slices/authSlice";
 import {
   fetchTenantMembers,
   selectTenantMembers,
+  selectMembersPagination,
   selectTenantLoading,
   selectCurrentTenant
 } from "@/store/slices/tenantSlice";
-import { fetchRoles, selectRoles, selectRolesLoading } from "@/store/slices/roles.slice";
-import { useMenuPermissions } from "@/hooks/use-menu-permissions";
-import { Combobox } from "@/components/ui/combobox";
-import { Role } from "@/lib/api/services/rbac-service";
+import { fetchRoles, selectRoles } from "@/store/slices/roles.slice";
 import { AddUserDialog } from "./add-user-dialog";
-
-interface User {
-  id: number;
-  memberId: number;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  userType?: string;
-  createdAt?: string;
-  status?: string;
-  isActive?: boolean;
-  memberType?: string;
-  joinedAt?: string;
-  roles?: Array<{
-    id: number;
-    name: string;
-    displayName?: string;
-  }>;
-}
+import type { TenantMember } from "@/lib/api/services/tenant-service";
 
 export default function UsersPage() {
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector(selectUser);
   const tenantMembers = useAppSelector(selectTenantMembers);
+  const membersPagination = useAppSelector(selectMembersPagination);
   const isLoadingMembers = useAppSelector(selectTenantLoading);
   const currentTenant = useAppSelector(selectCurrentTenant);
-  const { accessibleMenus, userPermissions, isSystemAdmin } = useMenuPermissions();
 
-  // Fetch roles from roles slice
-  const allRoles = useAppSelector(selectRoles);
-  const rolesLoading = useAppSelector(selectRolesLoading);
-
-  const [users, setUsers] = useState<User[]>([]);
+  // Local state for UI - MOVED BEFORE columns definition
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10
   });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'joined_at', desc: true }
+  ]);
   const [searchInput, setSearchInput] = useState("");
-  const [roleSearchQuery, setRoleSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<TenantMember | null>(null);
   const [resendingInvites, setResendingInvites] = useState<Set<number>>(new Set());
 
   const hasInitialized = useRef(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch roles with hardcoded pagination
+  // Debug logging
+  useEffect(() => {
+    console.log('📊 State Debug:', {
+      'tenantMembers': tenantMembers,
+      'tenantMembers type': typeof tenantMembers,
+      'tenantMembers is array': Array.isArray(tenantMembers),
+      'tenantMembers length': tenantMembers?.length,
+      'membersPagination': membersPagination,
+      'isLoadingMembers': isLoadingMembers,
+      'currentTenant': currentTenant,
+      'currentUser tenantId': currentUser?.tenantId,
+      'current sorting': sorting,
+      'current pagination': pagination
+    });
+  }, [tenantMembers, membersPagination, isLoadingMembers, currentTenant, currentUser, sorting, pagination]);
+
+  // Fetch roles on mount
   useEffect(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-
-      // Fetch roles with page 1 and size 20
       dispatch(
         fetchRoles({
           page: 1,
           limit: 20,
           scope: "all",
-          search: roleSearchQuery
+          search: ""
         })
       );
-
-      // Fetch tenant members
-      const tenantId = currentUser?.tenantId || currentTenant?.id;
-      if (tenantId) {
-        dispatch(fetchTenantMembers(Number(tenantId)));
-      } else {
-        toast.error("No tenant selected. Please select a tenant first.");
-      }
     }
-  }, [dispatch, currentUser?.tenantId, currentTenant?.id, roleSearchQuery]);
+  }, [dispatch]);
 
+  // Debounce search input
   useEffect(() => {
-    if (tenantMembers && tenantMembers.length > 0) {
-      const transformedUsers: User[] = tenantMembers.map((member) => ({
-        id: member.user_id,
-        memberId: member.member_id,
-        email: member.email,
-        firstName: member.first_name,
-        lastName: member.last_name,
-        userType: member.member_type,
-        status: member.status,
-        isActive: member.is_active,
-        memberType: member.member_type,
-        createdAt: member.joined_at,
-        joinedAt: member.joined_at,
-        roles: member.role_id
-          ? [
-              {
-                id: member.role_id,
-                name: member.role_name || "Unknown",
-                displayName: member.role_display_name || "Unknown"
-              }
-            ]
-          : []
-      }));
-
-      if (searchQuery) {
-        const term = searchQuery.toLowerCase();
-        const filtered = transformedUsers.filter(
-          (user) =>
-            user.email.toLowerCase().includes(term) ||
-            user.firstName?.toLowerCase().includes(term) ||
-            user.lastName?.toLowerCase().includes(term) ||
-            user.roles?.some((r) => r.name.toLowerCase().includes(term))
-        );
-        setUsers(filtered);
-      } else {
-        setUsers(transformedUsers);
-      }
-    } else {
-      setUsers([]);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
-  }, [tenantMembers, searchQuery]);
 
-  const handleSearch = useCallback(() => {
-    setSearchQuery(searchInput);
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }, 500);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, [searchInput]);
+
+  // Fetch members when filters change
+  useEffect(() => {
+    const tenantId = currentUser?.tenantId || currentTenant?.id;
+    if (!tenantId) {
+      console.log('❌ No tenant ID available');
+      return;
+    }
+
+    // Get sort configuration from TanStack Table state
+    const sortBy = sorting.length > 0 ? sorting[0].id : 'joined_at';
+    const sortOrder = sorting.length > 0 && sorting[0].desc ? 'DESC' : 'ASC';
+
+    console.log('🔄 Fetching members with params:', {
+      tenantId: Number(tenantId),
+      page: pagination.pageIndex + 1,
+      limit: pagination.pageSize,
+      search: debouncedSearch || undefined,
+      sortBy,
+      sortOrder,
+      sortingState: sorting
+    });
+
+    dispatch(
+      fetchTenantMembers({
+        tenantId: Number(tenantId),
+        params: {
+          page: pagination.pageIndex + 1,
+          limit: pagination.pageSize,
+          search: debouncedSearch || undefined,
+          sortBy: sortBy as any,
+          sortOrder: sortOrder as any
+        }
+      })
+    ).unwrap()
+      .then((response) => {
+        console.log('✅ Members fetched successfully:', response);
+        console.log('✅ Response type:', typeof response);
+        console.log('✅ Response is array?:', Array.isArray(response));
+        console.log('✅ Response keys:', response ? Object.keys(response) : 'null');
+        console.log('✅ Response.data:', response?.data);
+        console.log('✅ Response.pagination:', response?.pagination);
+      })
+      .catch((error) => {
+        console.error('❌ Failed to fetch members:', error);
+        toast.error(error?.message || 'Failed to load members');
+      });
+  }, [
+    dispatch,
+    currentUser?.tenantId,
+    currentTenant?.id,
+    pagination.pageIndex,
+    pagination.pageSize,
+    debouncedSearch,
+    sorting // This dependency ensures sorting changes trigger refetch
+  ]);
 
   const handleClearSearch = useCallback(() => {
     setSearchInput("");
-    setSearchQuery("");
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    setDebouncedSearch("");
   }, []);
 
   const handleRefresh = useCallback(() => {
     const tenantId = currentUser?.tenantId || currentTenant?.id;
     if (tenantId) {
-      dispatch(fetchTenantMembers(Number(tenantId)));
+      const sortBy = sorting[0]?.id as any || 'joined_at';
+      const sortOrder = sorting[0]?.desc ? 'DESC' : 'ASC';
+
+      dispatch(
+        fetchTenantMembers({
+          tenantId: Number(tenantId),
+          params: {
+            page: pagination.pageIndex + 1,
+            limit: pagination.pageSize,
+            search: debouncedSearch || undefined,
+            sortBy,
+            sortOrder
+          }
+        })
+      );
       toast.success("Refreshing users...");
     } else {
       toast.error("No tenant selected");
     }
-  }, [dispatch, currentUser?.tenantId, currentTenant?.id]);
+  }, [
+    dispatch,
+    currentUser?.tenantId,
+    currentTenant?.id,
+    pagination,
+    debouncedSearch,
+    sorting
+  ]);
 
-  const handleDeleteClick = (user: User) => {
+  const handleDeleteClick = (user: TenantMember) => {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
   };
@@ -201,16 +220,14 @@ export default function UsersPage() {
   const handleDeleteConfirm = async () => {
     if (!userToDelete) return;
 
-    const isPendingInvite = userToDelete.id <= 0;
+    const isPendingInvite = userToDelete.user_id <= 0;
 
     try {
       if (isPendingInvite) {
-        // Cancel pending invitation
-        await dispatch(cancelInvite({ invitationId: userToDelete.memberId })).unwrap();
+        await dispatch(cancelInvite({ invitationId: userToDelete.member_id })).unwrap();
         toast.success("Invitation cancelled successfully");
       } else {
         // TODO: Implement remove user from tenant API call
-        // await dispatch(removeUserFromTenant({ memberId: userToDelete.memberId })).unwrap();
         toast.success("User removed from tenant successfully");
       }
 
@@ -223,33 +240,33 @@ export default function UsersPage() {
     }
   };
 
-  const handleResendInvite = async (user: User) => {
-    if (!user.roles || user.roles.length === 0) {
+  const handleResendInvite = async (user: TenantMember) => {
+    if (!user.role_id) {
       toast.error("Cannot resend invite: User has no assigned role");
       return;
     }
 
-    setResendingInvites((prev) => new Set(prev).add(user.id));
+    setResendingInvites((prev) => new Set(prev).add(user.user_id));
 
     try {
-      await dispatch(resendInvite({ invitationId: user.memberId })).unwrap();
-
+      await dispatch(resendInvite({ invitationId: user.member_id })).unwrap();
       toast.success(`Invitation resent to ${user.email}`);
     } catch (error: any) {
       toast.error(error || "Failed to resend invitation");
     } finally {
       setResendingInvites((prev) => {
         const newSet = new Set(prev);
-        newSet.delete(user.id);
+        newSet.delete(user.user_id);
         return newSet;
       });
     }
   };
 
-  const columns = useMemo<ColumnDef<User>[]>(
+  const columns = useMemo<ColumnDef<TenantMember>[]>(
     () => [
       {
         accessorKey: "email",
+        id: "email",
         header: ({ column }) => (
           <DataGridColumnHeader title="Email" visibility={true} column={column} />
         ),
@@ -261,47 +278,51 @@ export default function UsersPage() {
             <div>
               <div className="text-sm font-medium">{row.original.email}</div>
               <div className="text-muted-foreground text-xs">
-                {row.original.firstName} {row.original.lastName}
+                {row.original.first_name} {row.original.last_name || ''}
               </div>
             </div>
           </div>
         ),
-        size: 250
+        size: 250,
+        enableSorting: true
       },
       {
-        accessorKey: "roles",
+        accessorKey: "role_name",
+        id: "role_name",
         header: ({ column }) => (
           <DataGridColumnHeader title="Roles" visibility={true} column={column} />
         ),
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1">
-            {row.original.roles && row.original.roles.length > 0 ? (
-              row.original.roles.map((role) => (
-                <Badge key={role.id} variant="secondary">
-                  {role.displayName || role.name}
-                </Badge>
-              ))
+            {row.original.role_id ? (
+              <Badge variant="secondary">
+                {row.original.role_display_name || row.original.role_name}
+              </Badge>
             ) : (
               <span className="text-muted-foreground text-xs">No roles assigned</span>
             )}
           </div>
         ),
-        size: 200
+        size: 200,
+        enableSorting: true
       },
       {
-        accessorKey: "memberType",
+        accessorKey: "member_type",
+        id: "member_type",
         header: ({ column }) => (
           <DataGridColumnHeader title="Member Type" visibility={true} column={column} />
         ),
         cell: ({ row }) => (
           <Badge variant="outline" className="text-muted-foreground capitalize">
-            {row.original.memberType || "N/A"}
+            {row.original.member_type || "N/A"}
           </Badge>
         ),
-        size: 120
+        size: 120,
+        enableSorting: true
       },
       {
         accessorKey: "status",
+        id: "status",
         header: ({ column }) => (
           <DataGridColumnHeader title="Status" visibility={true} column={column} />
         ),
@@ -320,16 +341,18 @@ export default function UsersPage() {
                 : "Cancelled"}
           </Badge>
         ),
-        size: 100
+        size: 100,
+        enableSorting: true
       },
       {
-        accessorKey: "joinedAt",
+        accessorKey: "joined_at",
+        id: "joined_at",
         header: ({ column }) => (
           <DataGridColumnHeader title="Joined / Action" visibility={true} column={column} />
         ),
         cell: ({ row }) => {
-          const isPending = row.original.id <= 0;
-          const isResending = resendingInvites.has(row.original.id);
+          const isPending = row.original.user_id <= 0;
+          const isResending = resendingInvites.has(row.original.user_id);
 
           if (isPending) {
             return (
@@ -364,14 +387,15 @@ export default function UsersPage() {
 
           return (
             <span className="text-muted-foreground text-sm">
-              {row.original.joinedAt ? new Date(row.original.joinedAt).toLocaleDateString() : "N/A"}
+              {row.original.joined_at ? new Date(row.original.joined_at).toLocaleDateString() : "N/A"}
             </span>
           );
         },
-        size: 150
+        size: 150,
+        enableSorting: true
       },
       {
-        accessorKey: "actions",
+        id: "actions",
         header: "",
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
@@ -384,14 +408,14 @@ export default function UsersPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteClick(row.original)}
-                      disabled={row.original.id === currentUser?.id}>
+                      disabled={row.original.user_id === currentUser?.id}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {row.original.id === currentUser?.id
+                    {row.original.user_id === currentUser?.id
                       ? "Cannot remove yourself"
-                      : row.original.id <= 0
+                      : row.original.user_id <= 0
                         ? "Cancel invitation"
                         : "Remove from tenant"}
                   </TooltipContent>
@@ -401,23 +425,32 @@ export default function UsersPage() {
             <ChevronRight className="text-muted-foreground/70 size-3.5" />
           </div>
         ),
-        size: 80
+        size: 80,
+        enableSorting: false
       }
     ],
-    [currentUser?.id, resendingInvites]
+    [currentUser?.id, resendingInvites, handleResendInvite]
   );
 
   const table = useReactTable({
     columns,
-    data: users,
-    state: { pagination, sorting },
+    data: tenantMembers || [],
+    state: { 
+      pagination,
+      sorting 
+    },
+    pageCount: membersPagination?.totalPages || 0,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    manualPagination: false
+    manualPagination: true,
+    manualSorting: true
   });
+
+  const pendingCount = useMemo(() => {
+    if (!tenantMembers || tenantMembers.length === 0) return 0;
+    return tenantMembers.filter(m => m.status === 'pending').length;
+  }, [tenantMembers]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -432,19 +465,21 @@ export default function UsersPage() {
           }
         ]}
       />
-      <DataGrid table={table} recordCount={users.length} isLoading={isLoadingMembers}>
+      <DataGrid 
+        table={table} 
+        recordCount={membersPagination?.totalCount || 0} 
+        isLoading={isLoadingMembers}
+      >
         <Card>
           <CardHeader className="px-4 sm:px-4">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:gap-3">
-                {/* Search Bar - Full width on mobile, auto on large screens */}
                 <div className="relative w-full lg:flex-1">
                   <Button
                     mode="icon"
                     variant="ghost"
                     size="sm"
                     className="absolute start-1 top-1/2 h-7 w-7 -translate-y-1/2"
-                    onClick={handleSearch}
                     disabled={isLoadingMembers}>
                     <Search className="text-muted-foreground h-4 w-4" />
                   </Button>
@@ -452,11 +487,10 @@ export default function UsersPage() {
                     placeholder="Search users by email, name, or role"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     className="w-full max-w-md ps-9 text-sm sm:text-base"
                     disabled={isLoadingMembers}
                   />
-                  {searchQuery && (
+                  {searchInput && (
                     <Button
                       mode="icon"
                       variant="ghost"
@@ -468,7 +502,6 @@ export default function UsersPage() {
                   )}
                 </div>
 
-                {/* Buttons - Stacked on small screens, inline on large screens */}
                 <div className="xs:flex-row xs:gap-2 flex w-full flex-col gap-2 sm:gap-3 lg:w-auto">
                   <div className="xs:flex-row xs:gap-2 flex w-full flex-col gap-2 sm:gap-3 lg:w-auto lg:flex-row lg:gap-2">
                     <Button
@@ -502,12 +535,11 @@ export default function UsersPage() {
                   </Badge>
                   <span>•</span>
                   <span>
-                    {users.length} member{users.length !== 1 ? "s" : ""}
+                    {membersPagination?.totalCount || 0} member{(membersPagination?.totalCount || 0) !== 1 ? "s" : ""}
                   </span>
                   <span>•</span>
                   <span>
-                    {users.filter((u) => u.status === "pending").length} pending invitation
-                    {users.filter((u) => u.status === "pending").length !== 1 ? "s" : ""}
+                    {pendingCount} pending invitation{pendingCount !== 1 ? "s" : ""}
                   </span>
                 </div>
               )}
@@ -526,21 +558,23 @@ export default function UsersPage() {
           </CardFooter>
         </Card>
       </DataGrid>
+
       <AddUserDialog
         open={addUserDialogOpen}
         onOpenChange={setAddUserDialogOpen}
         onSuccess={handleRefresh}
       />
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="mx-auto w-[95vw] sm:w-full">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-lg sm:text-xl">
-              {userToDelete?.id && userToDelete.id <= 0
+              {userToDelete?.user_id && userToDelete.user_id <= 0
                 ? "Cancel Invitation"
                 : "Remove User from Tenant"}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-sm sm:text-base">
-              {userToDelete?.id && userToDelete.id <= 0 ? (
+              {userToDelete?.user_id && userToDelete.user_id <= 0 ? (
                 <>
                   Are you sure you want to cancel the invitation for{" "}
                   <strong>{userToDelete?.email}</strong>?
@@ -566,7 +600,7 @@ export default function UsersPage() {
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto">
-              {userToDelete?.id && userToDelete.id <= 0 ? "Cancel Invitation" : "Remove User"}
+              {userToDelete?.user_id && userToDelete.user_id <= 0 ? "Cancel Invitation" : "Remove User"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -574,173 +608,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
-// function AddUserDialog({
-//   open,
-//   onOpenChange,
-//   roles,
-//   rolesLoading,
-//   roleSearchQuery,
-//   onRoleSearchChange,
-//   tenantId,
-//   onSuccess
-// }: any) {
-//   const dispatch = useAppDispatch();
-//   const [userName, setUserName] = useState("");
-//   const [userEmail, setUserEmail] = useState("");
-//   const [roleId, setRoleId] = useState("");
-//   const [isAdding, setIsAdding] = useState(false);
-//   const [internalRoleSearch, setInternalRoleSearch] = useState("");
-
-//   // Filter roles based on search
-//   const filteredRoles = useMemo(() => {
-//     if (!internalRoleSearch) return roles;
-//     const searchLower = internalRoleSearch.toLowerCase();
-//     return roles.filter((role: Role) => {
-//       const displayName = role.display_name || role.displayName || role.name || "";
-//       const name = role.name || "";
-//       return (
-//         displayName.toLowerCase().includes(searchLower) || name.toLowerCase().includes(searchLower)
-//       );
-//     });
-//   }, [roles, internalRoleSearch]);
-
-//   useEffect(() => {
-//     if (!open) {
-//       setUserName("");
-//       setUserEmail("");
-//       setRoleId("");
-//       setInternalRoleSearch("");
-//     }
-//   }, [open]);
-
-//   const handleSubmit = async () => {
-//     if (!userEmail || !roleId) {
-//       toast.error("Please fill in all required fields");
-//       return;
-//     }
-
-//     if (!tenantId) {
-//       toast.error("No tenant selected");
-//       return;
-//     }
-
-//     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-//     if (!emailRegex.test(userEmail)) {
-//       toast.error("Please enter a valid email address");
-//       return;
-//     }
-
-//     setIsAdding(true);
-//     try {
-//       await dispatch(
-//         sendInvite({
-//           inviteeEmail: userEmail,
-//           inviteeName: userName,
-//           inviteeType: "staff",
-//           roleId: Number(roleId),
-//           invitationMessage: `You have been invited to join the tenant.`
-//         })
-//       ).unwrap();
-
-//       toast.success("Invitation sent successfully");
-//       onSuccess();
-//     } catch (error: any) {
-//       toast.error(error || "Failed to send invitation");
-//     } finally {
-//       setIsAdding(false);
-//     }
-//   };
-
-//   const handleClose = () => {
-//     if (!isAdding) {
-//       onOpenChange(false);
-//     }
-//   };
-
-//   const comboboxItems = roles.map((role: Role) => ({
-//     id: role.id,
-//     label: role.display_name || role.displayName || role.name,
-//     description: role.is_system_role ? "(System Role)" : undefined
-//   }));
-
-//   return (
-//     <Dialog open={open} onOpenChange={handleClose}>
-//       <DialogContent>
-//         <DialogHeader>
-//           <DialogTitle>Add User to Tenant</DialogTitle>
-//           <DialogDescription>
-//             Add an existing user or invite a new user to join this tenant
-//           </DialogDescription>
-//         </DialogHeader>
-
-//         <div className="space-y-4 py-4">
-//           <div className="space-y-2">
-//             <Label htmlFor="email">Email Address *</Label>
-//             <Input
-//               id="email"
-//               type="email"
-//               placeholder="user@example.com"
-//               value={userEmail}
-//               onChange={(e) => setUserEmail(e.target.value)}
-//               disabled={isAdding}
-//             />
-//             <p className="text-muted-foreground text-xs">
-//               Enter the email address. If user doesn't exist, an invitation will be sent.
-//             </p>
-//           </div>
-
-//           <div className="space-y-2">
-//             <Label htmlFor="name">Full Name</Label>
-//             <Input
-//               id="name"
-//               placeholder="John Doe"
-//               value={userName}
-//               onChange={(e) => setUserName(e.target.value)}
-//               disabled={isAdding}
-//             />
-//             <p className="text-muted-foreground text-xs">Enter the full name (optional)</p>
-//           </div>
-
-//           <div className="space-y-2">
-//             <Label htmlFor="role">Role *</Label>
-//             <div className="space-y-2">
-//               <Combobox
-//                 value={roleId}
-//                 onValueChange={setRoleId}
-//                 items={comboboxItems}
-//                 placeholder="Select a role..."
-//                 emptyMessage="No roles found."
-//                 disabled={isAdding}
-//                 isLoading={rolesLoading}
-//               />
-//             </div>
-//             <p className="text-muted-foreground text-xs">Select the role to assign to this user</p>
-//           </div>
-//         </div>
-
-//         <DialogFooter>
-//           <Button type="button" variant="outline" onClick={handleClose} disabled={isAdding}>
-//             Cancel
-//           </Button>
-//           <Button
-//             type="button"
-//             onClick={handleSubmit}
-//             disabled={isAdding || !userEmail || !roleId || !tenantId}>
-//             {isAdding ? (
-//               <>
-//                 <Loader2 className="h-4 w-4 animate-spin" />
-//                 Adding...
-//               </>
-//             ) : (
-//               <>
-//                 <Plus className="h-4 w-4" />
-//                 Add User
-//               </>
-//             )}
-//           </Button>
-//         </DialogFooter>
-//       </DialogContent>
-//     </Dialog>
-//   );
-// }

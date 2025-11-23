@@ -1,12 +1,28 @@
-// store/slices/tenantSlice.ts
+// ============================================
+// store/slices/tenantSlice.ts - Enhanced
+// ============================================
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { TenantService, type Tenant, type TenantMember, type TenantUsage, type UpdateTenantPayload } from '@/lib/api/services/tenant-service';
+import { 
+  TenantService, 
+  type Tenant, 
+  type TenantMember, 
+  type TenantUsage, 
+  type UpdateTenantPayload,
+  type GetMembersParams,
+  type PaginatedMembersResponse 
+} from '@/lib/api/services/tenant-service';
 import type { RootState } from '@/store/store';
 
 interface TenantState {
   tenants: Tenant[];
   currentTenant: Tenant | null;
   members: TenantMember[];
+  membersPagination: {
+    currentPage: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  } | null;
   usage: TenantUsage | null;
   isLoading: boolean;
   error: string | null;
@@ -17,6 +33,7 @@ const initialState: TenantState = {
   tenants: [],
   currentTenant: null,
   members: [],
+  membersPagination: null,
   usage: null,
   isLoading: false,
   error: null,
@@ -71,15 +88,22 @@ export const updateTenant = createAsyncThunk(
 );
 
 /**
- * Fetch tenant members
+ * Fetch tenant members with pagination, sorting, and search
  */
 export const fetchTenantMembers = createAsyncThunk(
   'tenant/fetchTenantMembers',
-  async (tenantId: number, { rejectWithValue }) => {
+  async ({ tenantId, params }: { tenantId: number; params?: GetMembersParams }, { rejectWithValue }) => {
     try {
-      const response = await TenantService.getTenantMembers(tenantId);
+      console.log('🔵 Fetching tenant members:', { tenantId, params });
+      const response = await TenantService.getTenantMembers(tenantId, params);
+      console.log('🟢 Full API Response:', response);
+      console.log('🟢 Response.data:', response.data);
+      
+      // The response structure is: { data: { data: [], pagination: {} } }
+      // We need to return response.data which contains { data: [], pagination: {} }
       return response.data;
     } catch (error: any) {
+      console.error('🔴 Fetch error:', error);
       return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
@@ -132,6 +156,7 @@ const tenantSlice = createSlice({
     clearCurrentTenant: (state) => {
       state.currentTenant = null;
       state.members = [];
+      state.membersPagination = null;
       state.usage = null;
     },
     
@@ -139,6 +164,7 @@ const tenantSlice = createSlice({
       state.tenants = [];
       state.currentTenant = null;
       state.members = [];
+      state.membersPagination = null;
       state.usage = null;
       state.error = null;
       state.initialized = false;
@@ -207,14 +233,52 @@ const tenantSlice = createSlice({
       .addCase(fetchTenantMembers.pending, (state) => {
         state.isLoading = true;
         state.error = null;
+        console.log('⏳ Fetching members - pending');
       })
       .addCase(fetchTenantMembers.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.members = action.payload;
+        console.log('✅ Fetch members fulfilled - RAW PAYLOAD:', action.payload);
+        console.log('✅ Payload type:', typeof action.payload);
+        console.log('✅ Payload keys:', action.payload ? Object.keys(action.payload) : 'null');
+        
+        // Handle response structure
+        if (action.payload) {
+          // Check if payload has data and pagination properties
+          if ('data' in action.payload && 'pagination' in action.payload) {
+            state.members = action.payload.data || [];
+            state.membersPagination = action.payload.pagination || null;
+            console.log('✅ Structure 1: Direct data/pagination');
+          } 
+          // Check if it's an array (old format)
+          else if (Array.isArray(action.payload)) {
+            state.members = action.payload;
+            state.membersPagination = null;
+            console.log('✅ Structure 2: Direct array (legacy)');
+          }
+          // Unknown structure
+          else {
+            console.warn('⚠️ Unknown payload structure:', action.payload);
+            state.members = [];
+            state.membersPagination = null;
+          }
+        } else {
+          console.warn('⚠️ Empty payload received');
+          state.members = [];
+          state.membersPagination = null;
+        }
+        
+        console.log('📦 Final Updated State:', {
+          membersCount: state.members.length,
+          members: state.members,
+          pagination: state.membersPagination
+        });
       })
       .addCase(fetchTenantMembers.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+        state.members = [];
+        state.membersPagination = null;
+        console.error('❌ Fetch members rejected:', action.payload);
       })
       
       // Fetch Tenant Usage
@@ -261,6 +325,7 @@ export const {
 export const selectTenants = (state: RootState) => state.tenant.tenants;
 export const selectCurrentTenant = (state: RootState) => state.tenant.currentTenant;
 export const selectTenantMembers = (state: RootState) => state.tenant.members;
+export const selectMembersPagination = (state: RootState) => state.tenant.membersPagination;
 export const selectTenantUsage = (state: RootState) => state.tenant.usage;
 export const selectTenantLoading = (state: RootState) => state.tenant.isLoading;
 export const selectTenantError = (state: RootState) => state.tenant.error;
