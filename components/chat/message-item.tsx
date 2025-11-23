@@ -1,4 +1,4 @@
-// components/chat/message-item.tsx - COMPLETE FIX
+// components/chat/message-item.tsx - COMPLETE WITH ALL FEATURES
 "use client"
 
 import React, { useState } from "react"
@@ -12,7 +12,6 @@ interface MessageItemProps {
   message: Message
   isOwn: boolean
   isDirect?: boolean
-  currentUserId?: string
   onReply?: (messageId: string) => void
   onReact?: (messageId: string, emoji: string) => void
   onOpenThread?: (messageId: string) => void
@@ -21,14 +20,12 @@ interface MessageItemProps {
   onPin?: (messageId: string, isPinned: boolean) => void
   onReplyInThread?: (content: string, parentId: string) => void
   onForward?: (messageId: string) => void
-  onScrollToMessage?: (messageId: string) => void
 }
 
 export function MessageItem({
   message,
   isOwn,
   isDirect = false,
-  currentUserId,
   onReply,
   onReact,
   onOpenThread,
@@ -37,7 +34,6 @@ export function MessageItem({
   onPin,
   onReplyInThread,
   onForward,
-  onScrollToMessage,
 }: MessageItemProps) {
   const [showActions, setShowActions] = useState(false)
 
@@ -48,12 +44,8 @@ export function MessageItem({
     })
   }
 
-  // ✅ FIX: Safe content rendering with null checks
+  // Extract mentions from content
   const renderContent = (content: string) => {
-    if (!content || typeof content !== 'string') {
-      return <span className="text-muted-foreground italic">Empty message</span>;
-    }
-
     const mentionRegex = /@(\w+)/g;
     const parts = content.split(mentionRegex);
     
@@ -77,39 +69,23 @@ export function MessageItem({
     }
   };
 
-  // ✅ Display name with proper fallback
-  const displayName = isOwn ? "You" : (message.authorName || "Unknown User");
-
   return (
     <div
-      className={cn(
-        "flex gap-3 py-2 items-start hover:bg-muted/30 rounded px-3 transition-colors duration-150",
-        isOwn ? "flex-row-reverse" : "flex-row",
-        "group/message"
-      )}
+      className="flex gap-3 group/message py-2 items-start hover:bg-muted/30 rounded px-3 transition-colors duration-150"
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* Avatar */}
       <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-primary/60 to-primary/80 flex items-center justify-center text-white text-xs font-semibold">
         {message.authorAvatar ? (
           <img src={message.authorAvatar} alt="" className="h-full w-full rounded-full object-cover" />
         ) : (
-          displayName.charAt(0).toUpperCase()
+          message.authorName?.charAt(0).toUpperCase() || "U"
         )}
       </div>
 
-      {/* Message Content */}
-      <div className={cn(
-        "flex-1 min-w-0 flex flex-col gap-1",
-        isOwn ? "items-end" : "items-start"
-      )}>
-        {/* Header */}
-        <div className={cn(
-          "flex items-center gap-2 flex-wrap",
-          isOwn ? "flex-row-reverse" : "flex-row"
-        )}>
-          <span className="text-sm font-medium">{displayName}</span>
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{message.authorName}</span>
           <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
           {message.edited && <span className="text-xs text-muted-foreground italic">(edited)</span>}
           {message.isPinned && (
@@ -120,31 +96,18 @@ export function MessageItem({
           )}
         </div>
 
-        {/* Reply Reference - Clickable */}
+        {/* Reply bubble */}
         {message.replyTo && (
-          <div 
-            onClick={() => onScrollToMessage?.(message.replyTo!.messageId)}
-            className={cn(
-              "rounded border-l-2 border-primary bg-muted/60 p-2 text-xs w-full cursor-pointer hover:bg-muted transition-colors",
-              isOwn ? "text-right" : "text-left"
-            )}
-          >
+          <div className="rounded border-l-2 border-primary bg-muted/60 p-2 text-xs w-full">
             <div className="font-medium text-primary">{message.replyTo.authorName}</div>
             <div className="line-clamp-2 text-muted-foreground">{message.replyTo.content}</div>
           </div>
         )}
 
-        {/* Message Bubble */}
-        <div className={cn(
-          "rounded-2xl px-4 py-2 max-w-[70%] break-words",
-          isOwn 
-            ? "bg-primary text-primary-foreground rounded-tr-sm" 
-            : "bg-muted text-foreground rounded-tl-sm"
-        )}>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">
-            {renderContent(message.content)}
-          </p>
-        </div>
+        {/* Message text with mentions */}
+        <p className="break-words text-sm leading-relaxed whitespace-pre-wrap">
+          {renderContent(message.content)}
+        </p>
 
         {/* Files */}
         {message.files && message.files.length > 0 && (
@@ -192,10 +155,7 @@ export function MessageItem({
 
       {/* Action buttons */}
       {showActions && (
-        <div className={cn(
-          "flex items-center gap-1 flex-shrink-0 bg-background rounded shadow-md p-1.5 border border-border",
-          isOwn ? "flex-row-reverse" : "flex-row"
-        )}>
+        <div className="flex items-center gap-1 flex-shrink-0 bg-background rounded shadow-md p-1.5 border border-border">
           <MessageActionsPopover
             isDirect={isDirect}
             isOwn={isOwn}

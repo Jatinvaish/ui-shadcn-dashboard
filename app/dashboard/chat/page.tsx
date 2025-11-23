@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - COMPLETE WITH ALL FIXES
+// app/dashboard/chat/page.tsx - COMPLETE FIX FOR ALL ISSUES
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -17,7 +17,8 @@ import {
   fetchUnreadCount, setSelectedChannel, clearError, clearSuccessMessage,
   addReaction, deleteMessage, editMessage, pinMessage, pinChannel, muteChannel,
   archiveChannel, leaveChannel, updateChannel, replyInThread, fetchThreadMessages,
-  resetUnreadCount, fetchTeamMembers, startTeamChat, forwardMessage,
+  resetUnreadCount, fetchTeamMembers, startTeamChat, forwardMessage, fetchChannelMembers,
+  removeReaction,
 } from "@/store/slices/chatSlice";
 import { ChannelType, SendMessagePayload, MessageType } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
@@ -74,12 +75,18 @@ const ChatPage = () => {
     init();
   }, [dispatch]);
 
-  // LOAD CHANNEL DATA
+  // LOAD CHANNEL DATA & MEMBERS
   useEffect(() => {
     if (selectedChannel) {
       const loadData = async () => {
         try {
+          // Load messages
           await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+          
+          // Load channel members
+          await dispatch(fetchChannelMembers(selectedChannel.id)).unwrap();
+          
+          // Mark as read
           const channelMsgs = messages[selectedChannel.id];
           if (channelMsgs?.length > 0) {
             dispatch(markAsRead({ channelId: selectedChannel.id, messageId: channelMsgs[channelMsgs.length - 1].id }));
@@ -127,26 +134,46 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // ✅ FIX 4: Get actual channel display name
+  const getChannelDisplayName = useCallback((channel: any): string => {
+    if (channel.channel_type === ChannelType.DIRECT) {
+      // For DMs, show the other person's name
+      const members = channelMembers[channel.id] || [];
+      const otherMember = members.find(m => m.user_id !== currentUser?.id);
+      if (otherMember) {
+        return `${otherMember.first_name} ${otherMember.last_name}`.trim() || otherMember.email;
+      }
+    }
+    return channel.name || "Unnamed Channel";
+  }, [channelMembers, currentUser]);
+
   // MESSAGE CONVERSION
-  const convertToFrontendMessage = useCallback((msg: any): Message => ({
-    id: msg.id.toString(),
-    authorId: msg.sender_user_id.toString(),
-    authorName: `${msg.sender_first_name || "User"} ${msg.sender_last_name || ""}`.trim(),
-    authorAvatar: msg.sender_avatar_url,
-    content: msg.content || "",
-    timestamp: new Date(msg.sent_at || msg.created_at),
-    edited: msg.is_edited || false,
-    reactions: msg.reactions || [],
-    threadReplies: msg.reply_count || 0,
-    isPinned: msg.is_pinned || false,
-    threadId: msg.thread_id?.toString(),
-    parentId: msg.reply_to_message_id?.toString(),
-    replyTo: msg.reply_to_message_id ? { 
-      messageId: msg.reply_to_message_id.toString(), 
-      authorName: "Previous User", 
-      content: "Previous message" 
-    } : undefined,
-  }), []);
+  const convertToFrontendMessage = useCallback((msg: any): Message => {
+    // ✅ FIX 4: Show actual sender names
+    const senderName = msg.sender_first_name && msg.sender_last_name 
+      ? `${msg.sender_first_name} ${msg.sender_last_name}`.trim()
+      : msg.sender_email || "Unknown User";
+
+    return {
+      id: msg.id.toString(),
+      authorId: msg.sender_user_id.toString(),
+      authorName: senderName,
+      authorAvatar: msg.sender_avatar_url,
+      content: msg.content || "",
+      timestamp: new Date(msg.sent_at || msg.created_at),
+      edited: msg.is_edited || false,
+      reactions: msg.reactions || [],
+      threadReplies: msg.reply_count || 0,
+      isPinned: msg.is_pinned || false,
+      threadId: msg.thread_id?.toString(),
+      parentId: msg.reply_to_message_id?.toString(),
+      replyTo: msg.reply_to_message_id ? { 
+        messageId: msg.reply_to_message_id.toString(), 
+        authorName: msg.reply_to_author_name || "User", 
+        content: msg.reply_to_content || "Previous message" 
+      } : undefined,
+    };
+  }, []);
 
   const currentMessages: Message[] = React.useMemo(() => {
     if (!selectedChannel) return [];
@@ -178,6 +205,7 @@ const ChatPage = () => {
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!selectedChannel || !content.trim()) return false;
+    
     try {
       const payload: SendMessagePayload = {
         channelId: selectedChannel.id, 
@@ -243,26 +271,49 @@ const ChatPage = () => {
 
   const handleReplyToMessage = useCallback((messageId: string) => {
     const message = currentMessages.find((m) => m.id === messageId);
-    if (message) setReplyingTo(message);
+    if (message) {
+      setReplyingTo(message);
+      setShowThreadSidebar(false);
+      setSelectedThreadId(null);
+    }
   }, [currentMessages]);
 
+  // ✅ FIX 1: Emoji reactions with toggle support
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
-    try { 
-      await dispatch(addReaction({ messageId: parseInt(messageId), emoji })).unwrap(); 
-    } catch (e: any) { 
-      toast.error("Failed to add reaction"); 
-    }
-  }, [dispatch]);
+    try {
+      const message = currentMessages.find(m => m.id === messageId);
+      if (!message) return;
 
+      // Check if user already reacted with this emoji
+      const existingReaction = message.reactions?.find(
+        r => r.emoji === emoji && r.userReacted
+      );
+
+      if (existingReaction) {
+        // Remove reaction
+        await dispatch(removeReaction({ messageId: parseInt(messageId), emoji })).unwrap();
+      } else {
+        // Add reaction
+        await dispatch(addReaction({ messageId: parseInt(messageId), emoji })).unwrap();
+      }
+    } catch (e: any) { 
+      toast.error("Failed to update reaction"); 
+    }
+  }, [dispatch, currentMessages]);
+
+  // ✅ FIX 2: Thread system - Open thread sidebar
   const handleOpenThread = useCallback((messageId: string) => {
     setSelectedThreadId(parseInt(messageId));
     setShowThreadSidebar(true);
+    setReplyingTo(null); // Clear direct reply when opening thread
   }, []);
 
+  // ✅ FIX 2: Reply in thread
   const handleReplyInThread = useCallback(async (content: string, parentId: string) => {
     if (!content.trim()) return;
     try { 
-      await dispatch(replyInThread({ parentMessageId: parseInt(parentId), content: content.trim() })).unwrap(); 
+      await dispatch(replyInThread({ parentMessageId: parseInt(parentId), content: content.trim() })).unwrap();
+      toast.success("Reply sent");
     } catch (e: any) { 
       toast.error("Failed to send reply"); 
     }
@@ -283,15 +334,30 @@ const ChatPage = () => {
     }
   }, [dispatch, currentUser]);
 
+  // ✅ FIX 3: Start DM - Check if already exists
   const handleStartDirectMessage = useCallback(async (userId: string) => {
     if (!currentUser) return;
+    
     try {
+      // Check if DM already exists
+      const existingDM = channels.find(ch => 
+        ch.channel_type === ChannelType.DIRECT && 
+        channelMembers[ch.id]?.some(m => m.user_id === parseInt(userId))
+      );
+
+      if (existingDM) {
+        dispatch(setSelectedChannel(existingDM));
+        toast("Opening existing conversation");
+        return;
+      }
+
+      // Create new DM
       await dispatch(startTeamChat({ memberIds: [parseInt(userId)] })).unwrap();
       toast.success("Chat started");
     } catch (e: any) { 
       toast.error("Failed to start chat"); 
     }
-  }, [dispatch, currentUser]);
+  }, [dispatch, currentUser, channels, channelMembers]);
 
   const handlePinChannel = useCallback(async (isPinned: boolean) => {
     if (!selectedChannel) return;
@@ -351,10 +417,11 @@ const ChatPage = () => {
   const handleMembersAdded = useCallback(() => {
     if (selectedChannel) {
       dispatch(fetchUserChannels(100));
+      dispatch(fetchChannelMembers(selectedChannel.id));
     }
   }, [selectedChannel, dispatch]);
 
-  // ✅ CHECK IF USER IS ADMIN
+  // ✅ FIX 1: Check if user is admin/owner
   const isChannelAdmin = React.useMemo(() => {
     if (!selectedChannel || !currentUser) return false;
     const members = channelMembers[selectedChannel.id] || [];
@@ -362,7 +429,7 @@ const ChatPage = () => {
     return currentMember?.role === 'admin' || currentMember?.role === 'owner';
   }, [selectedChannel, currentUser, channelMembers]);
 
-  // SIDEBAR DATA
+  // SIDEBAR DATA with proper names
   const sidebarChannels = React.useMemo(() => (channels || [])
     .filter((ch) => ch.channel_type !== ChannelType.DIRECT)
     .map((ch) => ({
@@ -377,9 +444,9 @@ const ChatPage = () => {
     .filter((ch) => ch.channel_type === ChannelType.DIRECT)
     .map((ch) => ({
       id: ch.id?.toString() || "", 
-      name: ch.name || "Direct Message", 
+      name: getChannelDisplayName(ch), // ✅ FIX 4: Use actual names
       unread: ch.unread_count || 0,
-    })), [channels]);
+    })), [channels, getChannelDisplayName]);
 
   const currentUserForSidebar = currentUser ? { 
     id: currentUser.id.toString(), 
@@ -410,6 +477,9 @@ const ChatPage = () => {
   const showChatOnMobile = !!selectedChannel;
   const currentTypingUsers = selectedChannel ? typingUsers[selectedChannel.id]?.filter((id) => id !== currentUser?.id) || [] : [];
   const isDirect = selectedChannel?.channel_type === ChannelType.DIRECT;
+
+  // ✅ Get display name for current channel
+  const currentChannelDisplayName = selectedChannel ? getChannelDisplayName(selectedChannel) : "";
 
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
@@ -453,7 +523,7 @@ const ChatPage = () => {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="flex-1 px-3">
-                <h2 className="font-display truncate text-sm font-bold">{selectedChannel.name}</h2>
+                <h2 className="font-display truncate text-sm font-bold">{currentChannelDisplayName}</h2>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setSearchDialogOpen(true)}>
                 <Search className="h-5 w-5" />
@@ -466,8 +536,8 @@ const ChatPage = () => {
         {selectedChannel && (
           <div className="hidden md:flex">
             <ChatHeader 
-              title={selectedChannel.name} 
-              description={selectedChannel.description || `Welcome to ${selectedChannel.name}`} 
+              title={currentChannelDisplayName}
+              description={selectedChannel.description || `Welcome to ${currentChannelDisplayName}`} 
               memberCount={selectedChannel.member_count}
               channelId={selectedChannel.id}
               isPrivate={selectedChannel.is_private}
@@ -477,7 +547,7 @@ const ChatPage = () => {
               onUpdateChannel={handleUpdateChannel}
               onArchiveChannel={handleArchiveChannel} 
               onLeaveChannel={handleLeaveChannel} 
-              onInviteUsers={isChannelAdmin ? () => setInviteDialogOpen(true) : undefined}
+              onInviteUsers={isChannelAdmin && !isDirect ? () => setInviteDialogOpen(true) : undefined}
               onMembersClick={() => setMembersDialogOpen(true)} 
               onSearchClick={() => setSearchDialogOpen(true)} 
               onMuteChannel={handleMuteChannel} 
@@ -516,7 +586,7 @@ const ChatPage = () => {
               disabled={isSendingMessage}
               onTypingStart={handleTypingStart} 
               onTypingStop={handleTypingStop} 
-              placeholder={`Message ${isDirect ? selectedChannel.name : '#' + selectedChannel.name}`}
+              placeholder={`Message ${isDirect ? currentChannelDisplayName : '#' + currentChannelDisplayName}`}
               teamMembers={teamMembersForMentions}
             />
           </>
@@ -544,12 +614,12 @@ const ChatPage = () => {
       )}
 
       {/* Dialogs */}
-      {selectedChannel && isChannelAdmin && (
+      {selectedChannel && isChannelAdmin && !isDirect && (
         <InviteMembersDialog 
           open={inviteDialogOpen} 
           onOpenChange={setInviteDialogOpen} 
           channelId={selectedChannel.id} 
-          channelName={selectedChannel.name}
+          channelName={currentChannelDisplayName}
           onMembersAdded={handleMembersAdded}
         />
       )}
@@ -559,9 +629,9 @@ const ChatPage = () => {
           open={membersDialogOpen} 
           onOpenChange={setMembersDialogOpen} 
           channelId={selectedChannel.id} 
-          channelName={selectedChannel.name}
+          channelName={currentChannelDisplayName}
           currentUserRole={selectedChannel.role} 
-          onInviteClick={isChannelAdmin ? () => { 
+          onInviteClick={isChannelAdmin && !isDirect ? () => { 
             setMembersDialogOpen(false); 
             setInviteDialogOpen(true); 
           } : undefined} 
