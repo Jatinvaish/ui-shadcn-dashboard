@@ -164,6 +164,7 @@ export class AuthService {
   static async logout() {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
   }
+  
   static updateAuthCookies(data: { accessToken?: string; refreshToken?: string; user?: any }) {
     const cookieOptions = {
       expires: 7,
