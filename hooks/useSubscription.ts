@@ -69,7 +69,7 @@ export function useSubscription() {
   };
 }
 
-// Usage in component:
+ 
 // function CampaignList() {
 //   const { subscription, checkLimit } = useSubscription();
 
