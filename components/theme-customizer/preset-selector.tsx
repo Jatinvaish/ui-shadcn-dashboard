@@ -28,15 +28,15 @@ export function PresetSelector() {
         <SelectContent align="end">
           {THEMES.map((theme) => (
             <SelectItem key={theme.name} value={theme.value}>
-              <div className="flex shrink-0 gap-1">
+              <div className="flex shrink-0 gap-1 items-center">
                 {theme.colors.map((color, key) => (
                   <span
                     key={key}
                     className="size-2 rounded-full"
                     style={{ backgroundColor: color }}></span>
                 ))}
+                {theme.name}
               </div>
-              {theme.name}
             </SelectItem>
           ))}
         </SelectContent>

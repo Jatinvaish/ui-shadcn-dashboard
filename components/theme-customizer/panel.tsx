@@ -33,11 +33,11 @@ export function ThemeCustomizerPanel() {
         align={isMobile ? "center" : "end"}>
         <div className="grid space-y-4">
           <PresetSelector />
-          <ThemeScaleSelector />
-          <ThemeRadiusSelector />
+          {/* <ThemeScaleSelector /> */}
+          {/* <ThemeRadiusSelector /> */}
           <ColorModeSelector />
-          <ContentLayoutSelector />
-          <SidebarModeSelector />
+          {/* <ContentLayoutSelector /> */}
+          {/* <SidebarModeSelector /> */}
         </div>
         <ResetThemeButton />
       </DropdownMenuContent>
