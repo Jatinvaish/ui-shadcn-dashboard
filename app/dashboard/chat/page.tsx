@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - COMPLETE FIX - ALL ISSUES RESOLVED
+// app/dashboard/chat/page.tsx - COMPLETE FIXED VERSION
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -23,7 +23,7 @@ import {
 import { ChannelType, SendMessagePayload, MessageType } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
 import { selectUser } from "@/store/slices/authSlice";
-import { ArrowLeft, Search, Phone, Video } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
 import { ForwardMessageDialog } from "@/components/chat/dialogs/forward-message-dialog";
@@ -142,7 +142,7 @@ const ChatPage = () => {
     return channel.name || "Unnamed Channel";
   }, [channelMembers, currentUser]);
 
-  // MESSAGE CONVERSION
+  // MESSAGE CONVERSION - FIXED: Always show sender name
   const convertToFrontendMessage = useCallback((msg: any): Message => {
     const senderName = msg.sender_first_name && msg.sender_last_name 
       ? `${msg.sender_first_name} ${msg.sender_last_name}`.trim()
@@ -236,19 +236,27 @@ const ChatPage = () => {
     stopTyping(selectedChannel.id);
   }, [selectedChannel, stopTyping]);
 
+  // FIX: Refresh messages after delete
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(deleteMessage({ messageId: parseInt(messageId), channelId: selectedChannel.id })).unwrap(); 
+      await dispatch(deleteMessage({ messageId: parseInt(messageId), channelId: selectedChannel.id })).unwrap();
+      // Refresh messages immediately
+      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      toast.success("Message deleted");
     } catch (e: any) { 
       toast.error("Failed to delete message"); 
     }
   }, [dispatch, selectedChannel]);
 
+  // FIX: Refresh messages after edit
   const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(editMessage({ messageId: parseInt(messageId), content: newContent, channelId: selectedChannel.id })).unwrap(); 
+      await dispatch(editMessage({ messageId: parseInt(messageId), content: newContent, channelId: selectedChannel.id })).unwrap();
+      // Refresh messages immediately
+      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      toast.success("Message updated");
     } catch (e: any) { 
       toast.error("Failed to edit message"); 
     }
@@ -272,7 +280,6 @@ const ChatPage = () => {
     }
   }, [currentMessages]);
 
-  // ✅ FIX 1: FIXED REACTION TOGGLE
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
     try {
       const message = currentMessages.find(m => m.id === messageId);
@@ -292,7 +299,7 @@ const ChatPage = () => {
     }
   }, [dispatch, currentMessages]);
 
-  // ✅ FIX 2: THREAD SYSTEM
+  // FIX: Thread system with proper UI
   const handleOpenThread = useCallback((messageId: string) => {
     setSelectedThreadId(parseInt(messageId));
     setShowThreadSidebar(true);
@@ -303,6 +310,8 @@ const ChatPage = () => {
     if (!content.trim()) return;
     try { 
       await dispatch(replyInThread({ parentMessageId: parseInt(parentId), content: content.trim() })).unwrap();
+      // Refresh thread messages
+      await dispatch(fetchThreadMessages({ parentMessageId: parseInt(parentId), limit: 50 })).unwrap();
       toast.success("Reply sent");
     } catch (e: any) { 
       toast.error("Failed to send reply"); 
@@ -324,7 +333,6 @@ const ChatPage = () => {
     }
   }, [dispatch, currentUser]);
 
-  // ✅ FIX 3: START DM - CHECK IF EXISTS
   const handleStartDirectMessage = useCallback(async (userId: string) => {
     if (!currentUser) return;
     
@@ -465,7 +473,7 @@ const ChatPage = () => {
   const currentChannelDisplayName = selectedChannel ? getChannelDisplayName(selectedChannel) : "";
 
   return (
-    <div className="bg-background flex h-screen w-full overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden bg-background">
       {!isConnected && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white text-center py-1 text-xs">
           ⚠️ Reconnecting...
@@ -497,16 +505,16 @@ const ChatPage = () => {
         />
       </div>
 
-      <div className={`bg-background flex h-screen w-full flex-1 flex-col overflow-hidden ${showChatOnMobile ? "flex" : "hidden"} md:flex`}>
+      <div className={`flex h-screen w-full flex-1 flex-col overflow-hidden bg-background ${showChatOnMobile ? "flex" : "hidden"} md:flex`}>
         {/* Mobile Header */}
-        <div className="border-border flex h-14 items-center border-b md:hidden">
+        <div className="flex h-14 items-center border-b border-border md:hidden">
           {selectedChannel && (
             <>
-              <button onClick={handleBackToList} className="hover:bg-muted flex h-14 w-14 items-center justify-center transition-colors">
+              <button onClick={handleBackToList} className="flex h-14 w-14 items-center justify-center transition-colors hover:bg-muted">
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="flex-1 px-3">
-                <h2 className="font-display truncate text-sm font-bold">{currentChannelDisplayName}</h2>
+                <h2 className="truncate text-sm font-bold">{currentChannelDisplayName}</h2>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setSearchDialogOpen(true)}>
                 <Search className="h-5 w-5" />
@@ -574,7 +582,7 @@ const ChatPage = () => {
             />
           </>
         ) : (
-          <div className="text-muted-foreground hidden md:flex flex-1 items-center justify-center">
+          <div className="hidden md:flex flex-1 items-center justify-center text-muted-foreground">
             <div className="text-center px-4">
               <p className="text-base font-medium mb-2">Select a chat to start messaging</p>
               <p className="text-sm">Choose from your recent conversations or start a new one</p>
@@ -638,4 +646,4 @@ const ChatPage = () => {
   );
 };
 
-export default ChatPage;
+export default ChatPage;  

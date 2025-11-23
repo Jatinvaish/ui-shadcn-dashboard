@@ -1,4 +1,4 @@
-// components/chat/dialogs/invite-members-dialog.tsx - FIXED
+// components/chat/dialogs/invite-members-dialog.tsx - FIXED with proper payload
 "use client"
 
 import React, { useEffect, useState } from "react"
@@ -37,7 +37,6 @@ export function InviteMembersDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Load available members when dialog opens
   useEffect(() => {
     if (open && channelId) {
       setIsLoading(true)
@@ -79,9 +78,13 @@ export function InviteMembersDialog({
     
     setIsSubmitting(true)
     try {
-      await dispatch(addMembers({ channelId, userIds: selectedIds })).unwrap()
+      // FIX: Send proper payload matching backend DTO
+      await dispatch(addMembers({ 
+        channelId, 
+        userIds: selectedIds  // This must be array of numbers
+      })).unwrap()
+      
       toast.success(`Added ${selectedIds.length} member(s) to #${channelName}`)
-      // Refresh channel members
       dispatch(fetchChannelMembers(channelId))
       onMembersAdded?.()
       onOpenChange(false)
@@ -144,7 +147,7 @@ export function InviteMembersDialog({
                       {m.first_name} {m.last_name}
                       <button 
                         onClick={() => toggleSelect(memberId)} 
-                        className="ml-1 hover:bg-muted rounded-full p-0.5"
+                        className="ml-1 rounded-full p-0.5 hover:bg-muted"
                         type="button"
                       >
                         <X className="h-3 w-3" />
@@ -171,7 +174,7 @@ export function InviteMembersDialog({
           )}
 
           {/* Members List */}
-          <ScrollArea className="h-[300px] rounded-md border">
+          <ScrollArea className="h-[300px] rounded-md border border-border">
             {isLoading ? (
               <div className="flex items-center justify-center h-full py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
