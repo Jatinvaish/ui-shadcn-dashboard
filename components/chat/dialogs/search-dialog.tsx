@@ -1,12 +1,13 @@
-// components/chat/dialogs/search-dialog.tsx - SEARCH MESSAGES, CHANNELS, MEMBERS
+// components/chat/dialogs/search-dialog.tsx - COMPLETE WITH DM SUPPORT
 "use client"
 
-import React, { useState, useCallback, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Search, MessageSquare, Hash, Users, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Search, MessageSquare, Hash, Users, Loader2, MessageCircle } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
 import { searchChat, clearSearchResults, setSelectedChannel } from "@/store/slices/chatSlice"
 import useDebounce from "@/hooks/useDebounce"
@@ -16,9 +17,10 @@ interface SearchDialogProps {
   onOpenChange: (open: boolean) => void
   onChannelSelect?: (channelId: number) => void
   onMessageSelect?: (channelId: number, messageId: number) => void
+  onStartDM?: (userId: string) => void
 }
 
-export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSelect }: SearchDialogProps) {
+export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSelect, onStartDM }: SearchDialogProps) {
   const dispatch = useAppDispatch()
   const { searchResults, isSearching, channels } = useAppSelector((state) => state.chat)
   
@@ -56,6 +58,11 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
     onOpenChange(false)
   }
 
+  const handleMemberClick = (memberId: number) => {
+    onStartDM?.(memberId.toString())
+    onOpenChange(false)
+  }
+
   const formatDate = (date: string) => {
     const d = new Date(date)
     const now = new Date()
@@ -68,11 +75,11 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
 
-  const highlightMatch = (text: string, query: string) => {
-    if (!query) return text
-    const parts = text.split(new RegExp(`(${query})`, 'gi'))
+  const highlightMatch = (text: string, q: string) => {
+    if (!q) return text
+    const parts = text.split(new RegExp(`(${q})`, 'gi'))
     return parts.map((part, i) => 
-      part.toLowerCase() === query.toLowerCase() 
+      part.toLowerCase() === q.toLowerCase() 
         ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">{part}</mark> 
         : part
     )
@@ -102,7 +109,7 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
           </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4 h-auto py-0">
             <TabsTrigger value="all" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary py-3">All</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary py-3 gap-1.5">
@@ -121,6 +128,7 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <Search className="h-12 w-12 mb-3 opacity-20" />
                 <p className="text-sm">Start typing to search</p>
+                <p className="text-xs mt-1">Press ⌘K anytime to open search</p>
               </div>
             ) : query.length < 2 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
@@ -186,13 +194,16 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
                   </div>
                 )}
 
-                {/* Members */}
+                {/* Members - with DM action */}
                 {(activeTab === "all" || activeTab === "members") && searchResults?.members && searchResults.members.length > 0 && (
                   <div>
                     {activeTab === "all" && <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2">People</h3>}
                     <div className="space-y-1">
                       {searchResults.members.map((member) => (
-                        <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors">
+                        <div 
+                          key={member.id} 
+                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors group"
+                        >
                           <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
                             {member.avatar_url ? (
                               <img src={member.avatar_url} alt="" className="h-full w-full rounded-full object-cover" />
@@ -204,6 +215,17 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
                             <p className="font-medium">{highlightMatch(`${member.first_name} ${member.last_name}`, query)}</p>
                             <p className="text-xs text-muted-foreground">{member.email}</p>
                           </div>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            //todo
+                            //@ts-ignore
+                            onClick={() => handleMemberClick(member.id)}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            Message
+                          </Button>
                         </div>
                       ))}
                     </div>

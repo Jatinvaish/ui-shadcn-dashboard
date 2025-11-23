@@ -18,14 +18,15 @@ import {
   fetchUnreadCount, setSelectedChannel, clearError, clearSuccessMessage,
   addReaction, deleteMessage, editMessage, pinMessage, pinChannel, muteChannel,
   archiveChannel, leaveChannel, updateChannel, replyInThread, fetchThreadMessages,
-  resetUnreadCount, fetchTeamMembers,
+  resetUnreadCount, fetchTeamMembers, startTeamChat, forwardMessage,
 } from "@/store/slices/chatSlice";
-import { ChannelType, SendMessagePayload, MessageType, CreateChannelPayload } from "@/lib/api/services/chat-service";
+import { ChannelType, SendMessagePayload, MessageType } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
 import { selectUser } from "@/store/slices/authSlice";
 import { ArrowLeft, Search } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
+import { ForwardMessageDialog } from "@/components/chat/dialogs/forward-message-dialog";
 
 const ChatPage = () => {
   const dispatch = useAppDispatch();
@@ -46,6 +47,9 @@ const ChatPage = () => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
+  const [forwardMessageId, setForwardMessageId] = useState<number | null>(null);
+  const [forwardMessageContent, setForwardMessageContent] = useState("");
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -225,6 +229,14 @@ const ChatPage = () => {
     } catch (e: any) { toast.error("Failed to create channel"); }
   }, [dispatch, currentUser]);
 
+  const handleStartDirectMessage = useCallback(async (userId: string) => {
+    if (!currentUser) return;
+    try {
+      const result = await dispatch(startTeamChat({ memberIds: [parseInt(userId)] })).unwrap();
+      toast.success("Chat started");
+    } catch (e: any) { toast.error("Failed to start chat"); }
+  }, [dispatch, currentUser]);
+
   const handlePinChannel = useCallback(async (isPinned: boolean) => {
     if (!selectedChannel) return;
     try { await dispatch(pinChannel({ channelId: selectedChannel.id, isPinned })).unwrap(); }
@@ -255,6 +267,21 @@ const ChatPage = () => {
     catch (e: any) { toast.error("Failed to update channel"); }
   }, [selectedChannel, dispatch]);
 
+  const handleForwardMessage = useCallback((messageId: string) => {
+    const msg = currentMessages.find(m => m.id === messageId);
+    if (msg) {
+      setForwardMessageId(parseInt(messageId));
+      setForwardMessageContent(msg.content);
+      setForwardDialogOpen(true);
+    }
+  }, [currentMessages]);
+
+  const handleMembersAdded = useCallback(() => {
+    if (selectedChannel) {
+      dispatch(fetchUserChannels(100));
+    }
+  }, [selectedChannel, dispatch]);
+
   // SIDEBAR DATA
   const sidebarChannels = React.useMemo(() => (channels || []).filter((ch) => ch.channel_type !== ChannelType.DIRECT).map((ch) => ({
     id: ch.id?.toString() || "", name: ch.name || "Unnamed Channel", isPrivate: ch.is_private || false, isPinned: ch.is_pinned || false, unread: ch.unread_count || 0,
@@ -266,13 +293,16 @@ const ChatPage = () => {
 
   const currentUserForSidebar = currentUser ? { id: currentUser.id.toString(), name: `${currentUser.firstName} ${currentUser.lastName}`, email: currentUser.email, status: "active" as const } : undefined;
 
-  const availableUsersForDM = teamMembers.filter((m:any) => m.id !== currentUser?.id).map(m => ({
-    id: m.id.toString(), name: `${m.first_name} ${m.last_name}`, email: m.email, status: (m.status as any) || "offline"
+  const availableUsersForDM = teamMembers.filter((m: any) => m.id !== currentUser?.id).map(m => ({
+    //todo
+    //@ts-ignore
+    id: m?.id.toString(), name: `${m.first_name} ${m.last_name}`, email: m.email, status: (m.status as any) || "offline"
   }));
 
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
   const currentTypingUsers = selectedChannel ? typingUsers[selectedChannel.id]?.filter((id) => id !== currentUser?.id) || [] : [];
+  const isDirect = selectedChannel?.channel_type === ChannelType.DIRECT;
 
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden">
@@ -283,7 +313,7 @@ const ChatPage = () => {
       <div className={`${showSidebarOnMobile ? "flex" : "hidden"} md:flex`}>
         <Sidebar channels={sidebarChannels} directMessages={sidebarDMs} activeId={selectedChannel?.id.toString()} activeTab={activeTab}
           onChannelClick={handleChannelClick} onDirectMessageClick={handleChannelClick} currentUser={currentUserForSidebar}
-          availableUsers={availableUsersForDM} onCreateChannel={handleCreateChannel} onStartDirectMessage={() => {}} onStatusChange={() => {}} onMenuClick={() => setIsPrimarySidebarOpen(true)} />
+          availableUsers={availableUsersForDM} onCreateChannel={handleCreateChannel} onStartDirectMessage={handleStartDirectMessage} onStatusChange={() => {}} onMenuClick={() => setIsPrimarySidebarOpen(true)} />
       </div>
 
       <div className={`bg-background flex h-screen w-full flex-1 flex-col overflow-hidden ${showChatOnMobile ? "flex" : "hidden"} md:flex`}>
@@ -300,19 +330,42 @@ const ChatPage = () => {
 
         {/* Desktop Header */}
         {selectedChannel && (
-          <div className="hidden h-14 items-center md:flex">
-            <ChatHeader title={selectedChannel.name} description={`Welcome to ${selectedChannel.name}`} memberCount={selectedChannel.member_count}
-              isPinned={selectedChannel.is_pinned} onPinChange={handlePinChannel} onUpdateChannel={handleUpdateChannel}
-              onArchiveChannel={handleArchiveChannel} onLeaveChannel={handleLeaveChannel} onInviteUsers={() => setInviteDialogOpen(true)}
-              onMembersClick={() => setMembersDialogOpen(true)} onSearchClick={() => setSearchDialogOpen(true)} onMuteChannel={handleMuteChannel} isMuted={selectedChannel.is_muted} />
+          <div className="hidden md:flex">
+            <ChatHeader 
+              title={selectedChannel.name} 
+              description={selectedChannel.description || `Welcome to ${selectedChannel.name}`} 
+              memberCount={selectedChannel.member_count}
+              channelId={selectedChannel.id}
+              isPrivate={selectedChannel.is_private}
+              isPinned={selectedChannel.is_pinned} 
+              isMuted={selectedChannel.is_muted}
+              onPinChange={handlePinChannel} 
+              onUpdateChannel={handleUpdateChannel}
+              onArchiveChannel={handleArchiveChannel} 
+              onLeaveChannel={handleLeaveChannel} 
+              onInviteUsers={() => setInviteDialogOpen(true)}
+              onMembersClick={() => setMembersDialogOpen(true)} 
+              onSearchClick={() => setSearchDialogOpen(true)} 
+              onMuteChannel={handleMuteChannel} 
+            />
           </div>
         )}
 
         {selectedChannel ? (
           <>
-            <MessageList messages={currentMessages} currentUserId={currentUser?.id.toString() || ""} isDirect={selectedChannel.channel_type === ChannelType.DIRECT}
-              onReply={handleReplyToMessage} onReact={handleReaction} onOpenThread={handleOpenThread} onDelete={handleDeleteMessage}
-              onEdit={handleEditMessage} onPin={handlePinMessage} onReplyInThread={handleReplyInThread} />
+            <MessageList 
+              messages={currentMessages} 
+              currentUserId={currentUser?.id.toString() || ""} 
+              isDirect={isDirect}
+              onReply={handleReplyToMessage} 
+              onReact={handleReaction} 
+              onOpenThread={handleOpenThread} 
+              onDelete={handleDeleteMessage}
+              onEdit={handleEditMessage} 
+              onPin={handlePinMessage} 
+              onReplyInThread={handleReplyInThread}
+              onForward={handleForwardMessage}
+            />
 
             {currentTypingUsers.length > 0 && (
               <div className="px-4 py-2 text-xs text-muted-foreground">
@@ -321,7 +374,7 @@ const ChatPage = () => {
             )}
 
             <MessageInput onSend={handleSendMessage} replyingTo={replyingTo} onClearReply={() => setReplyingTo(null)} disabled={isSendingMessage}
-              onTypingStart={handleTypingStart} onTypingStop={handleTypingStop} />
+              onTypingStart={handleTypingStart} onTypingStop={handleTypingStop} placeholder={`Message ${isDirect ? selectedChannel.name : '#' + selectedChannel.name}`} />
           </>
         ) : (
           <div className="text-muted-foreground hidden md:flex flex-1 items-center justify-center">
@@ -344,12 +397,36 @@ const ChatPage = () => {
       {/* Dialogs */}
       {selectedChannel && (
         <>
-          <InviteMembersDialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} channelId={selectedChannel.id} channelName={selectedChannel.name} />
-          <ChannelMembersDialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen} channelId={selectedChannel.id} channelName={selectedChannel.name}
-            currentUserRole={selectedChannel.role} onInviteClick={() => { setMembersDialogOpen(false); setInviteDialogOpen(true); }} />
+          <InviteMembersDialog 
+            open={inviteDialogOpen} 
+            onOpenChange={setInviteDialogOpen} 
+            channelId={selectedChannel.id} 
+            channelName={selectedChannel.name}
+            onMembersAdded={handleMembersAdded}
+          />
+          <ChannelMembersDialog 
+            open={membersDialogOpen} 
+            onOpenChange={setMembersDialogOpen} 
+            channelId={selectedChannel.id} 
+            channelName={selectedChannel.name}
+            currentUserRole={selectedChannel.role} 
+            onInviteClick={() => { setMembersDialogOpen(false); setInviteDialogOpen(true); }} 
+          />
         </>
       )}
-      <SearchDialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
+      <SearchDialog 
+        open={searchDialogOpen} 
+        onOpenChange={setSearchDialogOpen}
+        onStartDM={handleStartDirectMessage}
+      />
+      {forwardMessageId && (
+        <ForwardMessageDialog
+          open={forwardDialogOpen}
+          onOpenChange={setForwardDialogOpen}
+          messageId={forwardMessageId}
+          messageContent={forwardMessageContent}
+        />
+      )}
     </div>
   );
 };

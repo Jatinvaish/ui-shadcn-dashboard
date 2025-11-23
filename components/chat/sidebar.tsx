@@ -65,7 +65,18 @@ export function Sidebar({
   const [directMessageOpen, setDirectMessageOpen] = React.useState(false);
   const [userStatusOpen, setUserStatusOpen] = React.useState(false);
 
-  const filteredChannels = channels.filter(
+  // Sort: pinned first, then by unread, then alphabetically
+  const sortedChannels = React.useMemo(() => {
+    return [...channels].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      if ((a.unread || 0) > 0 && (b.unread || 0) === 0) return -1;
+      if ((a.unread || 0) === 0 && (b.unread || 0) > 0) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [channels]);
+
+  const filteredChannels = sortedChannels.filter(
     (channel) =>
       channel.name.toLowerCase().includes(searchQuery.toLowerCase()) || searchQuery === ""
   );
@@ -90,7 +101,7 @@ export function Sidebar({
     <div className="bg-sidebar text-sidebar-foreground flex h-screen w-full md:w-72 flex-col overflow-hidden border-r border-border">
       {/* Header */}
       <div className="border-border flex h-14 flex-shrink-0 items-center border-b px-4 gap-3">
-        {/* Mobile Menu Button (hidden from tablet up) */}
+        {/* Mobile Menu Button */}
         <button
           onClick={onMenuClick}
           className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors">

@@ -1,4 +1,4 @@
-// hooks/useWebSocket.ts - COMPLETE FIX
+// hooks/useWebSocket.ts - COMPLETE & ROBUST
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAppDispatch } from '@/store/hooks';
@@ -15,156 +15,231 @@ import type { SendMessagePayload } from '@/lib/api/services/chat-service';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3060';
 
-export const useWebSocket = (token: string | null, userId: number | null) => {
+interface UseWebSocketReturn {
+  socket: Socket | null;
+  sendMessage: (data: SendMessagePayload) => boolean;
+  startTyping: (channelId: number) => void;
+  stopTyping: (channelId: number) => void;
+  reconnect: () => void;
+  disconnect: () => void;
+  isConnected: boolean;
+}
+
+export const useWebSocket = (
+  token: string | null, 
+  userId: number | null
+): UseWebSocketReturn => {
   const dispatch = useAppDispatch();
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 10;
+  const typingTimeoutsRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
 
   const connect = useCallback(() => {
+    // Don't connect without auth
     if (!token || !userId) {
-      console.log('⚠️ Cannot connect: Missing token or userId');
+      console.log('⚠️ WebSocket: Missing token or userId');
       return;
     }
 
     // Prevent multiple connections
     if (socketRef.current?.connected) {
-      console.log('✅ Already connected to WebSocket');
+      console.log('✅ WebSocket: Already connected');
       return;
     }
 
-    console.log('🔌 Connecting to WebSocket...', WS_URL);
-    console.log('🔑 Using token:', token.substring(0, 20) + '...');
+    // Disconnect existing socket if any
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+    }
+
+    console.log('🔌 WebSocket: Connecting to', WS_URL);
 
     const socket = io(`${WS_URL}/chat`, {
       auth: { token },
-      query: { token }, // Also send as query param for compatibility
-      transports: ['websocket', 'polling'], // Allow both transports
+      query: { token },
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: Infinity,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: maxReconnectAttempts,
       timeout: 20000,
-      forceNew: false,
-      autoConnect: true,
+      forceNew: true,
     });
 
     // CONNECTION EVENTS
     socket.on('connect', () => {
-      console.log('✅ WebSocket connected - ID:', socket.id);
+      console.log('✅ WebSocket: Connected - ID:', socket.id);
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
     });
 
-    socket.on('connected', (data: any) => {
-      console.log('✅ Server acknowledged connection:', data);
+    socket.on('connected', (data: { userId: number; tenantId: number; timestamp: string }) => {
+      console.log('✅ WebSocket: Server acknowledged -', data);
     });
 
     socket.on('disconnect', (reason: string) => {
-      console.log('❌ WebSocket disconnected:', reason);
+      console.log('❌ WebSocket: Disconnected -', reason);
       setIsConnected(false);
 
+      // Auto-reconnect on server disconnect
       if (reason === 'io server disconnect') {
-        console.log('🔄 Server disconnected us, reconnecting...');
+        console.log('🔄 WebSocket: Server disconnected, reconnecting...');
         setTimeout(() => socket.connect(), 1000);
       }
     });
 
     socket.on('connect_error', (error: Error) => {
-      console.error('❌ Connection error:', error.message);
+      console.error('❌ WebSocket: Connection error -', error.message);
       setIsConnected(false);
       reconnectAttemptsRef.current++;
-      
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-      console.log(`Retrying in ${delay}ms... (attempt ${reconnectAttemptsRef.current})`);
+
+      if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+        console.log('⚠️ WebSocket: Max reconnect attempts reached');
+      }
     });
 
-    socket.on('error', (error: any) => {
-      console.error('❌ Socket error:', error);
+    socket.on('error', (error: { message: string }) => {
+      console.error('❌ WebSocket: Error -', error.message);
+      
+      // Handle auth errors
+      if (error.message?.includes('Authentication') || error.message?.includes('token')) {
+        console.log('🔒 WebSocket: Auth error, disconnecting');
+        socket.disconnect();
+      }
     });
 
     // MESSAGE EVENTS
-    socket.on('message', (data: any) => {
-      console.log('📨 Message received:', data);
-      
+    socket.on('message', (data: { event: string; message: any }) => {
+      console.log('📨 WebSocket: Message received -', data.event);
+
       try {
-        if (data.event === 'new_message' && data.message) {
-          dispatch(addMessageToChannel(data.message));
-          
-          if (data.message.sender_user_id !== userId) {
-            dispatch(incrementUnreadCount(data.message.channel_id));
-          }
-        } else if (data.event === 'message_updated' && data.message) {
-          dispatch(updateMessageInChannel(data.message));
-        } else if (data.event === 'message_deleted' && data.message) {
-          dispatch(removeMessageFromChannel({
-            channelId: data.message.channel_id,
-            messageId: data.message.id,
-          }));
+        switch (data.event) {
+          case 'new_message':
+            if (data.message) {
+              dispatch(addMessageToChannel(data.message));
+              // Increment unread if not from current user
+              if (data.message.sender_user_id !== userId) {
+                dispatch(incrementUnreadCount(data.message.channel_id));
+              }
+            }
+            break;
+
+          case 'message_updated':
+            if (data.message) {
+              dispatch(updateMessageInChannel(data.message));
+            }
+            break;
+
+          case 'message_deleted':
+            if (data.message) {
+              dispatch(removeMessageFromChannel({
+                channelId: data.message.channel_id,
+                messageId: data.message.id,
+              }));
+            }
+            break;
+
+          default:
+            console.log('📨 WebSocket: Unknown event -', data.event);
         }
       } catch (error) {
-        console.error('Error processing message:', error);
+        console.error('WebSocket: Error processing message -', error);
+      }
+    });
+
+    // New message event (alternative format)
+    socket.on('new_message', (message: any) => {
+      console.log('📨 WebSocket: new_message event');
+      if (message) {
+        dispatch(addMessageToChannel(message));
+        if (message.sender_user_id !== userId) {
+          dispatch(incrementUnreadCount(message.channel_id));
+        }
       }
     });
 
     // TYPING INDICATORS
     socket.on('user_typing', (data: { channelId: number; userId: number; isTyping: boolean }) => {
-      console.log('⌨️ Typing:', data);
-      
-      try {
-        if (data.userId !== userId) {
-          if (data.isTyping) {
-            dispatch(addTypingUser({ channelId: data.channelId, userId: data.userId }));
-            
-            setTimeout(() => {
-              dispatch(removeTypingUser({ channelId: data.channelId, userId: data.userId }));
-            }, 5000);
-          } else {
-            dispatch(removeTypingUser({ channelId: data.channelId, userId: data.userId }));
-          }
+      if (data.userId === userId) return; // Ignore own typing
+
+      if (data.isTyping) {
+        dispatch(addTypingUser({ channelId: data.channelId, userId: data.userId }));
+
+        // Auto-clear typing after 5 seconds
+        const existingTimeout = typingTimeoutsRef.current.get(data.userId);
+        if (existingTimeout) clearTimeout(existingTimeout);
+
+        const timeout = setTimeout(() => {
+          dispatch(removeTypingUser({ channelId: data.channelId, userId: data.userId }));
+          typingTimeoutsRef.current.delete(data.userId);
+        }, 5000);
+        typingTimeoutsRef.current.set(data.userId, timeout);
+      } else {
+        dispatch(removeTypingUser({ channelId: data.channelId, userId: data.userId }));
+        const existingTimeout = typingTimeoutsRef.current.get(data.userId);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+          typingTimeoutsRef.current.delete(data.userId);
         }
-      } catch (error) {
-        console.error('Error processing typing indicator:', error);
       }
     });
 
     // PRESENCE
     socket.on('online_users', (data: { userIds: number[] }) => {
-      console.log('👥 Online users:', data.userIds.length);
-      dispatch(setOnlineUsers(data.userIds));
+      console.log('👥 WebSocket: Online users -', data.userIds?.length || 0);
+      dispatch(setOnlineUsers(data.userIds || []));
     });
 
     socket.on('user_status', (data: { userId: number; status: 'online' | 'offline' }) => {
-      console.log('🟢 User status:', data);
+      console.log('🟢 WebSocket: User status -', data);
     });
 
     socketRef.current = socket;
-
-    return () => {
-      console.log('🔌 Cleaning up WebSocket...');
-      socket.off();
-      socket.disconnect();
-    };
   }, [token, userId, dispatch]);
 
+  // Initialize connection
   useEffect(() => {
-    const cleanup = connect();
-    return cleanup;
+    connect();
+
+    return () => {
+      console.log('🔌 WebSocket: Cleaning up...');
+      
+      // Clear typing timeouts
+      typingTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
+      typingTimeoutsRef.current.clear();
+      
+      // Disconnect socket
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      setIsConnected(false);
+    };
   }, [connect]);
 
   // SEND MESSAGE
-  const sendMessage = useCallback((data: SendMessagePayload) => {
+  const sendMessage = useCallback((data: SendMessagePayload): boolean => {
     if (!socketRef.current?.connected) {
-      console.warn('⚠️ WebSocket not connected');
+      console.warn('⚠️ WebSocket: Not connected, cannot send message');
       return false;
     }
 
     try {
-      console.log('📤 Sending message:', data);
-      socketRef.current.emit('send_message', data);
+      console.log('📤 WebSocket: Sending message to channel', data.channelId);
+      socketRef.current.emit('send_message', data, (response: { success: boolean; messageId?: number; error?: string }) => {
+        if (response?.success) {
+          console.log('✅ WebSocket: Message sent -', response.messageId);
+        } else {
+          console.error('❌ WebSocket: Send failed -', response?.error);
+        }
+      });
       return true;
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('WebSocket: Error sending message -', error);
       return false;
     }
   }, []);
@@ -183,17 +258,24 @@ export const useWebSocket = (token: string | null, userId: number | null) => {
   // MANUAL RECONNECT
   const reconnect = useCallback(() => {
     if (socketRef.current?.connected) {
-      console.log('Already connected');
+      console.log('WebSocket: Already connected');
       return;
     }
-    console.log('Manual reconnect triggered');
-    socketRef.current?.connect();
-  }, []);
+    
+    console.log('🔄 WebSocket: Manual reconnect');
+    reconnectAttemptsRef.current = 0;
+    
+    if (socketRef.current) {
+      socketRef.current.connect();
+    } else {
+      connect();
+    }
+  }, [connect]);
 
   // DISCONNECT
   const disconnect = useCallback(() => {
+    console.log('🔌 WebSocket: Manual disconnect');
     if (socketRef.current) {
-      console.log('Manual disconnect');
       socketRef.current.disconnect();
       setIsConnected(false);
     }

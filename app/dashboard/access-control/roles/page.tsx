@@ -153,18 +153,18 @@ const RolesListPage = () => {
       toast.error('System roles cannot be deleted');
       return;
     }
-    
+
     if (!currentUser) {
       toast.error('User not authenticated');
       return;
     }
-    
+
     const userType = getUserType(currentUser);
     if (!canDeleteRole(userType, role)) {
       toast.error('You do not have permission to delete this role');
       return;
     }
-    
+
     setRoleToDelete(role);
     setDeleteDialogOpen(true);
   };
@@ -218,7 +218,7 @@ const RolesListPage = () => {
           const role = row.original;
           const displayName = role.display_name || role.displayName || role.name;
           const isSystemRole = role.is_system_role || false;
-          
+
           return (
             <div className="flex items-center gap-3">
               <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
@@ -355,7 +355,7 @@ const RolesListPage = () => {
                     <Shield className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
-                  
+
                   {canEdit && (
                     <DropdownMenuItem
                       onClick={(e) => {
@@ -367,7 +367,7 @@ const RolesListPage = () => {
                       Edit Role
                     </DropdownMenuItem>
                   )}
-                  
+
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
@@ -395,7 +395,7 @@ const RolesListPage = () => {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              
+
               <ChevronRight className="text-muted-foreground/70 size-3.5" />
             </div>
           );
@@ -521,7 +521,8 @@ const RolesListPage = () => {
                       <span>Refresh</span>
                     </Button>
 
-                    <IfHasAccess menuKey="access-control.roles.bulk-assign">
+                    {/* // TODO */}
+                    {/* <IfHasAccess menuKey="access-control.roles.bulk-assign">
                       <Button
                         variant="outline"
                         disabled={isLoading}
@@ -531,7 +532,7 @@ const RolesListPage = () => {
                         <Users className="h-4 w-4 flex-shrink-0" />
                         <span>Bulk Assign</span>
                       </Button>
-                    </IfHasAccess>
+                    </IfHasAccess> */}
 
                     <IfHasAccess menuKey="access-control.roles.create">
                       <Button
@@ -609,7 +610,7 @@ const RolesListPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-lg sm:text-xl">Delete Role</AlertDialogTitle>
             <AlertDialogDescription className="text-sm sm:text-base">
-              Are you sure you want to delete <strong>"{roleToDelete?.display_name || roleToDelete?.name}"</strong>? 
+              Are you sure you want to delete <strong>"{roleToDelete?.display_name || roleToDelete?.name}"</strong>?
               <br />
               <br />
               This action cannot be undone.
