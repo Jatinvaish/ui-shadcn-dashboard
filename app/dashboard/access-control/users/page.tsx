@@ -60,8 +60,8 @@ import {
 } from "@/store/slices/tenantSlice";
 import { fetchRoles, selectRoles, selectRolesLoading } from "@/store/slices/roles.slice";
 import { useMenuPermissions } from "@/hooks/use-menu-permissions";
-import { type Role } from "@/lib/api";
 import { Combobox } from "@/components/ui/combobox";
+import { Role } from "@/lib/api/services/rbac-service";
 
 interface User {
   id: number;
@@ -93,8 +93,6 @@ export default function UsersPage() {
   // Fetch roles from roles slice
   const allRoles = useAppSelector(selectRoles);
   const rolesLoading = useAppSelector(selectRolesLoading);
-
-  console.log("tenantMembers:", tenantMembers);
 
   const [users, setUsers] = useState<User[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({
