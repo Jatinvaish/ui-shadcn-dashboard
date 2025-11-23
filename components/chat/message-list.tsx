@@ -1,7 +1,7 @@
-// components/chat/message-list.tsx - COMPLETE WITH ALL HANDLERS
+// components/chat/message-list.tsx - FIXED WITH SCROLL TO MESSAGE
 "use client"
 
-import React from "react"
+import React, { useRef, useEffect } from "react"
 import { MessageItem } from "./message-item"
 
 export interface Message {
@@ -52,23 +52,43 @@ export function MessageList({
   onReplyInThread,
   onForward,
 }: MessageListProps) {
-  const scrollRef = React.useRef<HTMLDivElement>(null)
-  const prevMessagesLengthRef = React.useRef(messages.length)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const prevMessagesLengthRef = useRef(messages.length)
 
   // Auto-scroll to bottom on new messages
-  React.useEffect(() => {
+  useEffect(() => {
     if (scrollRef.current && messages.length > prevMessagesLengthRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
     prevMessagesLengthRef.current = messages.length
   }, [messages])
 
-  // Group messages by date
+  // ✅ SCROLL TO SPECIFIC MESSAGE
+  const scrollToMessage = (messageId: string) => {
+    const element = messageRefs.current.get(messageId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // Highlight effect
+      element.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20')
+      setTimeout(() => {
+        element.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20')
+      }, 2000)
+    }
+  }
+
+  // ✅ GROUP BY DATE - Sort by latest first
   const groupedMessages = React.useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
+    
+    // Sort messages by timestamp (newest first for display purposes)
+    const sortedMessages = [...messages].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
+
     let currentDate = ""
 
-    messages.forEach((message) => {
+    sortedMessages.forEach((message) => {
       const messageDate = new Date(message.timestamp).toDateString()
       
       if (messageDate !== currentDate) {
@@ -124,20 +144,29 @@ export function MessageList({
 
             {/* Messages */}
             {group.messages.map((message) => (
-              <MessageItem
+              <div
                 key={message.id}
-                message={message}
-                isOwn={message.authorId === currentUserId}
-                isDirect={isDirect}
-                onReply={onReply}
-                onReact={onReact}
-                onOpenThread={onOpenThread}
-                onDelete={onDelete}
-                onEdit={onEdit}
-                onPin={onPin}
-                onReplyInThread={onReplyInThread}
-                onForward={onForward}
-              />
+                ref={(el) => {
+                  if (el) messageRefs.current.set(message.id, el)
+                }}
+                className="transition-colors duration-300"
+              >
+                <MessageItem
+                  message={message}
+                  isOwn={message.authorId === currentUserId}
+                  isDirect={isDirect}
+                  currentUserId={currentUserId}
+                  onReply={onReply}
+                  onReact={onReact}
+                  onOpenThread={onOpenThread}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                  onPin={onPin}
+                  onReplyInThread={onReplyInThread}
+                  onForward={onForward}
+                  onScrollToMessage={scrollToMessage}
+                />
+              </div>
             ))}
           </div>
         ))
