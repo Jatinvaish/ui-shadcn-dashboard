@@ -1,4 +1,4 @@
-// components/chat/message-item.tsx - COMPLETE WITH ALL FEATURES
+// components/chat/message-item.tsx - FIXED WITH PROPER ALIGNMENT
 "use client"
 
 import React, { useState } from "react"
@@ -12,6 +12,7 @@ interface MessageItemProps {
   message: Message
   isOwn: boolean
   isDirect?: boolean
+  currentUserId: string
   onReply?: (messageId: string) => void
   onReact?: (messageId: string, emoji: string) => void
   onOpenThread?: (messageId: string) => void
@@ -20,12 +21,14 @@ interface MessageItemProps {
   onPin?: (messageId: string, isPinned: boolean) => void
   onReplyInThread?: (content: string, parentId: string) => void
   onForward?: (messageId: string) => void
+  onScrollToMessage?: (messageId: string) => void
 }
 
 export function MessageItem({
   message,
   isOwn,
   isDirect = false,
+  currentUserId,
   onReply,
   onReact,
   onOpenThread,
@@ -34,6 +37,7 @@ export function MessageItem({
   onPin,
   onReplyInThread,
   onForward,
+  onScrollToMessage,
 }: MessageItemProps) {
   const [showActions, setShowActions] = useState(false)
 
@@ -44,7 +48,6 @@ export function MessageItem({
     })
   }
 
-  // Extract mentions from content
   const renderContent = (content: string) => {
     const mentionRegex = /@(\w+)/g;
     const parts = content.split(mentionRegex);
@@ -69,12 +72,17 @@ export function MessageItem({
     }
   };
 
+  // ✅ FIX 5: PROPER MESSAGE ALIGNMENT - OWN MESSAGES ON RIGHT
   return (
     <div
-      className="flex gap-3 group/message py-2 items-start hover:bg-muted/30 rounded px-3 transition-colors duration-150"
+      className={cn(
+        "flex gap-3 group/message py-2 items-start hover:bg-muted/30 rounded px-3 transition-colors duration-150",
+        isOwn && "flex-row-reverse" // Own messages aligned to right
+      )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
+      {/* Avatar */}
       <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-primary/60 to-primary/80 flex items-center justify-center text-white text-xs font-semibold">
         {message.authorAvatar ? (
           <img src={message.authorAvatar} alt="" className="h-full w-full rounded-full object-cover" />
@@ -83,8 +91,16 @@ export function MessageItem({
         )}
       </div>
 
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* Message Content */}
+      <div className={cn(
+        "flex-1 min-w-0 flex flex-col gap-1",
+        isOwn && "items-end" // Align content to right for own messages
+      )}>
+        {/* Header with name and time */}
+        <div className={cn(
+          "flex items-center gap-2 flex-wrap",
+          isOwn && "flex-row-reverse"
+        )}>
           <span className="text-sm font-medium">{message.authorName}</span>
           <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
           {message.edited && <span className="text-xs text-muted-foreground italic">(edited)</span>}
@@ -98,16 +114,28 @@ export function MessageItem({
 
         {/* Reply bubble */}
         {message.replyTo && (
-          <div className="rounded border-l-2 border-primary bg-muted/60 p-2 text-xs w-full">
+          <div className={cn(
+            "rounded border-l-2 border-primary bg-muted/60 p-2 text-xs w-full max-w-md cursor-pointer hover:bg-muted",
+            isOwn && "border-l-0 border-r-2"
+          )}
+          onClick={() => onScrollToMessage?.(message.replyTo!.messageId)}
+          >
             <div className="font-medium text-primary">{message.replyTo.authorName}</div>
             <div className="line-clamp-2 text-muted-foreground">{message.replyTo.content}</div>
           </div>
         )}
 
-        {/* Message text with mentions */}
-        <p className="break-words text-sm leading-relaxed whitespace-pre-wrap">
-          {renderContent(message.content)}
-        </p>
+        {/* ✅ MESSAGE BUBBLE WITH PROPER STYLING */}
+        <div className={cn(
+          "inline-block max-w-md rounded-lg px-3 py-2",
+          isOwn 
+            ? "bg-blue-600 text-white" // Own messages: blue background
+            : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" // Others: white with border
+        )}>
+          <p className="break-words text-sm leading-relaxed whitespace-pre-wrap">
+            {renderContent(message.content)}
+          </p>
+        </div>
 
         {/* Files */}
         {message.files && message.files.length > 0 && (
@@ -155,7 +183,10 @@ export function MessageItem({
 
       {/* Action buttons */}
       {showActions && (
-        <div className="flex items-center gap-1 flex-shrink-0 bg-background rounded shadow-md p-1.5 border border-border">
+        <div className={cn(
+          "flex items-center gap-1 flex-shrink-0 bg-background rounded shadow-md p-1.5 border border-border",
+          isOwn && "order-first"
+        )}>
           <MessageActionsPopover
             isDirect={isDirect}
             isOwn={isOwn}
