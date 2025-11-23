@@ -1,4 +1,4 @@
-// components/chat/dialogs/forward-message-dialog.tsx
+// components/chat/dialogs/forward-message-dialog.tsx - COMPLETE
 "use client"
 
 import React, { useState } from "react"
@@ -50,6 +50,7 @@ export function ForwardMessageDialog({ open, onOpenChange, messageId, messageCon
       toast.success(`Message forwarded to ${selectedChannelIds.length} channel(s)`)
       onOpenChange(false)
       setSelectedChannelIds([])
+      setSearchQuery("")
     } catch (error: any) {
       toast.error(error || "Failed to forward message")
     } finally {
@@ -58,6 +59,14 @@ export function ForwardMessageDialog({ open, onOpenChange, messageId, messageCon
   }
 
   const selectedChannels = channels.filter(ch => selectedChannelIds.includes(ch.id))
+
+  // Reset state when dialog closes
+  React.useEffect(() => {
+    if (!open) {
+      setSelectedChannelIds([])
+      setSearchQuery("")
+    }
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -99,7 +108,11 @@ export function ForwardMessageDialog({ open, onOpenChange, messageId, messageCon
                   <Badge key={ch.id} variant="secondary" className="flex items-center gap-1 pr-1">
                     <Hash className="h-3 w-3" />
                     {ch.name}
-                    <button onClick={() => toggleChannel(ch.id)} className="ml-1 hover:bg-muted rounded-full p-0.5">
+                    <button 
+                      onClick={() => toggleChannel(ch.id)} 
+                      className="ml-1 hover:bg-muted rounded-full p-0.5"
+                      type="button"
+                    >
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
@@ -122,7 +135,11 @@ export function ForwardMessageDialog({ open, onOpenChange, messageId, messageCon
                         isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
                       }`}
                     >
-                      <Checkbox checked={isSelected} onChange={() => {}} className="pointer-events-none" />
+                      <Checkbox 
+                        checked={isSelected} 
+                        onCheckedChange={() => toggleChannel(channel.id)}
+                        className="pointer-events-none" 
+                      />
                       <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
                         {channel.is_private ? (
                           <Lock className="h-4 w-4 text-primary" />

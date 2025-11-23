@@ -1,4 +1,4 @@
-// components/chat/message-list.tsx - UPDATED
+// components/chat/message-list.tsx - COMPLETE WITH ALL HANDLERS
 "use client"
 
 import React from "react"
@@ -33,7 +33,10 @@ interface MessageListProps {
   onReact?: (messageId: string, emoji: string) => void
   onOpenThread?: (messageId: string) => void
   onDelete?: (messageId: string) => void
-  onReplyInThread?: (messageId: string) => void
+  onEdit?: (messageId: string, newContent: string) => void
+  onPin?: (messageId: string, isPinned: boolean) => void
+  onReplyInThread?: (content: string, parentId: string) => void
+  onForward?: (messageId: string) => void
 }
 
 export function MessageList({
@@ -44,7 +47,10 @@ export function MessageList({
   onReact,
   onOpenThread,
   onDelete,
+  onEdit,
+  onPin,
   onReplyInThread,
+  onForward,
 }: MessageListProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = React.useRef(messages.length)
@@ -127,7 +133,10 @@ export function MessageList({
                 onReact={onReact}
                 onOpenThread={onOpenThread}
                 onDelete={onDelete}
+                onEdit={onEdit}
+                onPin={onPin}
                 onReplyInThread={onReplyInThread}
+                onForward={onForward}
               />
             ))}
           </div>

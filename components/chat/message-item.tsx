@@ -1,7 +1,7 @@
-// components/chat/message-item.tsx - ENHANCED WITH ALL FEATURES
+// components/chat/message-item.tsx - COMPLETE WITH ALL FEATURES
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import { cn } from "@/lib/utils"
 import { EmojiPopover } from "./popovers/emoji-popover"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
@@ -16,7 +16,10 @@ interface MessageItemProps {
   onReact?: (messageId: string, emoji: string) => void
   onOpenThread?: (messageId: string) => void
   onDelete?: (messageId: string) => void
-  onReplyInThread?: (messageId: string) => void
+  onEdit?: (messageId: string, newContent: string) => void
+  onPin?: (messageId: string, isPinned: boolean) => void
+  onReplyInThread?: (content: string, parentId: string) => void
+  onForward?: (messageId: string) => void
 }
 
 export function MessageItem({
@@ -27,9 +30,12 @@ export function MessageItem({
   onReact,
   onOpenThread,
   onDelete,
+  onEdit,
+  onPin,
   onReplyInThread,
+  onForward,
 }: MessageItemProps) {
-  const [showActions, setShowActions] = React.useState(false)
+  const [showActions, setShowActions] = useState(false)
 
   const formatTime = (date: Date) => {
     return new Date(date).toLocaleTimeString("en-US", {
@@ -55,6 +61,14 @@ export function MessageItem({
     });
   };
 
+  const handleReplyInThread = () => {
+    if (isDirect) {
+      onReply?.(message.id);
+    } else {
+      onOpenThread?.(message.id);
+    }
+  };
+
   return (
     <div
       className="flex gap-3 group/message py-2 items-start hover:bg-muted/30 rounded px-3 transition-colors duration-150"
@@ -62,7 +76,11 @@ export function MessageItem({
       onMouseLeave={() => setShowActions(false)}
     >
       <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-primary/60 to-primary/80 flex items-center justify-center text-white text-xs font-semibold">
-        {message.authorName?.charAt(0).toUpperCase() || "U"}
+        {message.authorAvatar ? (
+          <img src={message.authorAvatar} alt="" className="h-full w-full rounded-full object-cover" />
+        ) : (
+          message.authorName?.charAt(0).toUpperCase() || "U"
+        )}
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col gap-1">
@@ -87,7 +105,7 @@ export function MessageItem({
         )}
 
         {/* Message text with mentions */}
-        <p className="break-words text-sm leading-relaxed">
+        <p className="break-words text-sm leading-relaxed whitespace-pre-wrap">
           {renderContent(message.content)}
         </p>
 
@@ -126,9 +144,7 @@ export function MessageItem({
         {/* Thread replies indicator */}
         {!isDirect && message.threadReplies && message.threadReplies > 0 && (
           <button
-            onClick={() => {
-              onOpenThread?.(message.id)
-            }}
+            onClick={() => onOpenThread?.(message.id)}
             className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium pt-1 w-fit"
           >
             <MessageCircle className="h-3 w-3" />
@@ -143,15 +159,18 @@ export function MessageItem({
           <MessageActionsPopover
             isDirect={isDirect}
             isOwn={isOwn}
+            isPinned={message.isPinned}
             messageId={message.id}
+            messageContent={message.content}
             onReply={onReply}
-            onReplyInThread={onReplyInThread}
+            onReplyInThread={handleReplyInThread}
             onDelete={onDelete}
+            onEdit={onEdit}
+            onPin={onPin}
+            onForward={onForward}
           />
           <EmojiPopover
-            onEmojiSelect={(emoji) => {
-              onReact?.(message.id, emoji)
-            }}
+            onEmojiSelect={(emoji) => onReact?.(message.id, emoji)}
           />
         </div>
       )}
