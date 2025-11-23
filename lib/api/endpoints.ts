@@ -69,6 +69,7 @@ export const API_ENDPOINTS = {
       ADD: (channelId: number) => `/chat/channels/${channelId}/members`,
       REMOVE: (channelId: number, userId: number) => `/chat/channels/${channelId}/members/${userId}`,
       UPDATE_ROLE: (channelId: number, userId: number) => `/chat/channels/${channelId}/members/${userId}/role`,
+      AVAILABLE: "/chat/team/available-members",
     },
 
     // Search
@@ -79,6 +80,21 @@ export const API_ENDPOINTS = {
       MEMBERS: "/chat/team/members",
       AVAILABLE_MEMBERS: "/chat/team/available-members",
       START_CHAT: "/chat/team/start-chat",
+    },
+
+    // Activities
+    ACTIVITIES: {
+      CHANNEL: (channelId: number) => `/chat/activities/channel/${channelId}`,
+      UNREAD: "/chat/activities/unread",
+      MARK_READ: "/chat/activities/mark-read",
+    },
+
+    // Notifications
+    NOTIFICATIONS: {
+      UNREAD_COUNT: "/chat/notifications/unread-count",
+      LIST: "/chat/notifications",
+      MARK_READ: "/chat/notifications/mark-read",
+      PREFERENCES: "/chat/notifications/preferences",
     },
 
     // Presence
@@ -92,7 +108,10 @@ export const API_ENDPOINTS = {
     UNREAD: "/chat/unread",
 
     // WebSocket
-    WS: "/chat",
+    WS: {
+      URL: process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3060",
+      NAMESPACE: "/chat",
+    },
   },
 
 
