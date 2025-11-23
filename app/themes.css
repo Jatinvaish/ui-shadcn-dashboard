@@ -68,7 +68,6 @@ body {
     --chart-3: var(--primary-300);
     --chart-4: var(--secondary-300);
     --chart-5: var(--primary-100);
-    --radius: 0.5rem;
     --sidebar: var(--color-white);
     --sidebar-foreground: var(--base-800);
     --sidebar-primary: var(--primary-700);
@@ -77,10 +76,6 @@ body {
     --sidebar-accent-foreground: var(--color-white);
     --sidebar-border: var(--base-200);
     --sidebar-ring: var(--primary-700);
-
-    --display-family: var(--font-hedvig-letters-serif), sans-serif;
-    --display-weight: 800;
-    --text-family: var(--font-kumbh-sans), sans-serif;
 
     @variant dark {
         --background: var(--base-950);
@@ -111,7 +106,7 @@ body {
         --sidebar-primary: var(--primary-700);
         --sidebar-primary-foreground: var(--color-white);
         --sidebar-accent: var(--primary);
-        --sidebar-accent-foreground: var(--base-200);
+        --sidebar-accent-foreground: var(--color-white);
         --sidebar-border: var(--base-800);
         --sidebar-ring: var(--primary-700);
     }
@@ -167,7 +162,6 @@ body {
     --chart-3: var(--primary-400);
     --chart-4: var(--primary-300);
     --chart-5: var(--primary-100);
-    --radius: 1rem;
     --sidebar: var(--base-100);
     --sidebar-foreground: var(--base-800);
     --sidebar-primary: var(--primary-600);
@@ -176,9 +170,6 @@ body {
     --sidebar-accent-foreground: var(--color-white);
     --sidebar-border: var(--base-200);
     --sidebar-ring: var(--primary-600);
-
-    --text-family: var(--font-poppins), sans-serif;
-    --display-weight: 600;
 
     @variant dark {
         --background: var(--base-950);
@@ -278,7 +269,6 @@ body {
     --chart-3: var(--primary-300);
     --chart-4: var(--secondary-300);
     --chart-5: var(--primary-100);
-    --radius: 0.75rem;
     --sidebar: var(--color-white);
     --sidebar-foreground: var(--base-800);
     --sidebar-primary: var(--primary-400);
@@ -287,9 +277,6 @@ body {
     --sidebar-accent-foreground: var(--base-800);
     --sidebar-border: var(--base-200);
     --sidebar-ring: var(--primary-400);
-
-    --display-weight: 800;
-    --text-family: var(--font-pt-sans), sans-serif;
 
     @variant dark {
         --background: var(--base-950);
@@ -389,7 +376,6 @@ body {
     --chart-3: var(--primary-300);
     --chart-4: var(--secondary-300);
     --chart-5: var(--primary-100);
-    --radius: 1rem;
     --sidebar: var(--base-100);
     --sidebar-foreground: var(--base-800);
     --sidebar-primary: var(--primary-600);
@@ -497,7 +483,6 @@ body {
     --chart-3: var(--primary-300);
     --chart-4: var(--secondary-300);
     --chart-5: var(--primary-100);
-    --radius: 0.5rem;
     --sidebar: var(--color-white);
     --sidebar-foreground: var(--base-800);
     --sidebar-primary: var(--primary-700);
@@ -605,7 +590,6 @@ body {
     --chart-3: var(--primary-300);
     --chart-4: var(--secondary-300);
     --chart-5: var(--primary-100);
-    --radius: 0.3rem;
     --sidebar: var(--base-100);
     --sidebar-foreground: var(--base-800);
     --sidebar-primary: var(--primary-600);
@@ -614,9 +598,6 @@ body {
     --sidebar-accent-foreground: var(--color-white);
     --sidebar-border: var(--base-200);
     --sidebar-ring: var(--primary-600);
-
-    --text-family: var(--font-plus-jakarta-sans), sans-serif;
-    --display-weight: 800;
 
     @variant dark {
         --background: var(--base-950);
@@ -716,7 +697,6 @@ body {
     --chart-3: var(--primary-300);
     --chart-4: var(--secondary-300);
     --chart-5: var(--primary-100);
-    --radius: 1rem;
     --sidebar: var(--color-white);
     --sidebar-foreground: var(--base-800);
     --sidebar-primary: var(--primary-600);
@@ -725,7 +705,6 @@ body {
     --sidebar-accent-foreground: var(--color-white);
     --sidebar-border: var(--base-200);
     --sidebar-ring: var(--primary-600);
-    --display-family: var(--font-hedvig-letters-serif), sans-serif;
 
     @variant dark {
         --background: var(--base-950);
@@ -761,9 +740,6 @@ body {
         --sidebar-ring: var(--primary-600);
     }
 }
-
-/* Theme presets */
-
 
 /* Chart presets */
 [data-theme-chart-preset="cyan"] {
@@ -805,8 +781,6 @@ body {
     --chart-4: var(--color-fuchsia-500);
     --chart-5: var(--color-fuchsia-400);
 }
-/* Chart presets */
-
 
 /* Radius */
 [data-theme-radius="none"] {
@@ -829,12 +803,6 @@ body {
     --radius: 1.5rem;
 }
 
-[data-theme-radius="none"] {
-    --radius: 0rem;
-}
-/* Radius */
-
-
 /* Scale */
 [data-theme-scale="sm"] {
     --text-lg: 1.05rem;
@@ -849,8 +817,6 @@ body {
     --text-sm: 1rem;
     --spacing: 0.262222rem;
 }
-/* Scale */
-
 
 /* Font */
 [data-theme-font="inter"] {
@@ -877,4 +843,3 @@ body {
     --font-sans: var(--font-overpass-mono);
     letter-spacing: -.05em;
 }
-/* Font */
