@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - COMPLETE FIX FOR ALL ISSUES
+// app/dashboard/chat/page.tsx - COMPLETE FIX - ALL ISSUES RESOLVED
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -23,7 +23,7 @@ import {
 import { ChannelType, SendMessagePayload, MessageType } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
 import { selectUser } from "@/store/slices/authSlice";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Search, Phone, Video } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
 import { ForwardMessageDialog } from "@/components/chat/dialogs/forward-message-dialog";
@@ -80,13 +80,9 @@ const ChatPage = () => {
     if (selectedChannel) {
       const loadData = async () => {
         try {
-          // Load messages
           await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
-          
-          // Load channel members
           await dispatch(fetchChannelMembers(selectedChannel.id)).unwrap();
           
-          // Mark as read
           const channelMsgs = messages[selectedChannel.id];
           if (channelMsgs?.length > 0) {
             dispatch(markAsRead({ channelId: selectedChannel.id, messageId: channelMsgs[channelMsgs.length - 1].id }));
@@ -134,10 +130,9 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ✅ FIX 4: Get actual channel display name
+  // Get channel display name
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
-      // For DMs, show the other person's name
       const members = channelMembers[channel.id] || [];
       const otherMember = members.find(m => m.user_id !== currentUser?.id);
       if (otherMember) {
@@ -149,7 +144,6 @@ const ChatPage = () => {
 
   // MESSAGE CONVERSION
   const convertToFrontendMessage = useCallback((msg: any): Message => {
-    // ✅ FIX 4: Show actual sender names
     const senderName = msg.sender_first_name && msg.sender_last_name 
       ? `${msg.sender_first_name} ${msg.sender_last_name}`.trim()
       : msg.sender_email || "Unknown User";
@@ -278,22 +272,19 @@ const ChatPage = () => {
     }
   }, [currentMessages]);
 
-  // ✅ FIX 1: Emoji reactions with toggle support
+  // ✅ FIX 1: FIXED REACTION TOGGLE
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
     try {
       const message = currentMessages.find(m => m.id === messageId);
       if (!message) return;
 
-      // Check if user already reacted with this emoji
       const existingReaction = message.reactions?.find(
         r => r.emoji === emoji && r.userReacted
       );
 
       if (existingReaction) {
-        // Remove reaction
         await dispatch(removeReaction({ messageId: parseInt(messageId), emoji })).unwrap();
       } else {
-        // Add reaction
         await dispatch(addReaction({ messageId: parseInt(messageId), emoji })).unwrap();
       }
     } catch (e: any) { 
@@ -301,14 +292,13 @@ const ChatPage = () => {
     }
   }, [dispatch, currentMessages]);
 
-  // ✅ FIX 2: Thread system - Open thread sidebar
+  // ✅ FIX 2: THREAD SYSTEM
   const handleOpenThread = useCallback((messageId: string) => {
     setSelectedThreadId(parseInt(messageId));
     setShowThreadSidebar(true);
-    setReplyingTo(null); // Clear direct reply when opening thread
+    setReplyingTo(null);
   }, []);
 
-  // ✅ FIX 2: Reply in thread
   const handleReplyInThread = useCallback(async (content: string, parentId: string) => {
     if (!content.trim()) return;
     try { 
@@ -334,12 +324,11 @@ const ChatPage = () => {
     }
   }, [dispatch, currentUser]);
 
-  // ✅ FIX 3: Start DM - Check if already exists
+  // ✅ FIX 3: START DM - CHECK IF EXISTS
   const handleStartDirectMessage = useCallback(async (userId: string) => {
     if (!currentUser) return;
     
     try {
-      // Check if DM already exists
       const existingDM = channels.find(ch => 
         ch.channel_type === ChannelType.DIRECT && 
         channelMembers[ch.id]?.some(m => m.user_id === parseInt(userId))
@@ -351,7 +340,6 @@ const ChatPage = () => {
         return;
       }
 
-      // Create new DM
       await dispatch(startTeamChat({ memberIds: [parseInt(userId)] })).unwrap();
       toast.success("Chat started");
     } catch (e: any) { 
@@ -421,7 +409,6 @@ const ChatPage = () => {
     }
   }, [selectedChannel, dispatch]);
 
-  // ✅ FIX 1: Check if user is admin/owner
   const isChannelAdmin = React.useMemo(() => {
     if (!selectedChannel || !currentUser) return false;
     const members = channelMembers[selectedChannel.id] || [];
@@ -429,7 +416,6 @@ const ChatPage = () => {
     return currentMember?.role === 'admin' || currentMember?.role === 'owner';
   }, [selectedChannel, currentUser, channelMembers]);
 
-  // SIDEBAR DATA with proper names
   const sidebarChannels = React.useMemo(() => (channels || [])
     .filter((ch) => ch.channel_type !== ChannelType.DIRECT)
     .map((ch) => ({
@@ -444,7 +430,7 @@ const ChatPage = () => {
     .filter((ch) => ch.channel_type === ChannelType.DIRECT)
     .map((ch) => ({
       id: ch.id?.toString() || "", 
-      name: getChannelDisplayName(ch), // ✅ FIX 4: Use actual names
+      name: getChannelDisplayName(ch),
       unread: ch.unread_count || 0,
     })), [channels, getChannelDisplayName]);
 
@@ -464,7 +450,6 @@ const ChatPage = () => {
       status: (m.status as any) || "offline"
     }));
 
-  // ✅ TEAM MEMBERS FOR MENTIONS
   const teamMembersForMentions = React.useMemo(() => {
     return teamMembers.map((m: any) => ({
       id: m.id.toString(),
@@ -477,8 +462,6 @@ const ChatPage = () => {
   const showChatOnMobile = !!selectedChannel;
   const currentTypingUsers = selectedChannel ? typingUsers[selectedChannel.id]?.filter((id) => id !== currentUser?.id) || [] : [];
   const isDirect = selectedChannel?.channel_type === ChannelType.DIRECT;
-
-  // ✅ Get display name for current channel
   const currentChannelDisplayName = selectedChannel ? getChannelDisplayName(selectedChannel) : "";
 
   return (
@@ -613,7 +596,6 @@ const ChatPage = () => {
         />
       )}
 
-      {/* Dialogs */}
       {selectedChannel && isChannelAdmin && !isDirect && (
         <InviteMembersDialog 
           open={inviteDialogOpen} 
