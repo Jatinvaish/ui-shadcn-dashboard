@@ -36,9 +36,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -48,7 +45,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useLayout } from "./context";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logout, selectUser } from "@/store/slices/authSlice";
-import { AuthService } from "@/lib/api/services/auth-service";
 import { toast } from "sonner";
 import { toAbsoluteUrl } from "@/lib/helpers";
 
@@ -77,7 +73,7 @@ const menuItems = [
 ];
 
 export function SidebarPrimary() {
-  const pathname = usePathname();
+  const pathname =   usePathname();
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { activeSecondaryMenu, setActiveSecondaryMenu } = useLayout();
@@ -207,66 +203,25 @@ export function SidebarPrimary() {
               <Clock />
               <span>Set availability</span>
             </DropdownMenuItem>
-
             <DropdownMenuSeparator />
-
-            <DropdownMenuItem>
-              <Target />
-              <span>My Projects</span>
-              <Badge variant="info" size="sm" appearance="outline" className="ms-auto">
-                3
-              </Badge>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/access-control/users")}>
               <Users />
               <span>Team Management</span>
             </DropdownMenuItem>
-
-            <DropdownMenuItem>
-              <Building2 />
-              <span>Organization</span>
-            </DropdownMenuItem>
-
             <DropdownMenuSeparator />
-
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
               <User />
               <span>Profile Settings</span>
             </DropdownMenuItem>
-
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/preferences")}>
               <Settings />
               <span>Preferences</span>
             </DropdownMenuItem>
-
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/security")}>
               <Shield />
               <span>Security</span>
             </DropdownMenuItem>
-
             <DropdownMenuSeparator />
-
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Zap />
-                <span>Developer Tools</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-48">
-                <DropdownMenuItem>API Documentation</DropdownMenuItem>
-                <DropdownMenuItem>Code Repository</DropdownMenuItem>
-                <DropdownMenuItem>Testing Suite</DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-
-            <DropdownMenuItem>
-              <Download />
-              <span>Download SDK</span>
-              <ExternalLink className="ms-auto size-3" />
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
             <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
               <LogOut />
               <span>{isLoggingOut ? "Signing out..." : "Sign out"}</span>
