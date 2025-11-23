@@ -1,5 +1,6 @@
 // lib/api/services/chat-service.ts - COMPLETE SLACK-LIKE FRONTEND SERVICE
 import { encryptedApiClient } from '../encrypted-client';
+import { API_ENDPOINTS } from '../endpoints';
 
 const extractData = <T>(response: any): T => {
   if (response?.data?.channels) return response.data.channels as T;
@@ -25,29 +26,41 @@ export interface Channel {
 
 export interface Message {
   id: number; channel_id: number; sender_user_id: number; sender_tenant_id: number;
-  sender_first_name?: string; sender_last_name?: string; sender_avatar_url?: string;
+  sender_first_name?: string; sender_last_name?: string; sender_email?: string; sender_avatar_url?: string;
   message_type: MessageType; content: string;
   has_attachments?: boolean; has_mentions?: boolean;
   is_edited?: boolean; edited_at?: string; is_deleted?: boolean;
-  is_pinned?: boolean; pinned_at?: string;
+  is_pinned?: boolean; pinned_at?: string; pinned_by?: number;
   reply_to_message_id?: number; thread_id?: number;
   sent_at: string; created_at: string;
   reaction_count?: number; reply_count?: number;
-  channel_name?: string;
-  reactions?: Reaction[];
+  channel_name?: string; reactions?: Reaction[];
+  reply_to_author_name?: string; reply_to_content?: string;
 }
 
-export interface Reaction { id: number; message_id: number; user_id: number; emoji: string; created_at: string; }
+export interface Reaction { id: number; message_id: number; user_id: number; emoji: string; count?: number; userReacted?: boolean; created_at: string; }
 
 export interface Member {
   id?: number; user_id: number; channel_id?: number; role: string;
   first_name: string; last_name: string; email: string;
   avatar_url?: string; status?: string; last_active_at?: string;
-  is_muted?: boolean; joined_at?: string;
+  is_muted?: boolean; mute_until?: string; joined_at?: string; is_active?: number;
 }
 
 export interface SearchResults {
   messages?: Message[]; channels?: Channel[]; members?: Member[];
+}
+
+export interface Activity {
+  id: number; activity_type: string; subject_type: string; subject_id: number;
+  action: string; description: string; metadata?: any;
+  is_read: number; created_at: string;
+  first_name?: string; last_name?: string; avatar_url?: string;
+}
+
+export interface Notification {
+  id: number; event_type: string; channel: string; subject: string; message: string;
+  data?: any; priority: string; read_at?: string; created_at: string;
 }
 
 // ==================== PAYLOADS ====================
@@ -65,146 +78,198 @@ export interface CreateChannelPayload {
 
 export interface UpdateChannelPayload { name?: string; description?: string; isPrivate?: boolean; }
 
+export interface MuteChannelPayload { isMuted: boolean; muteUntil?: string; }
+
+export interface AddMembersPayload { userIds: number[]; role?: string; }
+
+export interface UpdateMemberRolePayload { role: 'admin' | 'member' | 'owner'; }
+
+export interface NotificationPreferencePayload {
+  eventType: string; emailEnabled?: boolean; smsEnabled?: boolean;
+  pushEnabled?: boolean; inAppEnabled?: boolean;
+}
+
 // ==================== CHAT SERVICE ====================
 export class ChatService {
   // ==================== MESSAGES ====================
-  static async sendMessage(payload: SendMessagePayload): Promise<Message> {
-    return extractData<Message>(await encryptedApiClient.post('/chat/messages/send', payload));
+  static async sendMessage(payload: SendMessagePayload) {
+    return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.MESSAGES.SEND, payload));
   }
 
-  static async getMessages(channelId: number, limit = 50, beforeId?: number): Promise<Message[]> {
-    return extractData<Message[]>(await encryptedApiClient.get('/chat/messages', { params: { channelId, limit, beforeId } }));
+  static async getMessages(channelId: number, limit = 50, beforeId?: number) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.MESSAGES.LIST, { params: { channelId, limit, beforeId } }));
   }
 
-  static async editMessage(messageId: number, content: string): Promise<void> {
-    await encryptedApiClient.put(`/chat/messages/${messageId}`, { content });
+  static async editMessage(messageId: number, content: string) {
+    return encryptedApiClient.put(API_ENDPOINTS.CHAT.MESSAGES.EDIT(messageId), { content });
   }
 
-  static async deleteMessage(messageId: number): Promise<void> {
-    await encryptedApiClient.delete(`/chat/messages/${messageId}`);
+  static async deleteMessage(messageId: number) {
+    return encryptedApiClient.delete(API_ENDPOINTS.CHAT.MESSAGES.DELETE(messageId));
   }
 
-  static async markAsRead(channelId: number, messageId: number): Promise<void> {
-    await encryptedApiClient.post('/chat/messages/mark-read', { channelId, messageId });
+  static async markAsRead(channelId: number, messageId: number) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.MESSAGES.MARK_READ, { channelId, messageId });
   }
 
-  static async pinMessage(messageId: number, isPinned: boolean): Promise<void> {
-    await encryptedApiClient.post('/chat/messages/pin', { messageId, isPinned });
+  static async pinMessage(messageId: number, isPinned: boolean) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.MESSAGES.PIN, { messageId, isPinned });
   }
 
-  static async getPinnedMessages(channelId: number): Promise<Message[]> {
-    return extractData<Message[]>(await encryptedApiClient.get('/chat/messages/pinned', { params: { channelId } }));
+  static async getPinnedMessages(channelId: number) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.MESSAGES.PINNED, { params: { channelId } }));
   }
 
-  static async forwardMessage(messageId: number, targetChannelIds: number[]): Promise<any> {
-    return extractData(await encryptedApiClient.post('/chat/messages/forward', { messageId, targetChannelIds }));
+  static async forwardMessage(messageId: number, targetChannelIds: number[]) {
+    return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.MESSAGES.FORWARD, { messageId, targetChannelIds }));
   }
 
-  static async getUnreadCount(): Promise<{ unread: number }> {
-    return extractData(await encryptedApiClient.get('/chat/unread'));
+  static async getUnreadCount() {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.UNREAD));
   }
 
   // ==================== REACTIONS ====================
-  static async addReaction(messageId: number, emoji: string): Promise<void> {
-    await encryptedApiClient.post('/chat/messages/reaction', { messageId, emoji });
+  static async addReaction(messageId: number, emoji: string) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.REACTIONS.ADD, { messageId, emoji });
   }
 
-  static async removeReaction(messageId: number, emoji: string): Promise<void> {
-    await encryptedApiClient.post('/chat/messages/reaction/remove', { messageId, emoji });
+  static async removeReaction(messageId: number, emoji: string) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.REACTIONS.REMOVE, { messageId, emoji });
   }
 
   // ==================== THREADS ====================
-  static async getThreadMessages(messageId: number, limit = 50): Promise<Message[]> {
-    return extractData<Message[]>(await encryptedApiClient.get(`/chat/threads/${messageId}`, { params: { limit } }));
+  static async getThreadMessages(messageId: number, limit = 50) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.THREADS.GET(messageId), { params: { limit } }));
   }
 
-  static async replyInThread(parentMessageId: number, content: string): Promise<Message> {
-    return extractData<Message>(await encryptedApiClient.post(`/chat/threads/${parentMessageId}/reply`, { content }));
+  static async replyInThread(parentMessageId: number, content: string) {
+    return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.THREADS.REPLY(parentMessageId), { content }));
   }
 
   // ==================== CHANNELS ====================
-  static async getUserChannels(limit = 50): Promise<Channel[]> {
-    return extractData<Channel[]>(await encryptedApiClient.get('/chat/channels', { params: { limit } }));
+  static async getUserChannels(limit = 50) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.CHANNELS.LIST, { params: { limit } }));
   }
 
-  static async getChannelById(channelId: number): Promise<Channel> {
-    return extractData<Channel>(await encryptedApiClient.get(`/chat/channels/${channelId}`));
+  static async getChannelById(channelId: number) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.CHANNELS.GET(channelId)));
   }
 
-  static async createChannel(payload: CreateChannelPayload): Promise<Channel> {
-    return extractData<Channel>(await encryptedApiClient.post('/chat/channels/create', payload));
+  static async createChannel(payload: CreateChannelPayload) {
+    return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.CREATE, payload));
   }
 
-  static async updateChannel(channelId: number, payload: UpdateChannelPayload): Promise<Channel> {
-    return extractData<Channel>(await encryptedApiClient.put(`/chat/channels/${channelId}`, payload));
+  static async updateChannel(channelId: number, payload: UpdateChannelPayload) {
+    return extractData(await encryptedApiClient.put(API_ENDPOINTS.CHAT.CHANNELS.UPDATE(channelId), payload));
   }
 
-  static async archiveChannel(channelId: number): Promise<void> {
-    await encryptedApiClient.post(`/chat/channels/${channelId}/archive`);
+  static async archiveChannel(channelId: number) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.ARCHIVE(channelId));
   }
 
-  static async unarchiveChannel(channelId: number): Promise<void> {
-    await encryptedApiClient.post(`/chat/channels/${channelId}/unarchive`);
+  static async unarchiveChannel(channelId: number) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.UNARCHIVE(channelId));
   }
 
-  static async leaveChannel(channelId: number): Promise<void> {
-    await encryptedApiClient.post(`/chat/channels/${channelId}/leave`);
+  static async leaveChannel(channelId: number) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.LEAVE(channelId));
   }
 
-  static async deleteChannel(channelId: number): Promise<void> {
-    await encryptedApiClient.delete(`/chat/channels/${channelId}`);
+  static async deleteChannel(channelId: number) {
+    return encryptedApiClient.delete(API_ENDPOINTS.CHAT.CHANNELS.DELETE(channelId));
   }
 
-  static async pinChannel(channelId: number, isPinned: boolean): Promise<void> {
-    await encryptedApiClient.post(`/chat/channels/${channelId}/pin`, { isPinned });
+  static async pinChannel(channelId: number, isPinned: boolean) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.PIN(channelId), { isPinned });
   }
 
-  static async muteChannel(channelId: number, isMuted: boolean, muteUntil?: string): Promise<void> {
-    await encryptedApiClient.post(`/chat/channels/${channelId}/mute`, { isMuted, muteUntil });
+  static async muteChannel(channelId: number, payload: MuteChannelPayload) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.MUTE(channelId), payload);
+  }
+
+  static async getChannelFiles(channelId: number, limit = 50) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.CHANNELS.FILES(channelId), { params: { limit } }));
   }
 
   // ==================== CHANNEL MEMBERS ====================
-  static async getChannelMembers(channelId: number): Promise<Member[]> {
-    return extractData<Member[]>(await encryptedApiClient.get(`/chat/channels/${channelId}/members`));
+  static async getChannelMembers(channelId: number) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.MEMBERS.LIST(channelId)));
   }
 
-  static async addMembers(channelId: number, userIds: number[]): Promise<any> {
-    return extractData(await encryptedApiClient.post(`/chat/channels/${channelId}/members`, { userIds }));
+  static async addMembers(channelId: number, payload: AddMembersPayload) {
+    return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.MEMBERS.ADD(channelId), payload));
   }
 
-  static async removeMember(channelId: number, userId: number): Promise<void> {
-    await encryptedApiClient.delete(`/chat/channels/${channelId}/members/${userId}`);
+  static async removeMember(channelId: number, userId: number) {
+    return encryptedApiClient.delete(API_ENDPOINTS.CHAT.MEMBERS.REMOVE(channelId, userId));
   }
 
-  static async updateMemberRole(channelId: number, userId: number, role: string): Promise<void> {
-    await encryptedApiClient.put(`/chat/channels/${channelId}/members/${userId}/role`, { role });
+  static async updateMemberRole(channelId: number, userId: number, payload: UpdateMemberRolePayload) {
+    return encryptedApiClient.put(API_ENDPOINTS.CHAT.MEMBERS.UPDATE_ROLE(channelId, userId), payload);
+  }
+
+  static async getAvailableMembersForChannel(channelId: number) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.MEMBERS.AVAILABLE, { params: { channelId } }));
   }
 
   // ==================== SEARCH ====================
-  static async search(query: string, opts?: { channelId?: number; type?: string; limit?: number }): Promise<SearchResults> {
-    return extractData<SearchResults>(await encryptedApiClient.get('/chat/search', { params: { q: query, ...opts } }));
+  static async search(query: string, opts?: { channelId?: number; type?: string; limit?: number }) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.SEARCH, { params: { q: query, ...opts } }));
   }
 
   // ==================== TEAM ====================
-  static async getTeamMembers(search?: string): Promise<Member[]> {
-    return extractData<Member[]>(await encryptedApiClient.get('/chat/team/members', { params: { search } }));
+  static async getTeamMembers(search?: string) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.TEAM.MEMBERS, { params: { search } }));
   }
 
-  static async getAvailableMembersForChannel(channelId: number): Promise<Member[]> {
-    return extractData<Member[]>(await encryptedApiClient.get('/chat/team/available-members', { params: { channelId } }));
+  static async startTeamChat(payload: { memberIds: number[]; name?: string }) {
+    return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.TEAM.START_CHAT, payload));
   }
 
-  static async startTeamChat(memberIds: number[], name?: string): Promise<Channel> {
-    return extractData<Channel>(await encryptedApiClient.post('/chat/team/start-chat', { memberIds, name }));
+  // ==================== ACTIVITIES ====================
+  static async getChannelActivities(channelId: number, limit = 50) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.ACTIVITIES.CHANNEL(channelId), { params: { limit } }));
+  }
+
+  static async getUnreadActivities(limit = 50) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.ACTIVITIES.UNREAD, { params: { limit } }));
+  }
+
+  static async markActivitiesAsRead(activityIds: number[]) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.ACTIVITIES.MARK_READ, { activityIds });
+  }
+
+  // ==================== NOTIFICATIONS ====================
+  static async getUnreadNotificationsCount() {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.NOTIFICATIONS.UNREAD_COUNT));
+  }
+
+  static async markNotificationsAsRead(notificationIds: number[]) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.NOTIFICATIONS.MARK_READ, { notificationIds });
+  }
+
+  static async getUserNotifications(limit = 50, page = 1) {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.NOTIFICATIONS.LIST, { params: { limit, page } }));
+  }
+
+  static async getNotificationPreferences() {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.NOTIFICATIONS.PREFERENCES));
+  }
+
+  static async updateNotificationPreferences(payload: NotificationPreferencePayload) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.NOTIFICATIONS.PREFERENCES, payload);
   }
 
   // ==================== PRESENCE ====================
-  static async setOnline(): Promise<void> { await encryptedApiClient.post('/chat/presence/online'); }
-  static async setOffline(): Promise<void> { await encryptedApiClient.post('/chat/presence/offline'); }
-  static async getOnlineUsers(): Promise<number[]> { return extractData<number[]>(await encryptedApiClient.get('/chat/presence/online-users')); }
+  static async setOnline() {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.PRESENCE.ONLINE);
+  }
 
-  // ==================== FILES ====================
-  static async getChannelFiles(channelId: number, limit = 50): Promise<any[]> {
-    return extractData<any[]>(await encryptedApiClient.get(`/chat/channels/${channelId}/files`, { params: { limit } }));
+  static async setOffline() {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.PRESENCE.OFFLINE);
+  }
+
+  static async getOnlineUsers() {
+    return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.PRESENCE.ONLINE_USERS));
   }
 }
