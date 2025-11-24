@@ -33,19 +33,19 @@ export const API_ENDPOINTS = {
       MARK_READ: "/chat/messages/mark-read",
       PIN: "/chat/messages/pin",
       PINNED: "/chat/messages/pinned",
-      FORWARD: "/chat/messages/forward",
+      FORWARD: "/chat/messages/forward"
     },
 
     // Reactions
     REACTIONS: {
       ADD: "/chat/messages/reaction",
-      REMOVE: "/chat/messages/reaction/remove",
+      REMOVE: "/chat/messages/reaction/remove"
     },
 
     // Threads
     THREADS: {
       GET: (messageId: number) => `/chat/threads/${messageId}`,
-      REPLY: (messageId: number) => `/chat/threads/${messageId}/reply`,
+      REPLY: (messageId: number) => `/chat/threads/${messageId}/reply`
     },
 
     // Channels
@@ -60,16 +60,18 @@ export const API_ENDPOINTS = {
       LEAVE: (id: number) => `/chat/channels/${id}/leave`,
       PIN: (id: number) => `/chat/channels/${id}/pin`,
       MUTE: (id: number) => `/chat/channels/${id}/mute`,
-      FILES: (id: number) => `/chat/channels/${id}/files`,
+      FILES: (id: number) => `/chat/channels/${id}/files`
     },
 
     // Channel Members
     MEMBERS: {
       LIST: (channelId: number) => `/chat/channels/${channelId}/members`,
       ADD: (channelId: number) => `/chat/channels/${channelId}/members`,
-      REMOVE: (channelId: number, userId: number) => `/chat/channels/${channelId}/members/${userId}`,
-      UPDATE_ROLE: (channelId: number, userId: number) => `/chat/channels/${channelId}/members/${userId}/role`,
-      AVAILABLE: "/chat/team/available-members",
+      REMOVE: (channelId: number, userId: number) =>
+        `/chat/channels/${channelId}/members/${userId}`,
+      UPDATE_ROLE: (channelId: number, userId: number) =>
+        `/chat/channels/${channelId}/members/${userId}/role`,
+      AVAILABLE: "/chat/team/available-members"
     },
 
     // Search
@@ -79,14 +81,14 @@ export const API_ENDPOINTS = {
     TEAM: {
       MEMBERS: "/chat/team/members",
       AVAILABLE_MEMBERS: "/chat/team/available-members",
-      START_CHAT: "/chat/team/start-chat",
+      START_CHAT: "/chat/team/start-chat"
     },
 
     // Activities
     ACTIVITIES: {
       CHANNEL: (channelId: number) => `/chat/activities/channel/${channelId}`,
       UNREAD: "/chat/activities/unread",
-      MARK_READ: "/chat/activities/mark-read",
+      MARK_READ: "/chat/activities/mark-read"
     },
 
     // Notifications
@@ -94,14 +96,14 @@ export const API_ENDPOINTS = {
       UNREAD_COUNT: "/chat/notifications/unread-count",
       LIST: "/chat/notifications",
       MARK_READ: "/chat/notifications/mark-read",
-      PREFERENCES: "/chat/notifications/preferences",
+      PREFERENCES: "/chat/notifications/preferences"
     },
 
     // Presence
     PRESENCE: {
       ONLINE: "/chat/presence/online",
       OFFLINE: "/chat/presence/offline",
-      ONLINE_USERS: "/chat/presence/online-users",
+      ONLINE_USERS: "/chat/presence/online-users"
     },
 
     // Unread
@@ -110,10 +112,9 @@ export const API_ENDPOINTS = {
     // WebSocket
     WS: {
       URL: process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3060",
-      NAMESPACE: "/chat",
-    },
+      NAMESPACE: "/chat"
+    }
   },
-
 
   // ==================== RBAC ====================
   RBAC: {
@@ -215,5 +216,36 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/tenants/${id}`,
     MEMBERS: (id: string) => `/tenants/${id}/members`,
     USAGE: (id: string) => `/tenants/${id}/usage`
+  },
+
+  // ==================== SUBSCRIPTIONS ====================
+  SUBSCRIPTIONS: {
+    // Plans Management
+    PLANS: {
+      LIST: "/subscriptions/plans",
+      GET: (id: number) => `/subscriptions/plans/${id}`,
+      CREATE: "/subscriptions/plans",
+      UPDATE: (id: number) => `/subscriptions/plans/${id}`,
+      DELETE: (id: number) => `/subscriptions/plans/${id}`
+    },
+
+    // Custom Plans
+    CUSTOM_PLANS: {
+      CREATE: "/subscriptions/custom-plans",
+      GET: (tenantId: number) => `/subscriptions/custom-plans/tenant/${tenantId}`
+    },
+
+    // Subscription Management
+    MY_SUBSCRIPTION: "/subscriptions/my-subscription",
+    TENANT_SUBSCRIPTION: (tenantId: number) => `/subscriptions/tenant/${tenantId}`,
+    CHANGE: "/subscriptions/change",
+    CANCEL: "/subscriptions/cancel",
+    REACTIVATE: "/subscriptions/reactivate",
+    HISTORY: "/subscriptions/history",
+
+    // Limits & Features
+    CHECK_LIMIT: "/subscriptions/check-limit",
+    CHECK_FEATURE: "/subscriptions/check-feature",
+    STATUS: "/subscriptions/status"
   }
 } as const;
