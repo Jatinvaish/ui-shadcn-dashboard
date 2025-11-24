@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - COMPLETE FIXED VERSION
+// app/dashboard/chat/page.tsx - COMPLETE PRODUCTION-READY VERSION
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -10,6 +10,8 @@ import { ThreadSidebar } from "@/components/chat/thread-sidebar";
 import { InviteMembersDialog } from "@/components/chat/dialogs/invite-members-dialog";
 import { ChannelMembersDialog } from "@/components/chat/dialogs/channel-members-dialog";
 import { SearchDialog } from "@/components/chat/dialogs/search-dialog";
+import { ForwardMessageDialog } from "@/components/chat/dialogs/forward-message-dialog";
+import { RichTextEditor } from "@/components/chat/rich-text-editor";
 import type { Message } from "@/components/chat/message-list";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -26,8 +28,6 @@ import { selectUser } from "@/store/slices/authSlice";
 import { ArrowLeft, Search } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
-import { ForwardMessageDialog } from "@/components/chat/dialogs/forward-message-dialog";
-import { MessageInputSlack } from "@/components/chat/message-input";
 
 const ChatPage = () => {
   const dispatch = useAppDispatch();
@@ -130,7 +130,7 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Get channel display name
+  // Get channel display name - FIXED FOR DIRECT MESSAGES
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
       const members = channelMembers[channel.id] || [];
@@ -138,11 +138,16 @@ const ChatPage = () => {
       if (otherMember) {
         return `${otherMember.first_name} ${otherMember.last_name}`.trim() || otherMember.email;
       }
+      // Fallback: parse from channel name if members not loaded
+      if (channel.name && channel.name.includes(',')) {
+        const names = channel.name.split(',').map(n => n.trim());
+        return names.find((n:any) => !n.includes(currentUser?.firstName || '')) || channel.name;
+      }
     }
     return channel.name || "Unnamed Channel";
   }, [channelMembers, currentUser]);
 
-  // MESSAGE CONVERSION - FIXED: Always show sender name
+  // MESSAGE CONVERSION
   const convertToFrontendMessage = useCallback((msg: any): Message => {
     const senderName = msg.sender_first_name && msg.sender_last_name 
       ? `${msg.sender_first_name} ${msg.sender_last_name}`.trim()
@@ -197,13 +202,13 @@ const ChatPage = () => {
     setShowThreadSidebar(false);
   }, [dispatch]);
 
-  const handleSendMessage = useCallback(async (content: string) => {
-    if (!selectedChannel || !content.trim()) return false;
+  const handleSendMessage = useCallback(async (html: string, text: string) => {
+    if (!selectedChannel || !text.trim()) return false;
     
     try {
       const payload: SendMessagePayload = {
         channelId: selectedChannel.id, 
-        content: content.trim(), 
+        content: text.trim(), 
         messageType: MessageType.TEXT,
         replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         threadId: selectedThreadId || undefined,
@@ -236,12 +241,10 @@ const ChatPage = () => {
     stopTyping(selectedChannel.id);
   }, [selectedChannel, stopTyping]);
 
-  // FIX: Refresh messages after delete
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!selectedChannel) return;
     try { 
       await dispatch(deleteMessage({ messageId: parseInt(messageId), channelId: selectedChannel.id })).unwrap();
-      // Refresh messages immediately
       await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       toast.success("Message deleted");
     } catch (e: any) { 
@@ -249,12 +252,10 @@ const ChatPage = () => {
     }
   }, [dispatch, selectedChannel]);
 
-  // FIX: Refresh messages after edit
   const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
     if (!selectedChannel) return;
     try { 
       await dispatch(editMessage({ messageId: parseInt(messageId), content: newContent, channelId: selectedChannel.id })).unwrap();
-      // Refresh messages immediately
       await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       toast.success("Message updated");
     } catch (e: any) { 
@@ -299,18 +300,23 @@ const ChatPage = () => {
     }
   }, [dispatch, currentMessages]);
 
-  // FIX: Thread system with proper UI
+  // FIXED THREAD SYSTEM - Opens thread sidebar for group chats
   const handleOpenThread = useCallback((messageId: string) => {
-    setSelectedThreadId(parseInt(messageId));
-    setShowThreadSidebar(true);
-    setReplyingTo(null);
-  }, []);
+    if (selectedChannel?.channel_type === ChannelType.DIRECT) {
+      // For direct messages, just reply inline
+      handleReplyToMessage(messageId);
+    } else {
+      // For group chats, open thread sidebar
+      setSelectedThreadId(parseInt(messageId));
+      setShowThreadSidebar(true);
+      setReplyingTo(null);
+    }
+  }, [selectedChannel, handleReplyToMessage]);
 
   const handleReplyInThread = useCallback(async (content: string, parentId: string) => {
     if (!content.trim()) return;
     try { 
       await dispatch(replyInThread({ parentMessageId: parseInt(parentId), content: content.trim() })).unwrap();
-      // Refresh thread messages
       await dispatch(fetchThreadMessages({ parentMessageId: parseInt(parentId), limit: 50 })).unwrap();
       toast.success("Reply sent");
     } catch (e: any) { 
@@ -570,7 +576,7 @@ const ChatPage = () => {
               </div>
             )}
 
-            <MessageInputSlack 
+            <RichTextEditor 
               onSend={handleSendMessage} 
               replyingTo={replyingTo} 
               onClearReply={() => setReplyingTo(null)} 
@@ -646,4 +652,4 @@ const ChatPage = () => {
   );
 };
 
-export default ChatPage;  
+export default ChatPage;
