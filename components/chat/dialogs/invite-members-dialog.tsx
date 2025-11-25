@@ -66,22 +66,14 @@ export function InviteMembersDialog({
       }
     })
     
-    console.log('Existing member IDs:', Array.from(ids))
     return ids
   }, [channelMembers, channelId])
 
   const availableMembers = React.useMemo(() => {
-    const available = teamMembers.filter((m: any) => {
+    return teamMembers.filter((m: any) => {
       const userId = m.user_id || m.id
-      const isExisting = existingMemberIds.has(Number(userId))
-      return !isExisting
+      return !existingMemberIds.has(Number(userId))
     })
-    
-    console.log('Team members:', teamMembers.length)
-    console.log('Existing members:', existingMemberIds.size)
-    console.log('Available members:', available.length)
-    
-    return available
   }, [teamMembers, existingMemberIds])
 
   const filteredMembers = React.useMemo(() => {
@@ -119,8 +111,9 @@ export function InviteMembersDialog({
         userIds: selectedIds
       })).unwrap()
 
+      await dispatch(fetchChannelMembers(channelId)).unwrap()
+      
       toast.success(`Added ${selectedIds.length} member(s)`)
-      await dispatch(fetchChannelMembers(channelId))
       onMembersAdded?.()
       onOpenChange(false)
     } catch (error: any) {
