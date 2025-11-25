@@ -1,4 +1,4 @@
-// components/chat/message-item.tsx - WITH READ RECEIPTS & PROPER REACTIONS
+// components/chat/message-item.tsx - UPDATED FOR NEW STRUCTURE
 "use client"
 
 import React, { useState } from "react"
@@ -24,39 +24,33 @@ interface MessageItemProps {
   onScrollToMessage?: (messageId: string) => void
 }
 
-// Read Status Component - Theme colors only
 const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean }) => {
   if (!isOwn) return null;
   
-  const isRead = message.is_read || false;
-  const isDelivered = message.is_delivered || false;
-  const isSent = message.is_sent !== false;
+  // Check for read status from backend fields
+  const readCount = message.read_count || 0;
+  const deliveredCount = message.delivered_count || 0;
+  const isRead = readCount > 0;
+  const isDelivered = deliveredCount > 0;
   
   if (isRead) {
     return (
-      <div className="flex items-center gap-0.5" title="Read">
+      <div className="flex items-center gap-0.5" title={`Read by ${readCount}`}>
         <CheckCheck className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
       </div>
     );
   }
   if (isDelivered) {
     return (
-      <div className="flex items-center gap-0.5" title="Delivered">
+      <div className="flex items-center gap-0.5" title={`Delivered to ${deliveredCount}`}>
         <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />
-      </div>
-    );
-  }
-  if (isSent) {
-    return (
-      <div className="flex items-center gap-0.5" title="Sent">
-        <Check className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />
       </div>
     );
   }
   
   return (
-    <div className="flex items-center gap-0.5" title="Sending...">
-      <Check className="h-3.5 w-3.5 text-muted-foreground/50" strokeWidth={2.5} />
+    <div className="flex items-center gap-0.5" title="Sent">
+      <Check className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />
     </div>
   );
 };
@@ -86,6 +80,7 @@ export function MessageItem({
   }
 
   const renderContent = (content: string) => {
+    // Parse @mentions
     const mentionRegex = /@(\w+)/g;
     const parts = content.split(mentionRegex);
     
@@ -114,28 +109,34 @@ export function MessageItem({
     setShowEmojiPicker(false);
   };
 
-  // Group reactions by emoji and count
+  // Group reactions by emoji - FIXED for backend structure
   const groupedReactions = React.useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
     
-    const reactionMap = new Map<string, { emoji: string; count: number; userReacted: boolean; userIds: number[] }>();
+    const reactionMap = new Map<string, { 
+      emoji: string; 
+      count: number; 
+      userReacted: boolean; 
+      userIds: number[] 
+    }>();
     
-    message?.reactions?.forEach((reaction:any) => {
+    message.reactions.forEach((reaction: any) => {
       const existing = reactionMap.get(reaction.emoji);
-      const userReacted = reaction.user_id?.toString() === currentUserId;
+      const reactorId = reaction.user_id || 0;
+      const userReacted = reactorId.toString() === currentUserId;
       
       if (existing) {
         existing.count += 1;
         existing.userReacted = existing.userReacted || userReacted;
-        if (!existing.userIds.includes(reaction.user_id)) {
-          existing.userIds.push(reaction.user_id);
+        if (!existing.userIds.includes(reactorId)) {
+          existing.userIds.push(reactorId);
         }
       } else {
         reactionMap.set(reaction.emoji, {
           emoji: reaction.emoji,
           count: 1,
           userReacted,
-          userIds: [reaction.user_id]
+          userIds: [reactorId]
         });
       }
     });
@@ -164,7 +165,6 @@ export function MessageItem({
         "flex-1 min-w-0 flex flex-col gap-1",
         isOwn && "items-end"
       )}>
-        {/* Header with name, time, and read status */}
         <div className={cn(
           "flex items-center gap-2 flex-wrap",
           isOwn && "flex-row-reverse"

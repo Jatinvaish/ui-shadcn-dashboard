@@ -1,4 +1,4 @@
-// store/slices/chatSlice.ts - COMPLETE FIXED VERSION
+// store/slices/chatSlice.ts - COMPLETE UPDATED VERSION
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import {
   ChatService,
@@ -14,7 +14,8 @@ import {
   Notification,
   Reaction,
   Attachment,
-  NotificationPreferencePayload
+  NotificationPreferencePayload,
+  MessageReadStatus
 } from '../../lib/api/services/chat-service';
 
 interface ChatState {
@@ -31,13 +32,13 @@ interface ChatState {
   pinnedMessages: Record<number, Message[]>;
   searchResults: SearchResults | null;
   isSearching: boolean;
-  typingUsers: Record<number, number[]>;
+  typingUsers: Record<number, Array<{ userId: number; userName?: string }>>;
   onlineUsers: number[];
   unreadCount: number;
   channelUnreadCounts: Record<number, number>;
   teamMembers: Member[];
   availableMembers: Member[];
-  channelFiles: Record<number, any[]>;
+  channelFiles: Record<number, Attachment[]>;
   activities: Activity[];
   unreadActivities: Activity[];
   notifications: Notification[];
@@ -45,6 +46,7 @@ interface ChatState {
   unreadMentionsCount: number;
   mentions: any[];
   notificationPreferences: any[];
+  messageReadStatuses: Record<number, MessageReadStatus>;
   error: string | null;
   successMessage: string | null;
 }
@@ -77,6 +79,7 @@ const initialState: ChatState = {
   unreadMentionsCount: 0,
   mentions: [],
   notificationPreferences: [],
+  messageReadStatuses: {},
   error: null,
   successMessage: null,
 };
@@ -98,6 +101,7 @@ const normalizeChannel = (ch: any): Channel => ({
   is_muted: ch.is_muted || false,
   is_pinned: ch.is_pinned || false,
   role: ch.role,
+  user_role: ch.user_role,
   last_read_message_id: ch.last_read_message_id,
   created_at: ch.created_at,
   updated_at: ch.updated_at,
@@ -234,7 +238,7 @@ export const muteChannel = createAsyncThunk<
 );
 
 export const fetchChannelFiles = createAsyncThunk<
-  { channelId: number; files: any[] },
+  { channelId: number; files: Attachment[] },
   { channelId: number; limit?: number }
 >(
   'chat/fetchChannelFiles',
@@ -276,14 +280,14 @@ export const sendMessage = createAsyncThunk<Message, SendMessagePayload>(
 );
 
 export const editMessage = createAsyncThunk<
-  { messageId: number; content: string; channelId: number },
-  { messageId: number; content: string; channelId: number }
+  { messageId: number; content: string; channelId: number; mentions?: number[] },
+  { messageId: number; content: string; channelId: number; mentions?: number[] }
 >(
   'chat/editMessage',
-  async ({ messageId, content, channelId }, { rejectWithValue }) => {
+  async ({ messageId, content, channelId, mentions }, { rejectWithValue }) => {
     try {
-      await ChatService.editMessage(messageId, content);
-      return { messageId, content, channelId };
+      await ChatService.editMessage(messageId, content, mentions);
+      return { messageId, content, channelId, mentions };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to edit message');
     }
@@ -360,6 +364,21 @@ export const markAsRead = createAsyncThunk<
       return { channelId };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to mark as read');
+    }
+  }
+);
+
+export const bulkMarkAsRead = createAsyncThunk<
+  { channelId: number },
+  { channelId: number; upToMessageId: number }
+>(
+  'chat/bulkMarkAsRead',
+  async ({ channelId, upToMessageId }, { rejectWithValue }) => {
+    try {
+      await ChatService.bulkMarkAsRead(channelId, upToMessageId);
+      return { channelId };
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to bulk mark as read');
     }
   }
 );
@@ -464,6 +483,20 @@ export const replyInThread = createAsyncThunk<
       return { parentMessageId, message };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to reply');
+    }
+  }
+);
+
+export const fetchEnhancedThread = createAsyncThunk<
+  any,
+  { messageId: number; limit?: number }
+>(
+  'chat/fetchEnhancedThread',
+  async ({ messageId, limit = 50 }, { rejectWithValue }) => {
+    try {
+      return await ChatService.getEnhancedThread(messageId, limit);
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to fetch enhanced thread');
     }
   }
 );
@@ -741,7 +774,7 @@ export const fetchOnlineUsers = createAsyncThunk<number[], void>(
   }
 );
 
-// ========== DELIVERY STATUS ==========
+// ========== DELIVERY & READ STATUS ==========
 export const updateDeliveryStatus = createAsyncThunk<
   { messageId: number; status: 'delivered' | 'read' },
   { messageId: number; status: 'delivered' | 'read' }
@@ -757,8 +790,23 @@ export const updateDeliveryStatus = createAsyncThunk<
   }
 );
 
+export const markAsDelivered = createAsyncThunk<
+  { messageId: number },
+  { messageId: number }
+>(
+  'chat/markAsDelivered',
+  async ({ messageId }, { rejectWithValue }) => {
+    try {
+      await ChatService.markAsDelivered(messageId);
+      return { messageId };
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to mark as delivered');
+    }
+  }
+);
+
 export const fetchMessageReadStatus = createAsyncThunk<
-  { messageId: number; readStatus: { total: number; delivered: number; read: number } },
+  { messageId: number; readStatus: MessageReadStatus },
   number
 >(
   'chat/fetchMessageReadStatus',
@@ -768,6 +816,21 @@ export const fetchMessageReadStatus = createAsyncThunk<
       return { messageId, readStatus };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to fetch read status');
+    }
+  }
+);
+
+export const fetchDetailedReadStatus = createAsyncThunk<
+  { messageId: number; readStatus: MessageReadStatus },
+  number
+>(
+  'chat/fetchDetailedReadStatus',
+  async (messageId, { rejectWithValue }) => {
+    try {
+      const readStatus = await ChatService.getDetailedReadStatus(messageId);
+      return { messageId, readStatus };
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to fetch detailed read status');
     }
   }
 );
@@ -802,6 +865,8 @@ const chatSlice = createSlice({
     clearSearchResults: (state) => {
       state.searchResults = null;
     },
+
+    // WebSocket real-time updates
     addMessageToChannel: (state, action: PayloadAction<Message>) => {
       const channelId = action.payload.channel_id;
       if (!state.messages[channelId]) {
@@ -811,6 +876,311 @@ const chatSlice = createSlice({
         state.messages[channelId].push(action.payload);
       }
     },
+    // Add these to the reducers section of chatSlice:
+
+    updateMessageDeliveryStatus: (
+      state,
+      action: PayloadAction<{
+        messageId: number;
+        deliveredBy: number;
+        deliveredCount: number;
+        timestamp: string;
+      }>
+    ) => {
+      const { messageId, deliveredBy, deliveredCount, timestamp } = action.payload;
+
+      Object.keys(state.messages).forEach((channelId) => {
+        const messages = state.messages[+channelId];
+        const messageIndex = messages?.findIndex((m) => m.id === messageId);
+
+        if (messageIndex !== -1 && messages) {
+          const message = messages[messageIndex];
+
+          // Add deliveredBy to delivered_to_user_ids if not already there
+          const deliveredIds = message.delivered_to_user_ids?.split(',').filter(Boolean) || [];
+          if (!deliveredIds.includes(deliveredBy.toString())) {
+            deliveredIds.push(deliveredBy.toString());
+            message.delivered_to_user_ids = deliveredIds.join(',');
+          }
+
+          message.delivered_count = deliveredCount;
+        }
+      });
+    },
+
+    updateMessageReadStatus: (
+      state,
+      action: PayloadAction<{
+        messageId: number;
+        readBy: number;
+        readByName?: string;
+        readCount: number;
+        timestamp: string;
+      }>
+    ) => {
+      const { messageId, readBy, readCount } = action.payload;
+
+      Object.keys(state.messages).forEach((channelId) => {
+        const messages = state.messages[+channelId];
+        const messageIndex = messages?.findIndex((m) => m.id === messageId);
+
+        if (messageIndex !== -1 && messages) {
+          const message = messages[messageIndex];
+
+          // Add readBy to read_by_user_ids if not already there
+          const readIds = message.read_by_user_ids?.split(',').filter(Boolean) || [];
+          if (!readIds.includes(readBy.toString())) {
+            readIds.push(readBy.toString());
+            message.read_by_user_ids = readIds.join(',');
+          }
+
+          // Also mark as delivered
+          const deliveredIds = message.delivered_to_user_ids?.split(',').filter(Boolean) || [];
+          if (!deliveredIds.includes(readBy.toString())) {
+            deliveredIds.push(readBy.toString());
+            message.delivered_to_user_ids = deliveredIds.join(',');
+          }
+
+          message.read_count = readCount;
+          message.is_read_by_me = true;
+        }
+      });
+    },
+
+    addReactionToMessage: (
+      state,
+      action: PayloadAction<{
+        messageId: number;
+        channelId: number;
+        reaction: {
+          emoji: string;
+          userId: number;
+          userName?: string;
+          avatarUrl?: string;
+          timestamp: string;
+        };
+      }>
+    ) => {
+      const { messageId, channelId, reaction } = action.payload;
+
+      if (state.messages[channelId]) {
+        const messageIndex = state.messages[channelId].findIndex(
+          (m) => m.id === messageId
+        );
+
+        if (messageIndex !== -1) {
+          const message = state.messages[channelId][messageIndex];
+
+          if (!message.reactions) {
+            message.reactions = [];
+          }
+
+          // Check if this user already reacted with this emoji
+          const existingReaction = message.reactions.find(
+            (r) => r.user_id === reaction.userId && r.emoji === reaction.emoji
+          );
+
+          if (!existingReaction) {
+            message.reactions.push({
+              id: Date.now(), // Temporary ID
+              message_id: messageId, // ✅ FIX: Added missing field
+              emoji: reaction.emoji,
+              user_id: reaction.userId,
+              created_at: reaction.timestamp,
+              first_name: reaction.userName?.split(' ')[0] || '',
+              last_name: reaction.userName?.split(' ').slice(1).join(' ') || '',
+              avatar_url: reaction.avatarUrl || '',
+            });
+
+            message.reaction_count = (message.reaction_count || 0) + 1;
+          }
+        }
+      }
+    },
+
+    removeReactionFromMessage: (
+      state,
+      action: PayloadAction<{
+        messageId: number;
+        channelId: number;
+        emoji: string;
+        userId: number;
+      }>
+    ) => {
+      const { messageId, channelId, emoji, userId } = action.payload;
+
+      if (state.messages[channelId]) {
+        const messageIndex = state.messages[channelId].findIndex(
+          (m) => m.id === messageId
+        );
+
+        if (messageIndex !== -1) {
+          const message = state.messages[channelId][messageIndex];
+
+          if (message.reactions) {
+            message.reactions = message.reactions.filter(
+              (r) => !(r.user_id === userId && r.emoji === emoji)
+            );
+
+            message.reaction_count = Math.max(0, (message.reaction_count || 0) - 1);
+          }
+        }
+      }
+    },
+
+    pinMessageInChannel: (
+      state,
+      action: PayloadAction<{
+        channelId: number;
+        messageId: number;
+        isPinned: boolean;
+        pinnedBy?: number;
+        pinnedAt?: string;
+      }>
+    ) => {
+      const { channelId, messageId, isPinned, pinnedBy, pinnedAt } = action.payload;
+
+      if (state.messages[channelId]) {
+        const messageIndex = state.messages[channelId].findIndex(
+          (m) => m.id === messageId
+        );
+
+        if (messageIndex !== -1) {
+          const message = state.messages[channelId][messageIndex];
+          message.is_pinned = isPinned;
+          message.pinned_at = isPinned ? pinnedAt : undefined;
+          message.pinned_by = isPinned ? pinnedBy : undefined;
+        }
+      }
+    },
+
+    updateThreadReplyCount: (
+      state,
+      action: PayloadAction<{
+        messageId: number;
+        increment: number;
+      }>
+    ) => {
+      const { messageId, increment } = action.payload;
+
+      Object.keys(state.messages).forEach((channelId) => {
+        const messages = state.messages[+channelId];
+        const messageIndex = messages?.findIndex((m) => m.id === messageId);
+
+        if (messageIndex !== -1 && messages) {
+          const message = messages[messageIndex];
+          message.reply_count = (message.reply_count || 0) + increment;
+        }
+      });
+    },
+
+    // ✅ ADDITIONAL MISSING REDUCERS (from old chatSlice):
+
+    updateMessageInChannel: (
+      state,
+      action: PayloadAction<{
+        channelId: number;
+        messageId: number;
+        content: string;
+        mentions?: number[];
+        editedAt: string;
+      }>
+    ) => {
+      const { channelId, messageId, content, mentions, editedAt } = action.payload;
+
+      if (state.messages[channelId]) {
+        const messageIndex = state.messages[channelId].findIndex(
+          (m) => m.id === messageId
+        );
+
+        if (messageIndex !== -1) {
+          const message = state.messages[channelId][messageIndex];
+          message.content = content;
+          message.is_edited = true;
+          message.edited_at = editedAt;
+
+          if (mentions && mentions.length > 0) {
+            message.mentioned_user_ids = mentions.join(',');
+            message.has_mentions = true;
+          }
+        }
+      }
+    },
+
+    removeMessageFromChannel: (
+      state,
+      action: PayloadAction<{
+        channelId: number;
+        messageId: number;
+      }>
+    ) => {
+      const { channelId, messageId } = action.payload;
+
+      if (state.messages[channelId]) {
+        state.messages[channelId] = state.messages[channelId].filter(
+          (m) => m.id !== messageId
+        );
+      }
+    },
+
+    addTypingUser: (
+      state,
+      action: PayloadAction<{
+        channelId: number;
+        userId: number;
+        userName?: string;
+      }>
+    ) => {
+      const { channelId, userId, userName } = action.payload;
+
+      if (!state.typingUsers[channelId]) {
+        state.typingUsers[channelId] = [];
+      }
+
+      const existingIndex = state.typingUsers[channelId].findIndex(
+        (u) => u.userId === userId
+      );
+
+      if (existingIndex === -1) {
+        state.typingUsers[channelId].push({ userId, userName });
+      }
+    },
+
+    removeTypingUser: (
+      state,
+      action: PayloadAction<{
+        channelId: number;
+        userId: number;
+      }>
+    ) => {
+      const { channelId, userId } = action.payload;
+
+      if (state.typingUsers[channelId]) {
+        state.typingUsers[channelId] = state.typingUsers[channelId].filter(
+          (u) => u.userId !== userId
+        );
+      }
+    },
+
+    setOnlineUsers: (state, action: PayloadAction<number[]>) => {
+      state.onlineUsers = action.payload;
+    },
+
+    incrementUnreadCount: (state, action: PayloadAction<number>) => {
+      const channelId = action.payload;
+      state.unreadCount += 1;
+      state.channelUnreadCounts[channelId] =
+        (state.channelUnreadCounts[channelId] || 0) + 1;
+    },
+
+    resetUnreadCount: (state, action: PayloadAction<number>) => {
+      const channelId = action.payload;
+      const count = state.channelUnreadCounts[channelId] || 0;
+      state.unreadCount = Math.max(0, state.unreadCount - count);
+      state.channelUnreadCounts[channelId] = 0;
+    },
+    resetChatState: () => initialState,
+
     updateMessageStatus: (
       state,
       action: PayloadAction<{
@@ -825,439 +1195,20 @@ const chatSlice = createSlice({
         const messages = state.messages[+channelId];
         const messageIndex = messages?.findIndex((m) => m.id === messageId);
 
-        if (messageIndex !== -1) {
+        if (messageIndex !== -1 && messages) {
           const message = messages[messageIndex];
+
           if (status === 'delivered') {
-            message.is_delivered = true;
-            message.delivered_at = timestamp;
+            // Mark as delivered (no direct field, but we track via delivered_to_user_ids)
           } else if (status === 'read') {
-            message.is_delivered = true;
-            message.is_read = true;
-            message.read_at = timestamp;
+            message.is_read_by_me = true;
           }
         }
       });
     },
-    updateMessageInChannel: (state, action: PayloadAction<Message>) => {
-      const channelId = action.payload.channel_id;
-      if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex(
-          (m) => m.id === action.payload.id
-        );
-        if (messageIndex !== -1) {
-          state.messages[channelId][messageIndex] = action.payload;
-        }
-      }
-    },
-    removeMessageFromChannel: (
-      state,
-      action: PayloadAction<{ channelId: number; messageId: number }>
-    ) => {
-      const { channelId, messageId } = action.payload;
-      if (state.messages[channelId]) {
-        state.messages[channelId] = state.messages[channelId].filter(
-          (m) => m.id !== messageId
-        );
-      }
-    },
-    addTypingUser: (
-      state,
-      action: PayloadAction<{ channelId: number; userId: number }>
-    ) => {
-      const { channelId, userId } = action.payload;
-      if (!state.typingUsers[channelId]) state.typingUsers[channelId] = [];
-      if (!state.typingUsers[channelId].includes(userId)) {
-        state.typingUsers[channelId].push(userId);
-      }
-    },
-    removeTypingUser: (
-      state,
-      action: PayloadAction<{ channelId: number; userId: number }>
-    ) => {
-      const { channelId, userId } = action.payload;
-      if (state.typingUsers[channelId]) {
-        state.typingUsers[channelId] = state.typingUsers[channelId].filter(
-          (id) => id !== userId
-        );
-      }
-    },
-    setOnlineUsers: (state, action: PayloadAction<number[]>) => {
-      state.onlineUsers = action.payload;
-    },
-    incrementUnreadCount: (state, action: PayloadAction<number>) => {
-      state.unreadCount += 1;
-      state.channelUnreadCounts[action.payload] =
-        (state.channelUnreadCounts[action.payload] || 0) + 1;
-    },
-    resetUnreadCount: (state, action: PayloadAction<number>) => {
-      const cid = action.payload;
-      state.unreadCount = Math.max(
-        0,
-        state.unreadCount - (state.channelUnreadCounts[cid] || 0)
-      );
-      state.channelUnreadCounts[cid] = 0;
-    },
-    resetChatState: () => initialState,
-  },
-  extraReducers: (builder) => {
-    // ==================== CHANNELS ====================
-    builder
-      .addCase(fetchUserChannels.pending, (s) => {
-        s.isLoadingChannels = true;
-        s.error = null;
-      })
-      .addCase(fetchUserChannels.fulfilled, (s, a) => {
-        s.isLoadingChannels = false;
-        s.channels = a.payload;
-      })
-      .addCase(fetchUserChannels.rejected, (s, a) => {
-        s.isLoadingChannels = false;
-        s.error = a.payload as string;
-      })
-
-      .addCase(createChannel.fulfilled, (s, a) => {
-        s.channels.unshift(a.payload);
-        s.selectedChannel = a.payload;
-        s.successMessage = 'Channel created successfully';
-      })
-      .addCase(createChannel.rejected, (s, a) => {
-        s.error = a.payload as string;
-      })
-
-      .addCase(updateChannel.fulfilled, (s, a) => {
-        const idx = s.channels.findIndex((c) => c.id === a.payload.id);
-        if (idx !== -1) s.channels[idx] = a.payload;
-        if (s.selectedChannel?.id === a.payload.id) s.selectedChannel = a.payload;
-        s.successMessage = 'Channel updated';
-      })
-
-      .addCase(archiveChannel.fulfilled, (s, a) => {
-        s.channels = s.channels.filter((c) => c.id !== a.payload);
-        if (s.selectedChannel?.id === a.payload) s.selectedChannel = null;
-        s.successMessage = 'Channel archived';
-      })
-
-      .addCase(leaveChannel.fulfilled, (s, a) => {
-        s.channels = s.channels.filter((c) => c.id !== a.payload);
-        if (s.selectedChannel?.id === a.payload) s.selectedChannel = null;
-        s.successMessage = 'Left channel';
-      })
-
-      .addCase(deleteChannel.fulfilled, (s, a) => {
-        s.channels = s.channels.filter((c) => c.id !== a.payload);
-        if (s.selectedChannel?.id === a.payload) s.selectedChannel = null;
-        s.successMessage = 'Channel deleted';
-      })
-
-      .addCase(pinChannel.fulfilled, (s, a) => {
-        const idx = s.channels.findIndex((c) => c.id === a.payload.channelId);
-        if (idx !== -1) s.channels[idx].is_pinned = a.payload.isPinned;
-        if (s.selectedChannel?.id === a.payload.channelId) {
-          s.selectedChannel.is_pinned = a.payload.isPinned;
-        }
-        s.successMessage = a.payload.isPinned ? 'Channel pinned' : 'Channel unpinned';
-      })
-
-      .addCase(muteChannel.fulfilled, (s, a) => {
-        const idx = s.channels.findIndex((c) => c.id === a.payload.channelId);
-        if (idx !== -1) s.channels[idx].is_muted = a.payload.isMuted;
-        if (s.selectedChannel?.id === a.payload.channelId) {
-          s.selectedChannel.is_muted = a.payload.isMuted;
-        }
-      })
-
-      .addCase(unarchiveChannel.fulfilled, (s, a) => {
-        s.successMessage = 'Channel unarchived';
-      })
-
-      .addCase(getChannelById.fulfilled, (s, a) => {
-        const idx = s.channels.findIndex((c) => c.id === a.payload.id);
-        if (idx !== -1) {
-          s.channels[idx] = a.payload;
-        }
-      })
-
-      .addCase(fetchChannelFiles.fulfilled, (s, a) => {
-        s.channelFiles[a.payload.channelId] = a.payload.files;
-      });
-
-    // ==================== MESSAGES ====================
-    builder
-      .addCase(fetchMessages.pending, (s) => {
-        s.isLoadingMessages = true;
-      })
-      .addCase(fetchMessages.fulfilled, (s, a) => {
-        s.isLoadingMessages = false;
-        s.messages[a.payload.channelId] = a.payload.messages;
-      })
-      .addCase(fetchMessages.rejected, (s, a) => {
-        s.isLoadingMessages = false;
-        s.error = a.payload as string;
-      })
-
-      .addCase(sendMessage.pending, (s) => {
-        s.isSendingMessage = true;
-      })
-      .addCase(sendMessage.fulfilled, (s, a) => {
-        s.isSendingMessage = false;
-        const cid = a.payload.channel_id;
-        if (!s.messages[cid]) s.messages[cid] = [];
-        s.messages[cid].push(a.payload);
-      })
-      .addCase(sendMessage.rejected, (s, a) => {
-        s.isSendingMessage = false;
-        s.error = a.payload as string;
-      })
-
-      .addCase(editMessage.fulfilled, (s, a) => {
-        const msgs = s.messages[a.payload.channelId];
-        if (msgs) {
-          const idx = msgs.findIndex((m) => m.id === a.payload.messageId);
-          if (idx !== -1) {
-            msgs[idx].content = a.payload.content;
-            msgs[idx].is_edited = true;
-            msgs[idx].edited_at = new Date().toISOString();
-          }
-        }
-      })
-
-      .addCase(deleteMessage.fulfilled, (s, a) => {
-        if (s.messages[a.payload.channelId]) {
-          s.messages[a.payload.channelId] = s.messages[a.payload.channelId].filter(
-            (m) => m.id !== a.payload.messageId
-          );
-        }
-      })
-
-      .addCase(pinMessage.fulfilled, (s, a) => {
-        const msgs = s.messages[a.payload.channelId];
-        if (msgs) {
-          const idx = msgs.findIndex((m) => m.id === a.payload.messageId);
-          if (idx !== -1) {
-            msgs[idx].is_pinned = a.payload.isPinned;
-            msgs[idx].pinned_at = a.payload.isPinned ? new Date().toISOString() : undefined;
-          }
-        }
-      })
-
-      .addCase(fetchPinnedMessages.fulfilled, (s, a) => {
-        s.pinnedMessages[a.payload.channelId] = a.payload.messages;
-      })
-
-      .addCase(forwardMessage.fulfilled, (s) => {
-        s.successMessage = 'Message forwarded successfully';
-      })
-
-      .addCase(fetchMessageDetails.fulfilled, (s, a) => {
-        const cid = a.payload.channel_id;
-        if (s.messages[cid]) {
-          const idx = s.messages[cid].findIndex((m) => m.id === a.payload.id);
-          if (idx !== -1) {
-            s.messages[cid][idx] = a.payload;
-          }
-        }
-      })
-
-      .addCase(fetchMessageAttachments.fulfilled, (s, a) => {
-        const { messageId, attachments } = a.payload;
-        Object.keys(s.messages).forEach((channelId) => {
-          const idx = s.messages[+channelId].findIndex((m) => m.id === messageId);
-          if (idx !== -1) {
-            s.messages[+channelId][idx].attachments = attachments;
-          }
-        });
-      })
-
-      .addCase(fetchMessageReactions.fulfilled, (s, a) => {
-        const { messageId, reactions } = a.payload;
-        Object.keys(s.messages).forEach((channelId) => {
-          const idx = s.messages[+channelId].findIndex((m) => m.id === messageId);
-          if (idx !== -1) {
-            s.messages[+channelId][idx].reactions = reactions;
-          }
-        });
-      });
-
-    // ==================== REACTIONS ====================
-    builder
-      .addCase(addReaction.fulfilled, (s, a) => {
-        // Will be updated by real-time event
-      })
-      .addCase(removeReaction.fulfilled, (s, a) => {
-        // Will be updated by real-time event
-      });
-
-    // ==================== THREADS ====================
-    builder
-      .addCase(fetchThreadMessages.pending, (s) => {
-        s.isLoadingThread = true;
-      })
-      .addCase(fetchThreadMessages.fulfilled, (s, a) => {
-        s.isLoadingThread = false;
-        s.threadMessages[a.payload.parentMessageId] = a.payload.messages;
-      })
-      .addCase(fetchThreadMessages.rejected, (s, a) => {
-        s.isLoadingThread = false;
-        s.error = a.payload as string;
-      })
-
-      .addCase(replyInThread.fulfilled, (s, a) => {
-        if (!s.threadMessages[a.payload.parentMessageId]) {
-          s.threadMessages[a.payload.parentMessageId] = [];
-        }
-        s.threadMessages[a.payload.parentMessageId].push(a.payload.message);
-        s.successMessage = 'Reply sent';
-      });
-
-    // ==================== MEMBERS ====================
-    builder
-      .addCase(fetchChannelMembers.pending, (s) => {
-        s.isLoadingMembers = true;
-      })
-      .addCase(fetchChannelMembers.fulfilled, (s, a) => {
-        s.isLoadingMembers = false;
-        s.channelMembers[a.payload.channelId] = a.payload.members;
-      })
-      .addCase(fetchChannelMembers.rejected, (s, a) => {
-        s.isLoadingMembers = false;
-        s.error = a.payload as string;
-      })
-
-      .addCase(addMembers.fulfilled, (s, a) => {
-        s.successMessage = `Added ${a.payload.addedMembers?.length || 0} member(s)`;
-      })
-      .addCase(addMembers.rejected, (s, a) => {
-        s.error = a.payload as string;
-      })
-
-      .addCase(removeMember.fulfilled, (s, a) => {
-        if (s.channelMembers[a.payload.channelId]) {
-          s.channelMembers[a.payload.channelId] = s.channelMembers[
-            a.payload.channelId
-          ].filter((m) => m.user_id !== a.payload.userId);
-        }
-        s.successMessage = 'Member removed';
-      })
-
-      .addCase(updateMemberRole.fulfilled, (s, a) => {
-        const members = s.channelMembers[a.payload.channelId];
-        if (members) {
-          const idx = members.findIndex((m) => m.user_id === a.payload.userId);
-          if (idx !== -1) members[idx].role = a.payload.role;
-        }
-        s.successMessage = 'Role updated';
-      })
-
-      .addCase(fetchAvailableMembers.fulfilled, (s, a) => {
-        s.availableMembers = a.payload;
-      });
-
-    // ==================== TEAM ====================
-    builder
-      .addCase(fetchTeamMembers.fulfilled, (s, a) => {
-        s.teamMembers = a.payload;
-      })
-      .addCase(startTeamChat.fulfilled, (s, a) => {
-        if (!a.payload.isExisting) {
-          s.channels.unshift(a.payload);
-        }
-        s.selectedChannel = a.payload;
-        s.successMessage = 'Chat started';
-      })
-      .addCase(startTeamChat.rejected, (s, a) => {
-        s.error = a.payload as string;
-      });
-
-    // ==================== SEARCH ====================
-    builder
-      .addCase(searchChat.pending, (s) => {
-        s.isSearching = true;
-      })
-      .addCase(searchChat.fulfilled, (s, a) => {
-        s.isSearching = false;
-        s.searchResults = a.payload;
-      })
-      .addCase(searchChat.rejected, (s, a) => {
-        s.isSearching = false;
-        s.error = a.payload as string;
-      });
-
-    // ==================== MENTIONS ====================
-    builder
-      .addCase(fetchUserMentions.fulfilled, (s, a) => {
-        s.mentions = a.payload;
-      })
-      .addCase(fetchUnreadMentionsCount.fulfilled, (s, a) => {
-        s.unreadMentionsCount = a.payload;
-      });
-
-    // ==================== ACTIVITIES ====================
-    builder
-      .addCase(fetchChannelActivities.fulfilled, (s, a) => {
-        s.activities = a.payload;
-      })
-      .addCase(fetchUnreadActivities.fulfilled, (s, a) => {
-        s.unreadActivities = a.payload;
-      })
-      .addCase(markActivitiesAsRead.fulfilled, (s) => {
-        s.successMessage = 'Activities marked as read';
-      });
-
-    // ==================== NOTIFICATIONS ====================
-    builder
-      .addCase(fetchUserNotifications.fulfilled, (s, a) => {
-        s.notifications = a.payload;
-      })
-      .addCase(fetchUnreadNotificationsCount.fulfilled, (s, a) => {
-        s.unreadNotificationsCount = a.payload;
-      })
-      .addCase(markNotificationsAsRead.fulfilled, (s) => {
-        s.successMessage = 'Notifications marked as read';
-      })
-      .addCase(fetchNotificationPreferences.fulfilled, (s, a) => {
-        s.notificationPreferences = a.payload;
-      })
-      .addCase(updateNotificationPreferences.fulfilled, (s) => {
-        s.successMessage = 'Notification preferences updated';
-      });
-
-    // ==================== UNREAD ====================
-    builder
-      .addCase(markAsRead.fulfilled, (s, a) => {
-        const idx = s.channels.findIndex((c) => c.id === a.payload.channelId);
-        if (idx !== -1) s.channels[idx].unread_count = 0;
-        const cu = s.channelUnreadCounts[a.payload.channelId] || 0;
-        s.unreadCount = Math.max(0, s.unreadCount - cu);
-        s.channelUnreadCounts[a.payload.channelId] = 0;
-      })
-      .addCase(fetchUnreadCount.fulfilled, (s, a) => {
-        s.unreadCount = a.payload;
-      });
-
-    // ==================== PRESENCE ====================
-    builder
-      .addCase(setUserOnline.fulfilled, (s) => {
-        // Status updated
-      })
-      .addCase(setUserOffline.fulfilled, (s) => {
-        // Status updated
-      })
-      .addCase(fetchOnlineUsers.fulfilled, (s, a) => {
-        s.onlineUsers = a.payload;
-      });
-
-    // ==================== DELIVERY STATUS ====================
-    builder
-      .addCase(updateDeliveryStatus.fulfilled, (s, a) => {
-        // Status will be updated via WebSocket
-      })
-      .addCase(fetchMessageReadStatus.fulfilled, (s, a) => {
-        // Store read status if needed
-      });
-  },
+  }
 });
 
-// ==================== EXPORTS ====================
 export const {
   clearError,
   clearSuccessMessage,
@@ -1273,6 +1224,12 @@ export const {
   incrementUnreadCount,
   resetUnreadCount,
   resetChatState,
+  updateMessageDeliveryStatus,
+  updateMessageReadStatus,
+  addReactionToMessage,
+  removeReactionFromMessage,
+  pinMessageInChannel,
+  updateThreadReplyCount,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
