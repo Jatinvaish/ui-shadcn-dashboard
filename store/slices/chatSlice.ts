@@ -1,4 +1,4 @@
-// store/slices/chatSlice.ts - COMPLETE UPDATED VERSION
+// store/slices/chatSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import {
   ChatService,
@@ -84,7 +84,6 @@ const initialState: ChatState = {
   successMessage: null,
 };
 
-// Helper to normalize channel data
 const normalizeChannel = (ch: any): Channel => ({
   id: parseInt(ch.id || ch.channel_id || 0),
   channel_id: ch.channel_id || ch.id?.toString(),
@@ -108,15 +107,13 @@ const normalizeChannel = (ch: any): Channel => ({
   isExisting: ch.isExisting,
 });
 
-// ==================== ASYNC THUNKS ====================
-
-// ========== CHANNELS ==========
 export const fetchUserChannels = createAsyncThunk<Channel[], number>(
   'chat/fetchUserChannels',
   async (limit = 50, { rejectWithValue }) => {
     try {
-      const channels = await ChatService.getUserChannels(limit);
-      return (Array.isArray(channels) ? channels : []).map(normalizeChannel);
+      const response = await ChatService.getUserChannels(limit);
+      const channelsArray = Array.isArray(response) ? response : [];
+      return channelsArray.map(normalizeChannel);
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to fetch channels');
     }
@@ -145,10 +142,7 @@ export const createChannel = createAsyncThunk<Channel, CreateChannelPayload>(
   }
 );
 
-export const updateChannel = createAsyncThunk<
-  Channel,
-  { channelId: number; payload: UpdateChannelPayload }
->(
+export const updateChannel = createAsyncThunk<Channel, { channelId: number; payload: UpdateChannelPayload }>(
   'chat/updateChannel',
   async ({ channelId, payload }, { rejectWithValue }) => {
     try {
@@ -207,10 +201,7 @@ export const deleteChannel = createAsyncThunk<number, number>(
   }
 );
 
-export const pinChannel = createAsyncThunk<
-  { channelId: number; isPinned: boolean },
-  { channelId: number; isPinned: boolean }
->(
+export const pinChannel = createAsyncThunk<{ channelId: number; isPinned: boolean }, { channelId: number; isPinned: boolean }>(
   'chat/pinChannel',
   async ({ channelId, isPinned }, { rejectWithValue }) => {
     try {
@@ -222,10 +213,7 @@ export const pinChannel = createAsyncThunk<
   }
 );
 
-export const muteChannel = createAsyncThunk<
-  { channelId: number; isMuted: boolean },
-  { channelId: number; isMuted: boolean; muteUntil?: string }
->(
+export const muteChannel = createAsyncThunk<{ channelId: number; isMuted: boolean }, { channelId: number; isMuted: boolean; muteUntil?: string }>(
   'chat/muteChannel',
   async ({ channelId, isMuted, muteUntil }, { rejectWithValue }) => {
     try {
@@ -237,10 +225,7 @@ export const muteChannel = createAsyncThunk<
   }
 );
 
-export const fetchChannelFiles = createAsyncThunk<
-  { channelId: number; files: Attachment[] },
-  { channelId: number; limit?: number }
->(
+export const fetchChannelFiles = createAsyncThunk<{ channelId: number; files: Attachment[] }, { channelId: number; limit?: number }>(
   'chat/fetchChannelFiles',
   async ({ channelId, limit = 50 }, { rejectWithValue }) => {
     try {
@@ -252,16 +237,13 @@ export const fetchChannelFiles = createAsyncThunk<
   }
 );
 
-// ========== MESSAGES ==========
-export const fetchMessages = createAsyncThunk<
-  { channelId: number; messages: Message[] },
-  { channelId: number; limit?: number; beforeId?: number }
->(
+export const fetchMessages = createAsyncThunk<{ channelId: number; messages: Message[] }, { channelId: number; limit?: number; beforeId?: number }>(
   'chat/fetchMessages',
   async ({ channelId, limit = 50, beforeId }, { rejectWithValue }) => {
     try {
-      const messages = await ChatService.getMessages(channelId, limit, beforeId);
-      return { channelId, messages: Array.isArray(messages) ? messages : [] };
+      const response = await ChatService.getMessages(channelId, limit, beforeId);
+      const messages = Array.isArray(response) ? response : [];
+      return { channelId, messages };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to fetch messages');
     }
@@ -279,10 +261,7 @@ export const sendMessage = createAsyncThunk<Message, SendMessagePayload>(
   }
 );
 
-export const editMessage = createAsyncThunk<
-  { messageId: number; content: string; channelId: number; mentions?: number[] },
-  { messageId: number; content: string; channelId: number; mentions?: number[] }
->(
+export const editMessage = createAsyncThunk<{ messageId: number; content: string; channelId: number; mentions?: number[] }, { messageId: number; content: string; channelId: number; mentions?: number[] }>(
   'chat/editMessage',
   async ({ messageId, content, channelId, mentions }, { rejectWithValue }) => {
     try {
@@ -294,10 +273,7 @@ export const editMessage = createAsyncThunk<
   }
 );
 
-export const deleteMessage = createAsyncThunk<
-  { messageId: number; channelId: number },
-  { messageId: number; channelId: number }
->(
+export const deleteMessage = createAsyncThunk<{ messageId: number; channelId: number }, { messageId: number; channelId: number }>(
   'chat/deleteMessage',
   async ({ messageId, channelId }, { rejectWithValue }) => {
     try {
@@ -309,10 +285,7 @@ export const deleteMessage = createAsyncThunk<
   }
 );
 
-export const pinMessage = createAsyncThunk<
-  { messageId: number; isPinned: boolean; channelId: number },
-  { messageId: number; isPinned: boolean; channelId: number }
->(
+export const pinMessage = createAsyncThunk<{ messageId: number; isPinned: boolean; channelId: number }, { messageId: number; isPinned: boolean; channelId: number }>(
   'chat/pinMessage',
   async ({ messageId, isPinned, channelId }, { rejectWithValue }) => {
     try {
@@ -324,10 +297,7 @@ export const pinMessage = createAsyncThunk<
   }
 );
 
-export const fetchPinnedMessages = createAsyncThunk<
-  { channelId: number; messages: Message[] },
-  number
->(
+export const fetchPinnedMessages = createAsyncThunk<{ channelId: number; messages: Message[] }, number>(
   'chat/fetchPinnedMessages',
   async (channelId, { rejectWithValue }) => {
     try {
@@ -339,10 +309,7 @@ export const fetchPinnedMessages = createAsyncThunk<
   }
 );
 
-export const forwardMessage = createAsyncThunk<
-  any,
-  { messageId: number; targetChannelIds: number[] }
->(
+export const forwardMessage = createAsyncThunk<any, { messageId: number; targetChannelIds: number[] }>(
   'chat/forwardMessage',
   async ({ messageId, targetChannelIds }, { rejectWithValue }) => {
     try {
@@ -353,10 +320,7 @@ export const forwardMessage = createAsyncThunk<
   }
 );
 
-export const markAsRead = createAsyncThunk<
-  { channelId: number },
-  { channelId: number; messageId: number }
->(
+export const markAsRead = createAsyncThunk<{ channelId: number }, { channelId: number; messageId: number }>(
   'chat/markAsRead',
   async ({ channelId, messageId }, { rejectWithValue }) => {
     try {
@@ -368,10 +332,7 @@ export const markAsRead = createAsyncThunk<
   }
 );
 
-export const bulkMarkAsRead = createAsyncThunk<
-  { channelId: number },
-  { channelId: number; upToMessageId: number }
->(
+export const bulkMarkAsRead = createAsyncThunk<{ channelId: number }, { channelId: number; upToMessageId: number }>(
   'chat/bulkMarkAsRead',
   async ({ channelId, upToMessageId }, { rejectWithValue }) => {
     try {
@@ -383,7 +344,6 @@ export const bulkMarkAsRead = createAsyncThunk<
   }
 );
 
-// ========== MESSAGE DETAILS ==========
 export const fetchMessageDetails = createAsyncThunk<Message, number>(
   'chat/fetchMessageDetails',
   async (messageId, { rejectWithValue }) => {
@@ -395,10 +355,7 @@ export const fetchMessageDetails = createAsyncThunk<Message, number>(
   }
 );
 
-export const fetchMessageAttachments = createAsyncThunk<
-  { messageId: number; attachments: Attachment[] },
-  number
->(
+export const fetchMessageAttachments = createAsyncThunk<{ messageId: number; attachments: Attachment[] }, number>(
   'chat/fetchMessageAttachments',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -410,10 +367,7 @@ export const fetchMessageAttachments = createAsyncThunk<
   }
 );
 
-export const fetchMessageReactions = createAsyncThunk<
-  { messageId: number; reactions: Reaction[] },
-  number
->(
+export const fetchMessageReactions = createAsyncThunk<{ messageId: number; reactions: Reaction[] }, number>(
   'chat/fetchMessageReactions',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -425,11 +379,7 @@ export const fetchMessageReactions = createAsyncThunk<
   }
 );
 
-// ========== REACTIONS ==========
-export const addReaction = createAsyncThunk<
-  { messageId: number; emoji: string },
-  { messageId: number; emoji: string }
->(
+export const addReaction = createAsyncThunk<{ messageId: number; emoji: string }, { messageId: number; emoji: string }>(
   'chat/addReaction',
   async ({ messageId, emoji }, { rejectWithValue }) => {
     try {
@@ -441,10 +391,7 @@ export const addReaction = createAsyncThunk<
   }
 );
 
-export const removeReaction = createAsyncThunk<
-  { messageId: number; emoji: string },
-  { messageId: number; emoji: string }
->(
+export const removeReaction = createAsyncThunk<{ messageId: number; emoji: string }, { messageId: number; emoji: string }>(
   'chat/removeReaction',
   async ({ messageId, emoji }, { rejectWithValue }) => {
     try {
@@ -456,11 +403,7 @@ export const removeReaction = createAsyncThunk<
   }
 );
 
-// ========== THREADS ==========
-export const fetchThreadMessages = createAsyncThunk<
-  { parentMessageId: number; messages: Message[] },
-  { parentMessageId: number; limit?: number }
->(
+export const fetchThreadMessages = createAsyncThunk<{ parentMessageId: number; messages: Message[] }, { parentMessageId: number; limit?: number }>(
   'chat/fetchThreadMessages',
   async ({ parentMessageId, limit = 50 }, { rejectWithValue }) => {
     try {
@@ -472,10 +415,7 @@ export const fetchThreadMessages = createAsyncThunk<
   }
 );
 
-export const replyInThread = createAsyncThunk<
-  { parentMessageId: number; message: Message },
-  { parentMessageId: number; content: string }
->(
+export const replyInThread = createAsyncThunk<{ parentMessageId: number; message: Message }, { parentMessageId: number; content: string }>(
   'chat/replyInThread',
   async ({ parentMessageId, content }, { rejectWithValue }) => {
     try {
@@ -487,10 +427,7 @@ export const replyInThread = createAsyncThunk<
   }
 );
 
-export const fetchEnhancedThread = createAsyncThunk<
-  any,
-  { messageId: number; limit?: number }
->(
+export const fetchEnhancedThread = createAsyncThunk<any, { messageId: number; limit?: number }>(
   'chat/fetchEnhancedThread',
   async ({ messageId, limit = 50 }, { rejectWithValue }) => {
     try {
@@ -501,11 +438,7 @@ export const fetchEnhancedThread = createAsyncThunk<
   }
 );
 
-// ========== MEMBERS ==========
-export const fetchChannelMembers = createAsyncThunk<
-  { channelId: number; members: Member[] },
-  number
->(
+export const fetchChannelMembers = createAsyncThunk<{ channelId: number; members: Member[] }, number>(
   'chat/fetchChannelMembers',
   async (channelId, { rejectWithValue }) => {
     try {
@@ -517,10 +450,7 @@ export const fetchChannelMembers = createAsyncThunk<
   }
 );
 
-export const addMembers = createAsyncThunk<
-  { channelId: number; addedMembers: number[] },
-  { channelId: number; userIds: number[] }
->(
+export const addMembers = createAsyncThunk<{ channelId: number; addedMembers: number[] }, { channelId: number; userIds: number[] }>(
   'chat/addMembers',
   async ({ channelId, userIds }, { rejectWithValue }) => {
     try {
@@ -532,10 +462,7 @@ export const addMembers = createAsyncThunk<
   }
 );
 
-export const removeMember = createAsyncThunk<
-  { channelId: number; userId: number },
-  { channelId: number; userId: number }
->(
+export const removeMember = createAsyncThunk<{ channelId: number; userId: number }, { channelId: number; userId: number }>(
   'chat/removeMember',
   async ({ channelId, userId }, { rejectWithValue }) => {
     try {
@@ -547,10 +474,7 @@ export const removeMember = createAsyncThunk<
   }
 );
 
-export const updateMemberRole = createAsyncThunk<
-  { channelId: number; userId: number; role: string },
-  { channelId: number; userId: number; role: string }
->(
+export const updateMemberRole = createAsyncThunk<{ channelId: number; userId: number; role: string }, { channelId: number; userId: number; role: string }>(
   'chat/updateMemberRole',
   async ({ channelId, userId, role }, { rejectWithValue }) => {
     try {
@@ -573,7 +497,6 @@ export const fetchAvailableMembers = createAsyncThunk<Member[], number>(
   }
 );
 
-// ========== TEAM ==========
 export const fetchTeamMembers = createAsyncThunk<Member[], string | undefined>(
   'chat/fetchTeamMembers',
   async (search, { rejectWithValue }) => {
@@ -585,10 +508,7 @@ export const fetchTeamMembers = createAsyncThunk<Member[], string | undefined>(
   }
 );
 
-export const startTeamChat = createAsyncThunk<
-  Channel,
-  { memberIds: number[]; name?: string }
->(
+export const startTeamChat = createAsyncThunk<Channel, { memberIds: number[]; name?: string }>(
   'chat/startTeamChat',
   async ({ memberIds, name }, { rejectWithValue }) => {
     try {
@@ -599,11 +519,7 @@ export const startTeamChat = createAsyncThunk<
   }
 );
 
-// ========== SEARCH ==========
-export const searchChat = createAsyncThunk<
-  SearchResults,
-  { query: string; opts?: any }
->(
+export const searchChat = createAsyncThunk<SearchResults, { query: string; opts?: any }>(
   'chat/search',
   async ({ query, opts }, { rejectWithValue }) => {
     try {
@@ -614,7 +530,6 @@ export const searchChat = createAsyncThunk<
   }
 );
 
-// ========== MENTIONS ==========
 export const fetchUserMentions = createAsyncThunk<any[], number>(
   'chat/fetchUserMentions',
   async (limit = 50, { rejectWithValue }) => {
@@ -638,11 +553,7 @@ export const fetchUnreadMentionsCount = createAsyncThunk<number, void>(
   }
 );
 
-// ========== ACTIVITIES ==========
-export const fetchChannelActivities = createAsyncThunk<
-  Activity[],
-  { channelId: number; limit?: number }
->(
+export const fetchChannelActivities = createAsyncThunk<Activity[], { channelId: number; limit?: number }>(
   'chat/fetchChannelActivities',
   async ({ channelId, limit = 50 }, { rejectWithValue }) => {
     try {
@@ -676,7 +587,6 @@ export const markActivitiesAsRead = createAsyncThunk<number[], number[]>(
   }
 );
 
-// ========== NOTIFICATIONS ==========
 export const fetchUnreadNotificationsCount = createAsyncThunk<number, void>(
   'chat/fetchUnreadNotificationsCount',
   async (_, { rejectWithValue }) => {
@@ -689,10 +599,7 @@ export const fetchUnreadNotificationsCount = createAsyncThunk<number, void>(
   }
 );
 
-export const fetchUserNotifications = createAsyncThunk<
-  Notification[],
-  { limit?: number; page?: number }
->(
+export const fetchUserNotifications = createAsyncThunk<Notification[], { limit?: number; page?: number }>(
   'chat/fetchUserNotifications',
   async ({ limit = 50, page = 1 }, { rejectWithValue }) => {
     try {
@@ -726,10 +633,7 @@ export const fetchNotificationPreferences = createAsyncThunk<any[], void>(
   }
 );
 
-export const updateNotificationPreferences = createAsyncThunk<
-  any,
-  NotificationPreferencePayload
->(
+export const updateNotificationPreferences = createAsyncThunk<any, NotificationPreferencePayload>(
   'chat/updateNotificationPreferences',
   async (payload, { rejectWithValue }) => {
     try {
@@ -740,7 +644,6 @@ export const updateNotificationPreferences = createAsyncThunk<
   }
 );
 
-// ========== PRESENCE ==========
 export const setUserOnline = createAsyncThunk<void, void>(
   'chat/setUserOnline',
   async (_, { rejectWithValue }) => {
@@ -774,11 +677,7 @@ export const fetchOnlineUsers = createAsyncThunk<number[], void>(
   }
 );
 
-// ========== DELIVERY & READ STATUS ==========
-export const updateDeliveryStatus = createAsyncThunk<
-  { messageId: number; status: 'delivered' | 'read' },
-  { messageId: number; status: 'delivered' | 'read' }
->(
+export const updateDeliveryStatus = createAsyncThunk<{ messageId: number; status: 'delivered' | 'read' }, { messageId: number; status: 'delivered' | 'read' }>(
   'chat/updateDeliveryStatus',
   async ({ messageId, status }, { rejectWithValue }) => {
     try {
@@ -790,10 +689,7 @@ export const updateDeliveryStatus = createAsyncThunk<
   }
 );
 
-export const markAsDelivered = createAsyncThunk<
-  { messageId: number },
-  { messageId: number }
->(
+export const markAsDelivered = createAsyncThunk<{ messageId: number }, { messageId: number }>(
   'chat/markAsDelivered',
   async ({ messageId }, { rejectWithValue }) => {
     try {
@@ -805,10 +701,7 @@ export const markAsDelivered = createAsyncThunk<
   }
 );
 
-export const fetchMessageReadStatus = createAsyncThunk<
-  { messageId: number; readStatus: MessageReadStatus },
-  number
->(
+export const fetchMessageReadStatus = createAsyncThunk<{ messageId: number; readStatus: MessageReadStatus }, number>(
   'chat/fetchMessageReadStatus',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -820,10 +713,7 @@ export const fetchMessageReadStatus = createAsyncThunk<
   }
 );
 
-export const fetchDetailedReadStatus = createAsyncThunk<
-  { messageId: number; readStatus: MessageReadStatus },
-  number
->(
+export const fetchDetailedReadStatus = createAsyncThunk<{ messageId: number; readStatus: MessageReadStatus }, number>(
   'chat/fetchDetailedReadStatus',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -835,7 +725,6 @@ export const fetchDetailedReadStatus = createAsyncThunk<
   }
 );
 
-// ========== UNREAD COUNT ==========
 export const fetchUnreadCount = createAsyncThunk<number, void>(
   'chat/fetchUnreadCount',
   async (_, { rejectWithValue }) => {
@@ -848,7 +737,6 @@ export const fetchUnreadCount = createAsyncThunk<number, void>(
   }
 );
 
-// ==================== SLICE ====================
 const chatSlice = createSlice({
   name: 'chat',
   initialState,
@@ -865,8 +753,6 @@ const chatSlice = createSlice({
     clearSearchResults: (state) => {
       state.searchResults = null;
     },
-
-    // WebSocket real-time updates
     addMessageToChannel: (state, action: PayloadAction<Message>) => {
       const channelId = action.payload.channel_id;
       if (!state.messages[channelId]) {
@@ -876,114 +762,56 @@ const chatSlice = createSlice({
         state.messages[channelId].push(action.payload);
       }
     },
-    // Add these to the reducers section of chatSlice:
-
-    updateMessageDeliveryStatus: (
-      state,
-      action: PayloadAction<{
-        messageId: number;
-        deliveredBy: number;
-        deliveredCount: number;
-        timestamp: string;
-      }>
-    ) => {
-      const { messageId, deliveredBy, deliveredCount, timestamp } = action.payload;
-
+    updateMessageDeliveryStatus: (state, action: PayloadAction<{ messageId: number; deliveredBy: number; deliveredCount: number; timestamp: string }>) => {
+      const { messageId, deliveredBy, deliveredCount } = action.payload;
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
         const messageIndex = messages?.findIndex((m) => m.id === messageId);
-
         if (messageIndex !== -1 && messages) {
           const message = messages[messageIndex];
-
-          // Add deliveredBy to delivered_to_user_ids if not already there
           const deliveredIds = message.delivered_to_user_ids?.split(',').filter(Boolean) || [];
           if (!deliveredIds.includes(deliveredBy.toString())) {
             deliveredIds.push(deliveredBy.toString());
             message.delivered_to_user_ids = deliveredIds.join(',');
           }
-
           message.delivered_count = deliveredCount;
         }
       });
     },
-
-    updateMessageReadStatus: (
-      state,
-      action: PayloadAction<{
-        messageId: number;
-        readBy: number;
-        readByName?: string;
-        readCount: number;
-        timestamp: string;
-      }>
-    ) => {
+    updateMessageReadStatus: (state, action: PayloadAction<{ messageId: number; readBy: number; readByName?: string; readCount: number; timestamp: string }>) => {
       const { messageId, readBy, readCount } = action.payload;
-
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
         const messageIndex = messages?.findIndex((m) => m.id === messageId);
-
         if (messageIndex !== -1 && messages) {
           const message = messages[messageIndex];
-
-          // Add readBy to read_by_user_ids if not already there
           const readIds = message.read_by_user_ids?.split(',').filter(Boolean) || [];
           if (!readIds.includes(readBy.toString())) {
             readIds.push(readBy.toString());
             message.read_by_user_ids = readIds.join(',');
           }
-
-          // Also mark as delivered
           const deliveredIds = message.delivered_to_user_ids?.split(',').filter(Boolean) || [];
           if (!deliveredIds.includes(readBy.toString())) {
             deliveredIds.push(readBy.toString());
             message.delivered_to_user_ids = deliveredIds.join(',');
           }
-
           message.read_count = readCount;
           message.is_read_by_me = true;
         }
       });
     },
-
-    addReactionToMessage: (
-      state,
-      action: PayloadAction<{
-        messageId: number;
-        channelId: number;
-        reaction: {
-          emoji: string;
-          userId: number;
-          userName?: string;
-          avatarUrl?: string;
-          timestamp: string;
-        };
-      }>
-    ) => {
+    addReactionToMessage: (state, action: PayloadAction<{ messageId: number; channelId: number; reaction: { emoji: string; userId: number; userName?: string; avatarUrl?: string; timestamp: string } }>) => {
       const { messageId, channelId, reaction } = action.payload;
-
       if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex(
-          (m) => m.id === messageId
-        );
-
+        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
         if (messageIndex !== -1) {
           const message = state.messages[channelId][messageIndex];
-
-          if (!message.reactions) {
-            message.reactions = [];
-          }
-
-          // Check if this user already reacted with this emoji
-          const existingReaction = message.reactions.find(
-            (r) => r.user_id === reaction.userId && r.emoji === reaction.emoji
-          );
-
+          if (!message.reactions) message.reactions = [];
+          const existingReaction = message.reactions.find((r) => r.user_id === reaction.userId && r.emoji === reaction.emoji);
           if (!existingReaction) {
             message.reactions.push({
-              id: Date.now(), // Temporary ID
-              message_id: messageId, // ✅ FIX: Added missing field
+              id: Date.now(),
+              message_id: messageId,
               emoji: reaction.emoji,
               user_id: reaction.userId,
               created_at: reaction.timestamp,
@@ -991,60 +819,28 @@ const chatSlice = createSlice({
               last_name: reaction.userName?.split(' ').slice(1).join(' ') || '',
               avatar_url: reaction.avatarUrl || '',
             });
-
             message.reaction_count = (message.reaction_count || 0) + 1;
           }
         }
       }
     },
-
-    removeReactionFromMessage: (
-      state,
-      action: PayloadAction<{
-        messageId: number;
-        channelId: number;
-        emoji: string;
-        userId: number;
-      }>
-    ) => {
+    removeReactionFromMessage: (state, action: PayloadAction<{ messageId: number; channelId: number; emoji: string; userId: number }>) => {
       const { messageId, channelId, emoji, userId } = action.payload;
-
       if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex(
-          (m) => m.id === messageId
-        );
-
+        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
         if (messageIndex !== -1) {
           const message = state.messages[channelId][messageIndex];
-
           if (message.reactions) {
-            message.reactions = message.reactions.filter(
-              (r) => !(r.user_id === userId && r.emoji === emoji)
-            );
-
+            message.reactions = message.reactions.filter((r) => !(r.user_id === userId && r.emoji === emoji));
             message.reaction_count = Math.max(0, (message.reaction_count || 0) - 1);
           }
         }
       }
     },
-
-    pinMessageInChannel: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        messageId: number;
-        isPinned: boolean;
-        pinnedBy?: number;
-        pinnedAt?: string;
-      }>
-    ) => {
+    pinMessageInChannel: (state, action: PayloadAction<{ channelId: number; messageId: number; isPinned: boolean; pinnedBy?: number; pinnedAt?: string }>) => {
       const { channelId, messageId, isPinned, pinnedBy, pinnedAt } = action.payload;
-
       if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex(
-          (m) => m.id === messageId
-        );
-
+        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
         if (messageIndex !== -1) {
           const message = state.messages[channelId][messageIndex];
           message.is_pinned = isPinned;
@@ -1053,52 +849,26 @@ const chatSlice = createSlice({
         }
       }
     },
-
-    updateThreadReplyCount: (
-      state,
-      action: PayloadAction<{
-        messageId: number;
-        increment: number;
-      }>
-    ) => {
+    updateThreadReplyCount: (state, action: PayloadAction<{ messageId: number; increment: number }>) => {
       const { messageId, increment } = action.payload;
-
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
         const messageIndex = messages?.findIndex((m) => m.id === messageId);
-
         if (messageIndex !== -1 && messages) {
           const message = messages[messageIndex];
           message.reply_count = (message.reply_count || 0) + increment;
         }
       });
     },
-
-    // ✅ ADDITIONAL MISSING REDUCERS (from old chatSlice):
-
-    updateMessageInChannel: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        messageId: number;
-        content: string;
-        mentions?: number[];
-        editedAt: string;
-      }>
-    ) => {
+    updateMessageInChannel: (state, action: PayloadAction<{ channelId: number; messageId: number; content: string; mentions?: number[]; editedAt: string }>) => {
       const { channelId, messageId, content, mentions, editedAt } = action.payload;
-
       if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex(
-          (m) => m.id === messageId
-        );
-
+        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
         if (messageIndex !== -1) {
           const message = state.messages[channelId][messageIndex];
           message.content = content;
           message.is_edited = true;
           message.edited_at = editedAt;
-
           if (mentions && mentions.length > 0) {
             message.mentioned_user_ids = mentions.join(',');
             message.has_mentions = true;
@@ -1106,73 +876,36 @@ const chatSlice = createSlice({
         }
       }
     },
-
-    removeMessageFromChannel: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        messageId: number;
-      }>
-    ) => {
+    removeMessageFromChannel: (state, action: PayloadAction<{ channelId: number; messageId: number }>) => {
       const { channelId, messageId } = action.payload;
-
       if (state.messages[channelId]) {
-        state.messages[channelId] = state.messages[channelId].filter(
-          (m) => m.id !== messageId
-        );
+        state.messages[channelId] = state.messages[channelId].filter((m) => m.id !== messageId);
       }
     },
-
-    addTypingUser: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        userId: number;
-        userName?: string;
-      }>
-    ) => {
+    addTypingUser: (state, action: PayloadAction<{ channelId: number; userId: number; userName?: string }>) => {
       const { channelId, userId, userName } = action.payload;
-
       if (!state.typingUsers[channelId]) {
         state.typingUsers[channelId] = [];
       }
-
-      const existingIndex = state.typingUsers[channelId].findIndex(
-        (u) => u.userId === userId
-      );
-
+      const existingIndex = state.typingUsers[channelId].findIndex((u) => u.userId === userId);
       if (existingIndex === -1) {
         state.typingUsers[channelId].push({ userId, userName });
       }
     },
-
-    removeTypingUser: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        userId: number;
-      }>
-    ) => {
+    removeTypingUser: (state, action: PayloadAction<{ channelId: number; userId: number }>) => {
       const { channelId, userId } = action.payload;
-
       if (state.typingUsers[channelId]) {
-        state.typingUsers[channelId] = state.typingUsers[channelId].filter(
-          (u) => u.userId !== userId
-        );
+        state.typingUsers[channelId] = state.typingUsers[channelId].filter((u) => u.userId !== userId);
       }
     },
-
     setOnlineUsers: (state, action: PayloadAction<number[]>) => {
       state.onlineUsers = action.payload;
     },
-
     incrementUnreadCount: (state, action: PayloadAction<number>) => {
       const channelId = action.payload;
       state.unreadCount += 1;
-      state.channelUnreadCounts[channelId] =
-        (state.channelUnreadCounts[channelId] || 0) + 1;
+      state.channelUnreadCounts[channelId] = (state.channelUnreadCounts[channelId] || 0) + 1;
     },
-
     resetUnreadCount: (state, action: PayloadAction<number>) => {
       const channelId = action.payload;
       const count = state.channelUnreadCounts[channelId] || 0;
@@ -1180,33 +913,68 @@ const chatSlice = createSlice({
       state.channelUnreadCounts[channelId] = 0;
     },
     resetChatState: () => initialState,
-
-    updateMessageStatus: (
-      state,
-      action: PayloadAction<{
-        messageId: number;
-        status: 'delivered' | 'read';
-        timestamp: string;
-      }>
-    ) => {
-      const { messageId, status, timestamp } = action.payload;
-
+    updateMessageStatus: (state, action: PayloadAction<{ messageId: number; status: 'delivered' | 'read'; timestamp: string }>) => {
+      const { messageId, status } = action.payload;
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
         const messageIndex = messages?.findIndex((m) => m.id === messageId);
-
         if (messageIndex !== -1 && messages) {
           const message = messages[messageIndex];
-
-          if (status === 'delivered') {
-            // Mark as delivered (no direct field, but we track via delivered_to_user_ids)
-          } else if (status === 'read') {
+          if (status === 'read') {
             message.is_read_by_me = true;
           }
         }
       });
     },
-  }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUserChannels.pending, (state) => {
+        state.isLoadingChannels = true;
+        state.error = null;
+      })
+      .addCase(fetchUserChannels.fulfilled, (state, action) => {
+        state.isLoadingChannels = false;
+        state.channels = action.payload;
+      })
+      .addCase(fetchUserChannels.rejected, (state, action) => {
+        state.isLoadingChannels = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchMessages.pending, (state) => {
+        state.isLoadingMessages = true;
+        state.error = null;
+      })
+      .addCase(fetchMessages.fulfilled, (state, action) => {
+        state.isLoadingMessages = false;
+        state.messages[action.payload.channelId] = action.payload.messages;
+      })
+      .addCase(fetchMessages.rejected, (state, action) => {
+        state.isLoadingMessages = false;
+        state.error = action.payload as string;
+      })
+      .addCase(sendMessage.pending, (state) => {
+        state.isSendingMessage = true;
+      })
+      .addCase(sendMessage.fulfilled, (state, action) => {
+        state.isSendingMessage = false;
+        const channelId = action.payload.channel_id;
+        if (!state.messages[channelId]) {
+          state.messages[channelId] = [];
+        }
+        state.messages[channelId].push(action.payload);
+      })
+      .addCase(sendMessage.rejected, (state, action) => {
+        state.isSendingMessage = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchChannelMembers.fulfilled, (state, action) => {
+        state.channelMembers[action.payload.channelId] = action.payload.members;
+      })
+      .addCase(fetchTeamMembers.fulfilled, (state, action) => {
+        state.teamMembers = action.payload;
+      });
+  },
 });
 
 export const {

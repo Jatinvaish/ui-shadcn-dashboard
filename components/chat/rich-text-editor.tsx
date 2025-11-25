@@ -1,3 +1,4 @@
+// components/chat/rich-text-editor.tsx - UPDATED WITH MENTION EXTRACTION
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -82,7 +83,7 @@ MentionList.displayName = 'MentionList';
 
 interface RichTextEditorProps {
   placeholder?: string;
-  onSend?: (html: string, text: string) => Promise<boolean> | void;
+  onSend?: (html: string, text: string, mentions?: number[]) => Promise<boolean> | void;
   disabled?: boolean;
   replyingTo?: { id: string; authorName: string; content: string } | null;
   onClearReply?: () => void;
@@ -109,7 +110,6 @@ export function RichTextEditor({
 
   const editor = useEditor({
     extensions: [
-      // Use StarterKit which already includes list & list-item
       StarterKit.configure({
         heading: false,
         horizontalRule: false,
@@ -119,7 +119,6 @@ export function RichTextEditor({
         openOnClick: false,
         HTMLAttributes: { class: 'text-primary hover:underline' },
       }),
-      // Explicit extra formatting / block extensions
       Blockquote,
       CodeBlock,
       Underline,
@@ -196,13 +195,6 @@ export function RichTextEditor({
     },
   });
 
-  // expose editor on window for quick debugging during development
-  useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    if (typeof window !== 'undefined') window.__editor = editor;
-  }, [editor]);
-
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -210,15 +202,45 @@ export function RichTextEditor({
     };
   }, [isTyping, onTypingStop]);
 
+  // Extract mention user IDs from editor content
+  const extractMentions = useCallback(() => {
+    if (!editor) return [];
+    
+    const mentionedUserIds: number[] = [];
+    const json = editor.getJSON();
+    
+    const traverse = (node: any) => {
+      if (node.type === 'mention' && node.attrs?.id) {
+        const userId = parseInt(node.attrs.id);
+        if (!isNaN(userId) && !mentionedUserIds.includes(userId)) {
+          mentionedUserIds.push(userId);
+        }
+      }
+      
+      if (node.content) {
+        node.content.forEach(traverse);
+      }
+    };
+    
+    if (json.content) {
+      json.content.forEach(traverse);
+    }
+    
+    return mentionedUserIds;
+  }, [editor]);
+
   const handleSend = useCallback(async () => {
     if (!editor || disabled || isSending) return;
     const html = editor.getHTML();
     const text = editor.getText().trim();
     if (!text) return;
 
+    // Extract mentions as user IDs
+    const mentions = extractMentions();
+
     setIsSending(true);
     try {
-      const result = await onSend?.(html, text);
+      const result = await onSend?.(html, text, mentions);
       if (result !== false) {
         editor.commands.clearContent();
         if (isTyping) {
@@ -229,18 +251,16 @@ export function RichTextEditor({
     } finally {
       setIsSending(false);
     }
-  }, [editor, disabled, isSending, isTyping, onSend, onTypingStop]);
+  }, [editor, disabled, isSending, isTyping, extractMentions, onSend, onTypingStop]);
 
   const insertEmoji = useCallback((emoji: string) => {
     editor?.chain().focus().insertContent(emoji).run();
   }, [editor]);
 
   const insertMention = useCallback(() => {
-    // TipTap's mention suggestion will be triggered when you type '@' followed by text
     editor?.chain().focus().insertContent('@').run();
   }, [editor]);
 
-  // Formatting actions (these use commands provided by StarterKit and additional extensions)
   const toggleBulletList = () => editor?.chain().focus().toggleBulletList().run();
   const toggleOrderedList = () => editor?.chain().focus().toggleOrderedList().run();
   const toggleBlockquote = () => editor?.chain().focus().toggleBlockquote().run();
@@ -253,7 +273,6 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Enter to send (unless Shift is pressed)
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         handleSend();
