@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - COMPLETE FIXED VERSION
+// app/dashboard/chat/page.tsx - COMPLETE & PRODUCTION READY
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -10,6 +10,8 @@ import { ThreadSidebar } from "@/components/chat/thread-sidebar";
 import { InviteMembersDialog } from "@/components/chat/dialogs/invite-members-dialog";
 import { ChannelMembersDialog } from "@/components/chat/dialogs/channel-members-dialog";
 import { SearchDialog } from "@/components/chat/dialogs/search-dialog";
+import { ForwardMessageDialog } from "@/components/chat/dialogs/forward-message-dialog";
+import { RichTextEditor } from "@/components/chat/rich-text-editor";
 import type { Message } from "@/components/chat/message-list";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -18,7 +20,7 @@ import {
   addReaction, deleteMessage, editMessage, pinMessage, pinChannel, muteChannel,
   archiveChannel, leaveChannel, updateChannel, replyInThread, fetchThreadMessages,
   resetUnreadCount, fetchTeamMembers, startTeamChat, forwardMessage, fetchChannelMembers,
-  removeReaction,
+  removeReaction, bulkMarkAsRead,
 } from "@/store/slices/chatSlice";
 import { ChannelType, SendMessagePayload, MessageType } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
@@ -26,8 +28,6 @@ import { selectUser } from "@/store/slices/authSlice";
 import { ArrowLeft, Search } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
-import { ForwardMessageDialog } from "@/components/chat/dialogs/forward-message-dialog";
-import { MessageInputSlack } from "@/components/chat/message-input";
 
 const ChatPage = () => {
   const dispatch = useAppDispatch();
@@ -40,16 +40,21 @@ const ChatPage = () => {
   const currentUser = useAppSelector(selectUser);
   const token = useAppSelector((state) => state.auth.accessToken);
 
-  const { sendMessage: sendMessageWS, startTyping, stopTyping, isConnected } = useWebSocket(token, currentUser?.id || null);
+  const { 
+    sendMessage: sendMessageWS, 
+    startTyping, 
+    stopTyping, 
+    markAsRead: markAsReadWS,
+    bulkMarkAsRead: bulkMarkAsReadWS,
+    isConnected 
+  } = useWebSocket(token, currentUser?.id || null);
 
-  // UI State
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
   const [isPrimarySidebarOpen, setIsPrimarySidebarOpen] = useState(false);
   const [showThreadSidebar, setShowThreadSidebar] = useState(false);
   
-  // Dialogs
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
@@ -59,7 +64,6 @@ const ChatPage = () => {
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // INITIALIZATION
   useEffect(() => {
     const init = async () => {
       try {
@@ -69,41 +73,52 @@ const ChatPage = () => {
           dispatch(fetchTeamMembers()).unwrap(),
         ]);
       } catch (e: any) {
+        console.error('Init error:', e);
         toast.error("Failed to load chat data");
       }
     };
     init();
   }, [dispatch]);
 
-  // LOAD CHANNEL DATA & MEMBERS
   useEffect(() => {
     if (selectedChannel) {
       const loadData = async () => {
         try {
-          await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+          const result = await dispatch(fetchMessages({ 
+            channelId: selectedChannel.id, 
+            limit: 50 
+          })).unwrap();
+          
           await dispatch(fetchChannelMembers(selectedChannel.id)).unwrap();
           
-          const channelMsgs = messages[selectedChannel.id];
-          if (channelMsgs?.length > 0) {
-            dispatch(markAsRead({ channelId: selectedChannel.id, messageId: channelMsgs[channelMsgs.length - 1].id }));
+          if (result?.messages && result.messages.length > 0) {
+            const lastMessage = result.messages[result.messages.length - 1];
+            if (isConnected) {
+              markAsReadWS(lastMessage.id, selectedChannel.id);
+            } else {
+              dispatch(markAsRead({ 
+                channelId: selectedChannel.id, 
+                messageId: lastMessage.id 
+              }));
+            }
           }
+          
           dispatch(resetUnreadCount(selectedChannel.id));
         } catch (e: any) {
+          console.error('Load data error:', e);
           toast.error("Failed to load messages");
         }
       };
       loadData();
     }
-  }, [selectedChannel?.id, dispatch]);
+  }, [selectedChannel?.id, dispatch, isConnected, markAsReadWS]);
 
-  // LOAD THREAD MESSAGES
   useEffect(() => {
     if (selectedThreadId) {
       dispatch(fetchThreadMessages({ parentMessageId: selectedThreadId, limit: 50 }));
     }
   }, [selectedThreadId, dispatch]);
 
-  // NOTIFICATIONS
   useEffect(() => { 
     if (successMessage) { 
       toast.success(successMessage); 
@@ -118,7 +133,6 @@ const ChatPage = () => {
     } 
   }, [error, dispatch]);
 
-  // Keyboard shortcut for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -130,29 +144,53 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Get channel display name
+  useEffect(() => {
+  const handleMarkAsRead = (event: CustomEvent) => {
+    const { messageId, channelId } = event.detail;
+    
+    if (isConnected) {
+      markAsReadWS(parseInt(messageId), channelId);
+    } else {
+      dispatch(markAsRead({ 
+        channelId, 
+        messageId: parseInt(messageId) 
+      }));
+    }
+  };
+
+  window.addEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+  
+  return () => {
+    window.removeEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+  };
+}, [isConnected, markAsReadWS, dispatch]);
+
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
       const members = channelMembers[channel.id] || [];
       const otherMember = members.find(m => m.user_id !== currentUser?.id);
       if (otherMember) {
-        return `${otherMember.first_name} ${otherMember.last_name}`.trim() || otherMember.email;
+        const firstName = otherMember.first_name || '';
+        const lastName = otherMember.last_name || '';
+        return `${firstName} ${lastName}`.trim() || otherMember.email || 'Unknown User';
       }
     }
-    return channel.name || "Unnamed Channel";
+    return channel.name || "New Channel";
   }, [channelMembers, currentUser]);
 
-  // MESSAGE CONVERSION - FIXED: Always show sender name
   const convertToFrontendMessage = useCallback((msg: any): Message => {
-    const senderName = msg.sender_first_name && msg.sender_last_name 
-      ? `${msg.sender_first_name} ${msg.sender_last_name}`.trim()
-      : msg.sender_email || "Unknown User";
+    const senderFirstName = msg.sender_first_name || msg.first_name || '';
+    const senderLastName = msg.sender_last_name || msg.last_name || '';
+    const senderName = `${senderFirstName} ${senderLastName}`.trim() || 
+                       msg.sender_email || 
+                       msg.email || 
+                       'Unknown User';
 
     return {
       id: msg.id.toString(),
-      authorId: msg.sender_user_id.toString(),
+      authorId: msg.sender_user_id?.toString() || msg.sender_id?.toString() || '0',
       authorName: senderName,
-      authorAvatar: msg.sender_avatar_url,
+      authorAvatar: msg.sender_avatar_url || msg.avatar_url,
       content: msg.content || "",
       timestamp: new Date(msg.sent_at || msg.created_at),
       edited: msg.is_edited || false,
@@ -166,22 +204,31 @@ const ChatPage = () => {
         authorName: msg.reply_to_author_name || "User", 
         content: msg.reply_to_content || "Previous message" 
       } : undefined,
-    };
+      is_sent: true,
+      is_delivered: (msg.delivered_count || 0) > 0,
+      is_read: (msg.read_count || 0) > 0,
+      read_count: msg.read_count,
+      delivered_count: msg.delivered_count,
+      read_by_user_ids: msg.read_by_user_ids,
+      delivered_to_user_ids: msg.delivered_to_user_ids,
+      am_i_mentioned: msg.am_i_mentioned || false,
+    } as Message;
   }, []);
 
   const currentMessages: Message[] = React.useMemo(() => {
     if (!selectedChannel) return [];
-    return (messages[selectedChannel.id] || []).map(convertToFrontendMessage);
+    const channelMessages = messages[selectedChannel.id] || [];
+    return channelMessages.map(convertToFrontendMessage);
   }, [selectedChannel, messages, convertToFrontendMessage]);
 
   const currentThreadMessages = React.useMemo(() => {
     if (!selectedThreadId) return [];
-    return (threadMessages[selectedThreadId] || []).map(convertToFrontendMessage);
+    const thread = threadMessages[selectedThreadId] || [];
+    return thread.map(convertToFrontendMessage);
   }, [selectedThreadId, threadMessages, convertToFrontendMessage]);
 
-  // HANDLERS
   const handleChannelClick = useCallback((channelId: string) => {
-    const channel = channels?.find((c) => c.id.toString() === channelId);
+    const channel = channels?.find((c) => c.id.toString() === channelId || c.channel_id === channelId);
     if (channel) {
       dispatch(setSelectedChannel(channel));
       setSelectedThreadId(null);
@@ -197,20 +244,24 @@ const ChatPage = () => {
     setShowThreadSidebar(false);
   }, [dispatch]);
 
-  const handleSendMessage = useCallback(async (content: string) => {
-    if (!selectedChannel || !content.trim()) return false;
+  const handleSendMessage = useCallback(async (html: string, text: string, mentions?: number[]): Promise<boolean> => {
+    if (!selectedChannel || !text.trim()) return false;
     
     try {
       const payload: SendMessagePayload = {
         channelId: selectedChannel.id, 
-        content: content.trim(), 
+        content: text.trim(), 
         messageType: MessageType.TEXT,
         replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         threadId: selectedThreadId || undefined,
+        mentions: mentions && mentions.length > 0 ? mentions : undefined,
       };
       
       if (isConnected) { 
-        sendMessageWS(payload); 
+        const success = await sendMessageWS(payload);
+        if (!success) {
+          await dispatch(sendMessage(payload)).unwrap();
+        }
       } else { 
         await dispatch(sendMessage(payload)).unwrap(); 
       }
@@ -218,6 +269,7 @@ const ChatPage = () => {
       setReplyingTo(null);
       return true;
     } catch (e: any) { 
+      console.error('Send error:', e);
       toast.error("Failed to send message"); 
       return false; 
     }
@@ -236,26 +288,27 @@ const ChatPage = () => {
     stopTyping(selectedChannel.id);
   }, [selectedChannel, stopTyping]);
 
-  // FIX: Refresh messages after delete
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(deleteMessage({ messageId: parseInt(messageId), channelId: selectedChannel.id })).unwrap();
-      // Refresh messages immediately
-      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      await dispatch(deleteMessage({ 
+        messageId: parseInt(messageId), 
+        channelId: selectedChannel.id 
+      })).unwrap();
       toast.success("Message deleted");
     } catch (e: any) { 
       toast.error("Failed to delete message"); 
     }
   }, [dispatch, selectedChannel]);
 
-  // FIX: Refresh messages after edit
   const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(editMessage({ messageId: parseInt(messageId), content: newContent, channelId: selectedChannel.id })).unwrap();
-      // Refresh messages immediately
-      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      await dispatch(editMessage({ 
+        messageId: parseInt(messageId), 
+        content: newContent, 
+        channelId: selectedChannel.id 
+      })).unwrap();
       toast.success("Message updated");
     } catch (e: any) { 
       toast.error("Failed to edit message"); 
@@ -265,7 +318,12 @@ const ChatPage = () => {
   const handlePinMessage = useCallback(async (messageId: string, isPinned: boolean) => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(pinMessage({ messageId: parseInt(messageId), isPinned, channelId: selectedChannel.id })).unwrap(); 
+      await dispatch(pinMessage({ 
+        messageId: parseInt(messageId), 
+        isPinned, 
+        channelId: selectedChannel.id 
+      })).unwrap(); 
+      toast.success(isPinned ? "Message pinned" : "Message unpinned");
     } catch (e: any) { 
       toast.error("Failed to pin message"); 
     }
@@ -286,35 +344,47 @@ const ChatPage = () => {
       if (!message) return;
 
       const existingReaction = message.reactions?.find(
-        r => r.emoji === emoji && r.userReacted
+        (r: any) => r.emoji === emoji && r.user_id?.toString() === currentUser?.id?.toString()
       );
 
       if (existingReaction) {
-        await dispatch(removeReaction({ messageId: parseInt(messageId), emoji })).unwrap();
+        await dispatch(removeReaction({ 
+          messageId: parseInt(messageId), 
+          emoji 
+        })).unwrap();
       } else {
-        await dispatch(addReaction({ messageId: parseInt(messageId), emoji })).unwrap();
+        await dispatch(addReaction({ 
+          messageId: parseInt(messageId), 
+          emoji 
+        })).unwrap();
       }
     } catch (e: any) { 
       toast.error("Failed to update reaction"); 
     }
-  }, [dispatch, currentMessages]);
+  }, [dispatch, currentMessages, currentUser]);
 
-  // FIX: Thread system with proper UI
   const handleOpenThread = useCallback((messageId: string) => {
-    setSelectedThreadId(parseInt(messageId));
-    setShowThreadSidebar(true);
-    setReplyingTo(null);
-  }, []);
+    if (selectedChannel?.channel_type === ChannelType.DIRECT) {
+      handleReplyToMessage(messageId);
+    } else {
+      setSelectedThreadId(parseInt(messageId));
+      setShowThreadSidebar(true);
+      setReplyingTo(null);
+    }
+  }, [selectedChannel, handleReplyToMessage]);
 
-  const handleReplyInThread = useCallback(async (content: string, parentId: string) => {
-    if (!content.trim()) return;
+  const handleReplyInThread = useCallback(async (content: string, parentId: number): Promise<boolean> => {
+    if (!content.trim()) return false;
     try { 
-      await dispatch(replyInThread({ parentMessageId: parseInt(parentId), content: content.trim() })).unwrap();
-      // Refresh thread messages
-      await dispatch(fetchThreadMessages({ parentMessageId: parseInt(parentId), limit: 50 })).unwrap();
+      await dispatch(replyInThread({ 
+        parentMessageId: parentId, 
+        content: content.trim() 
+      })).unwrap();
       toast.success("Reply sent");
+      return true;
     } catch (e: any) { 
-      toast.error("Failed to send reply"); 
+      toast.error("Failed to send reply");
+      return false;
     }
   }, [dispatch]);
 
@@ -328,6 +398,7 @@ const ChatPage = () => {
         participantIds: [currentUser.id], 
         isPrivate 
       })).unwrap();
+      toast.success("Channel created");
     } catch (e: any) { 
       toast.error("Failed to create channel"); 
     }
@@ -358,7 +429,11 @@ const ChatPage = () => {
   const handlePinChannel = useCallback(async (isPinned: boolean) => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(pinChannel({ channelId: selectedChannel.id, isPinned })).unwrap(); 
+      await dispatch(pinChannel({ 
+        channelId: selectedChannel.id, 
+        isPinned 
+      })).unwrap(); 
+      toast.success(isPinned ? "Channel pinned" : "Channel unpinned");
     } catch (e: any) { 
       toast.error("Failed to pin channel"); 
     }
@@ -367,7 +442,10 @@ const ChatPage = () => {
   const handleMuteChannel = useCallback(async () => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(muteChannel({ channelId: selectedChannel.id, isMuted: !selectedChannel.is_muted })).unwrap(); 
+      await dispatch(muteChannel({ 
+        channelId: selectedChannel.id, 
+        isMuted: !selectedChannel.is_muted 
+      })).unwrap(); 
       toast.success(selectedChannel.is_muted ? "Channel unmuted" : "Channel muted"); 
     } catch (e: any) { 
       toast.error("Failed to mute channel"); 
@@ -378,6 +456,7 @@ const ChatPage = () => {
     if (!selectedChannel) return;
     try { 
       await dispatch(archiveChannel(selectedChannel.id)).unwrap(); 
+      toast.success("Channel archived");
     } catch (e: any) { 
       toast.error("Failed to archive channel"); 
     }
@@ -387,6 +466,7 @@ const ChatPage = () => {
     if (!selectedChannel) return;
     try { 
       await dispatch(leaveChannel(selectedChannel.id)).unwrap(); 
+      toast.success("Left channel");
     } catch (e: any) { 
       toast.error("Failed to leave channel"); 
     }
@@ -395,7 +475,11 @@ const ChatPage = () => {
   const handleUpdateChannel = useCallback(async (name: string, description: string) => {
     if (!selectedChannel) return;
     try { 
-      await dispatch(updateChannel({ channelId: selectedChannel.id, payload: { name, description } })).unwrap(); 
+      await dispatch(updateChannel({ 
+        channelId: selectedChannel.id, 
+        payload: { name, description } 
+      })).unwrap(); 
+      toast.success("Channel updated");
     } catch (e: any) { 
       toast.error("Failed to update channel"); 
     }
@@ -427,17 +511,17 @@ const ChatPage = () => {
   const sidebarChannels = React.useMemo(() => (channels || [])
     .filter((ch) => ch.channel_type !== ChannelType.DIRECT)
     .map((ch) => ({
-      id: ch.id?.toString() || "", 
+      id: ch.channel_id || ch.id?.toString() || "", 
       name: ch.name || "Unnamed Channel", 
       isPrivate: ch.is_private || false, 
-      isPinned: ch.is_pinned || false, 
+      isPinned: Boolean(ch.is_pinned), 
       unread: ch.unread_count || 0,
     })), [channels]);
 
   const sidebarDMs = React.useMemo(() => (channels || [])
     .filter((ch) => ch.channel_type === ChannelType.DIRECT)
     .map((ch) => ({
-      id: ch.id?.toString() || "", 
+      id: ch.channel_id || ch.id?.toString() || "", 
       name: getChannelDisplayName(ch),
       unread: ch.unread_count || 0,
     })), [channels, getChannelDisplayName]);
@@ -468,7 +552,15 @@ const ChatPage = () => {
 
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
-  const currentTypingUsers = selectedChannel ? typingUsers[selectedChannel.id]?.filter((id) => id !== currentUser?.id) || [] : [];
+  
+  const currentTypingUsers = React.useMemo(() => {
+    if (!selectedChannel) return [];
+    const typing = typingUsers[selectedChannel.id] || [];
+    return typing
+      .filter((t) => t.userId !== currentUser?.id)
+      .map(t => t.userName || 'Someone');
+  }, [selectedChannel, typingUsers, currentUser]);
+
   const isDirect = selectedChannel?.channel_type === ChannelType.DIRECT;
   const currentChannelDisplayName = selectedChannel ? getChannelDisplayName(selectedChannel) : "";
 
@@ -492,7 +584,7 @@ const ChatPage = () => {
         <Sidebar 
           channels={sidebarChannels} 
           directMessages={sidebarDMs} 
-          activeId={selectedChannel?.id.toString()} 
+          activeId={selectedChannel?.channel_id || selectedChannel?.id.toString()} 
           activeTab={activeTab}
           onChannelClick={handleChannelClick} 
           onDirectMessageClick={handleChannelClick} 
@@ -506,8 +598,7 @@ const ChatPage = () => {
       </div>
 
       <div className={`flex h-screen w-full flex-1 flex-col overflow-hidden bg-background ${showChatOnMobile ? "flex" : "hidden"} md:flex`}>
-        {/* Mobile Header */}
-        <div className="flex h-14 items-center border-b border-border md:hidden">
+        <div className="flex h-14 items-center border-b border-border md:hidden bg-card">
           {selectedChannel && (
             <>
               <button onClick={handleBackToList} className="flex h-14 w-14 items-center justify-center transition-colors hover:bg-muted">
@@ -523,7 +614,6 @@ const ChatPage = () => {
           )}
         </div>
 
-        {/* Desktop Header */}
         {selectedChannel && (
           <div className="hidden md:flex">
             <ChatHeader 
@@ -532,7 +622,7 @@ const ChatPage = () => {
               memberCount={selectedChannel.member_count}
               channelId={selectedChannel.id}
               isPrivate={selectedChannel.is_private}
-              isPinned={selectedChannel.is_pinned} 
+              isPinned={Boolean(selectedChannel.is_pinned)} 
               isMuted={selectedChannel.is_muted}
               onPinChange={handlePinChannel} 
               onUpdateChannel={handleUpdateChannel}
@@ -565,12 +655,12 @@ const ChatPage = () => {
             {currentTypingUsers.length > 0 && (
               <div className="px-4 py-2 text-xs text-muted-foreground">
                 {currentTypingUsers.length === 1 
-                  ? "Someone is typing..." 
+                  ? `${currentTypingUsers[0]} is typing...`
                   : `${currentTypingUsers.length} people are typing...`}
               </div>
             )}
 
-            <MessageInputSlack 
+            <RichTextEditor 
               onSend={handleSendMessage} 
               replyingTo={replyingTo} 
               onClearReply={() => setReplyingTo(null)} 
@@ -597,10 +687,12 @@ const ChatPage = () => {
       {showThreadSidebar && selectedThreadId && (
         <ThreadSidebar 
           threadId={selectedThreadId.toString()} 
+          parentMessageId={selectedThreadId}
           messages={currentThreadMessages} 
           currentUserId={currentUser?.id.toString()}
           onClose={() => setShowThreadSidebar(false)} 
-          onReplyInThread={handleReplyInThread} 
+          onReplyInThread={handleReplyInThread}
+          teamMembers={teamMembersForMentions}
         />
       )}
 
@@ -620,7 +712,7 @@ const ChatPage = () => {
           onOpenChange={setMembersDialogOpen} 
           channelId={selectedChannel.id} 
           channelName={currentChannelDisplayName}
-          currentUserRole={selectedChannel.role} 
+          currentUserRole={selectedChannel.role || selectedChannel.user_role} 
           onInviteClick={isChannelAdmin && !isDirect ? () => { 
             setMembersDialogOpen(false); 
             setInviteDialogOpen(true); 
@@ -646,4 +738,4 @@ const ChatPage = () => {
   );
 };
 
-export default ChatPage;  
+export default ChatPage;
