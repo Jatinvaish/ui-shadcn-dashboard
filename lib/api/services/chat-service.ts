@@ -309,4 +309,20 @@ export class ChatService {
   static async getOnlineUsers() {
     return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.PRESENCE.ONLINE_USERS));
   }
+  static async updateDeliveryStatus(
+    messageId: number,
+    status: 'delivered' | 'read'
+  ) {
+    return encryptedApiClient.post(
+      `/chat/messages/${messageId}/delivery-status`,
+      { status }
+    );
+  }
+
+  static async getMessageReadStatus(messageId: number) {
+    return extractData(
+      await encryptedApiClient.get(`/chat/messages/${messageId}/read-status`)
+    );
+  }
+
 }
