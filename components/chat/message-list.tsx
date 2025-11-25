@@ -1,4 +1,4 @@
-// components/chat/message-list.tsx - FIXED WITH SCROLL TO MESSAGE
+// components/chat/message-list.tsx - UPDATED WITH DELIVERY STATUS
 "use client"
 
 import React, { useRef, useEffect } from "react"
@@ -12,7 +12,7 @@ export interface Message {
   content: string
   timestamp: Date
   edited?: boolean
-  reactions?: any
+  reactions?: any[]
   threadReplies?: number
   files?: Array<{ name: string; size: number }>
   replyTo?: {
@@ -23,6 +23,10 @@ export interface Message {
   isPinned?: boolean
   threadId?: string
   parentId?: string
+  // Delivery status fields
+  is_sent?: boolean
+  is_delivered?: boolean
+  is_read?: boolean
 }
 
 interface MessageListProps {
@@ -64,7 +68,7 @@ export function MessageList({
     prevMessagesLengthRef.current = messages.length
   }, [messages])
 
-  // ✅ SCROLL TO SPECIFIC MESSAGE
+  // Scroll to specific message
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId)
     if (element) {
@@ -77,11 +81,10 @@ export function MessageList({
     }
   }
 
-  // ✅ GROUP BY DATE - Sort by latest first
+  // Group by date - Sort by latest first
   const groupedMessages = React.useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
     
-    // Sort messages by timestamp (newest first for display purposes)
     const sortedMessages = [...messages].sort((a, b) => 
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
