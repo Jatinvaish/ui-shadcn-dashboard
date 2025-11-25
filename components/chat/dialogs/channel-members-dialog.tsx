@@ -1,4 +1,4 @@
-// components/chat/dialogs/channel-members-dialog.tsx - COMPLETE
+// components/chat/dialogs/channel-members-dialog.tsx
 "use client"
 
 import React, { useEffect, useState } from "react"
@@ -61,6 +61,7 @@ export function ChannelMembersDialog({
   const handleRemoveMember = async () => {
     try {
       await dispatch(removeMember({ channelId, userId: removeDialog.userId })).unwrap()
+      await dispatch(fetchChannelMembers(channelId)).unwrap()
       toast.success(`Removed ${removeDialog.name} from #${channelName}`)
     } catch (error: any) {
       toast.error(error || "Failed to remove member")
@@ -72,9 +73,8 @@ export function ChannelMembersDialog({
   const handleRoleChange = async () => {
     try {
       await dispatch(updateMemberRole({ channelId, userId: roleDialog.userId, role: roleDialog.newRole })).unwrap()
+      await dispatch(fetchChannelMembers(channelId)).unwrap()
       toast.success(`Changed ${roleDialog.name}'s role to ${roleDialog.newRole}`)
-      // Refresh members
-      dispatch(fetchChannelMembers(channelId))
     } catch (error: any) {
       toast.error(error || "Failed to update role")
     } finally {
@@ -116,7 +116,6 @@ export function ChannelMembersDialog({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Search & Add */}
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -139,7 +138,6 @@ export function ChannelMembersDialog({
               )}
             </div>
 
-            {/* Members List */}
             <ScrollArea className="h-[350px] rounded-md border">
               {isLoadingMembers ? (
                 <div className="flex items-center justify-center h-full py-12">
@@ -225,7 +223,6 @@ export function ChannelMembersDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Remove Member Dialog */}
       <AlertDialog open={removeDialog.open} onOpenChange={(o) => setRemoveDialog(prev => ({ ...prev, open: o }))}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -239,7 +236,6 @@ export function ChannelMembersDialog({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Role Change Dialog */}
       <AlertDialog open={roleDialog.open} onOpenChange={(o) => setRoleDialog(prev => ({ ...prev, open: o }))}>
         <AlertDialogContent>
           <AlertDialogHeader>
