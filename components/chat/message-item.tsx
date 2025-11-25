@@ -1,13 +1,11 @@
-// ==================== 1. UPDATED MESSAGE ITEM WITH READ RECEIPTS ====================
-// components/chat/message-item.tsx
+// components/chat/message-item.tsx - UPDATED WITH READ RECEIPTS
 "use client"
 
 import React, { useState } from "react"
 import { cn } from "@/lib/utils"
-import { EmojiPopover } from "./popovers/emoji-popover"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
 import type { Message } from "./message-list"
-import { MessageCircle, Check, CheckCheck, Eye } from "lucide-react"
+import { MessageCircle, Check, CheckCheck } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface MessageItemProps {
@@ -111,7 +109,6 @@ export function MessageItem({
     })
   }
 
-  // Enhanced mention parsing with user highlighting
   const renderContent = (content: string) => {
     const mentionRegex = /@(\w+)/g;
     const parts = content.split(mentionRegex);
@@ -150,7 +147,6 @@ export function MessageItem({
     setShowEmojiPicker(false);
   };
 
-  // Group reactions by emoji with proper user tracking
   const groupedReactions = React.useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
     
@@ -196,7 +192,6 @@ export function MessageItem({
         isOwn ? "flex-row-reverse" : "flex-row"
       )}
     >
-      {/* Avatar */}
       <div className="h-8 w-8 flex-shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold overflow-hidden">
         {message.authorAvatar ? (
           <img src={message.authorAvatar} alt="" className="h-full w-full object-cover" />
@@ -205,12 +200,10 @@ export function MessageItem({
         )}
       </div>
 
-      {/* Message Content */}
       <div className={cn(
         "flex-1 min-w-0 flex flex-col gap-1",
         isOwn && "items-end"
       )}>
-        {/* Header */}
         <div className={cn(
           "flex items-center gap-2 flex-wrap text-xs",
           isOwn && "flex-row-reverse"
@@ -226,7 +219,6 @@ export function MessageItem({
           )}
         </div>
 
-        {/* Reply Reference */}
         {message.replyTo && (
           <div 
             className={cn(
@@ -240,7 +232,6 @@ export function MessageItem({
           </div>
         )}
 
-        {/* Message Bubble */}
         <div className={cn(
           "inline-block max-w-md rounded-lg px-3 py-2 shadow-sm",
           isOwn 
@@ -252,7 +243,6 @@ export function MessageItem({
           </p>
         </div>
 
-        {/* Files/Attachments */}
         {message.files && message.files.length > 0 && (
           <div className="space-y-1">
             {message.files.map((file) => (
@@ -266,7 +256,6 @@ export function MessageItem({
           </div>
         )}
 
-        {/* Reactions */}
         {groupedReactions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
             {groupedReactions.map((reaction) => (
@@ -298,7 +287,6 @@ export function MessageItem({
           </div>
         )}
 
-        {/* Thread Indicator */}
         {!isDirect && message.threadReplies && message.threadReplies > 0 && (
           <button
             onClick={() => onOpenThread?.(message.id)}
@@ -310,13 +298,11 @@ export function MessageItem({
         )}
       </div>
 
-      {/* Action Buttons */}
       <div className={cn(
         "absolute top-0 flex items-center gap-1 bg-popover/95 backdrop-blur-sm rounded shadow-md p-1 border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-10",
         isOwn ? "right-12" : "left-12",
         "-translate-y-1/2"
       )}>
-        {/* Quick Emoji Reactions */}
         <div className="relative">
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -343,7 +329,6 @@ export function MessageItem({
           )}
         </div>
 
-        {/* More Actions */}
         <MessageActionsPopover
           isDirect={isDirect}
           isOwn={isOwn}
@@ -360,4 +345,4 @@ export function MessageItem({
       </div>
     </div>
   )
-} 
+}

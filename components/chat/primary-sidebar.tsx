@@ -1,4 +1,4 @@
-// components/chat/primary-sidebar.tsx - FIX 7: Use theme colors, no hardcoded background
+// components/chat/primary-sidebar.tsx
 "use client";
 
 import React from "react";
@@ -33,8 +33,7 @@ export function PrimarySidebar({
 
   return (
     <>
-      {/* Desktop/Tablet - Vertical Sidebar (from md breakpoint - 768px) */}
-      {/* FIX 7: Remove hardcoded bg-[#464775], use theme colors */}
+      {/* Desktop Sidebar */}
       <div className="bg-sidebar hidden md:flex h-screen w-16 flex-col items-center py-2 gap-1 border-r border-border">
         {tabs.map((tab) => (
           <button
@@ -67,23 +66,19 @@ export function PrimarySidebar({
         </div>
       </div>
 
-      {/* Mobile - Slide-in Overlay from Left (below md breakpoint - <768px) */}
-      {/* FIX 13: Mobile-first responsive */}
+      {/* Mobile Overlay */}
       {isOpen && (
         <>
-          {/* Dark Overlay */}
           <div
             className="fixed inset-0 z-50 bg-black/50 md:hidden transition-opacity duration-300"
             onClick={onClose}
           />
 
-          {/* Sidebar Overlay */}
           <div className={cn(
             "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar shadow-2xl md:hidden border-r border-border",
             "transform transition-transform duration-300 ease-in-out",
             isOpen ? "translate-x-0" : "-translate-x-full"
           )}>
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-border">
               <span className="text-sidebar-foreground font-semibold text-base">Navigate</span>
               <button
@@ -93,7 +88,6 @@ export function PrimarySidebar({
               </button>
             </div>
 
-            {/* Menu Items */}
             <div className="p-3">
               {tabs.map((tab) => (
                 <button
@@ -117,10 +111,8 @@ export function PrimarySidebar({
                 </button>
               ))}
 
-              {/* Divider */}
               <div className="my-3 border-t border-border" />
 
-              {/* More Options */}
               <button
                 className="flex w-full items-center gap-4 rounded-xl px-4 py-4 text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50">
                 <Settings className="h-6 w-6" />

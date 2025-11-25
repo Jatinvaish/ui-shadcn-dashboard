@@ -1,4 +1,4 @@
-// components/chat/thread-sidebar.tsx - FIX 11: Use RichTextEditor
+// components/chat/thread-sidebar.tsx - UPDATED WITH WEBSOCKET
 "use client";
 
 import React, { useRef, useEffect } from "react";
@@ -12,20 +12,24 @@ import { cn } from "@/lib/utils";
 
 interface ThreadSidebarProps {
   threadId?: string;
+  parentMessageId?: number;
   messages?: Message[];
   currentUserId?: string;
   onClose?: () => void;
-  onReplyInThread?: (message: string, parentId: string) => void;
+  onReplyInThread?: (content: string, parentId: number) => Promise<boolean>;
   isLoading?: boolean;
+  teamMembers?: Array<{ id: string; name: string; email: string }>;
 }
 
 export function ThreadSidebar({
   threadId,
+  parentMessageId,
   messages = [],
   currentUserId = "",
   onClose,
   onReplyInThread,
   isLoading = false,
+  teamMembers = [],
 }: ThreadSidebarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -42,12 +46,13 @@ export function ThreadSidebar({
 
   // Handle send from RichTextEditor
   const handleSend = async (html: string, text: string): Promise<boolean> => {
-    if (!text.trim() || !threadId) return false;
+    if (!text.trim() || !parentMessageId) return false;
     
     try {
-      await onReplyInThread?.(text.trim(), threadId);
-      return true;
+      const result = await onReplyInThread?.(text.trim(), parentMessageId);
+      return result ?? false;
     } catch (e) {
+      console.error('Failed to send thread reply:', e);
       return false;
     }
   };
@@ -60,13 +65,13 @@ export function ThreadSidebar({
         onClick={onClose} 
       />
       
-      {/* Sidebar - FIX 13: Mobile-first responsive */}
+      {/* Sidebar */}
       <div className={cn(
         "fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col lg:h-screen",
         "bg-background border-l border-border overflow-hidden",
         "w-full sm:w-96 lg:w-96 shadow-2xl lg:shadow-none"
       )}>
-        {/* Header - FIX 12: Use theme colors */}
+        {/* Header */}
         <div className="px-4 py-3 sm:py-4 h-14 sm:h-16 flex items-center justify-between border-b border-border flex-shrink-0 bg-card">
           <div>
             <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2 text-foreground">
@@ -145,13 +150,14 @@ export function ThreadSidebar({
           </div>
         </div>
 
-        {/* FIX 11: Use RichTextEditor instead of simple textarea */}
+        {/* Rich Text Editor */}
         <div className="border-t border-border flex-shrink-0 bg-card">
           <RichTextEditor 
             onSend={handleSend}
-            disabled={!threadId || isLoading}
+            disabled={!parentMessageId || isLoading}
             placeholder="Reply in thread..."
             className="border-0"
+            teamMembers={teamMembers}
           />
         </div>
       </div>

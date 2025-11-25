@@ -1,4 +1,4 @@
-// components/chat/dialogs/invite-members-dialog.tsx - FIXED with proper payload
+// components/chat/dialogs/invite-members-dialog.tsx
 "use client"
 
 import React, { useEffect, useState } from "react"
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Search, X, UserPlus, Loader2, Users } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
-import { fetchAvailableMembers, addMembers, fetchChannelMembers } from "@/store/slices/chatSlice"
+import { fetchTeamMembers, addMembers, fetchChannelMembers } from "@/store/slices/chatSlice"
 import toast from "react-hot-toast"
 
 interface InviteMembersDialogProps {
@@ -30,7 +30,7 @@ export function InviteMembersDialog({
   onMembersAdded
 }: InviteMembersDialogProps) {
   const dispatch = useAppDispatch()
-  const { availableMembers } = useAppSelector((state) => state.chat)
+  const { teamMembers = [], channelMembers = {} } = useAppSelector((state) => state.chat)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -42,16 +42,52 @@ export function InviteMembersDialog({
       setIsLoading(true)
       setSelectedIds([])
       setSearchQuery("")
-      dispatch(fetchAvailableMembers(channelId))
+      
+      Promise.all([
+        dispatch(fetchTeamMembers()).unwrap(),
+        dispatch(fetchChannelMembers(channelId)).unwrap()
+      ])
+        .catch((error) => {
+          console.error('Failed to fetch members:', error)
+          toast.error('Failed to load members')
+        })
         .finally(() => setIsLoading(false))
     }
   }, [open, channelId, dispatch])
 
+  const existingMemberIds = React.useMemo(() => {
+    const members = channelMembers[channelId] || []
+    const ids = new Set<number>()
+    
+    members.forEach((m: any) => {
+      const userId = m.user_id || m.id
+      if (userId) {
+        ids.add(Number(userId))
+      }
+    })
+    
+    console.log('Existing member IDs:', Array.from(ids))
+    return ids
+  }, [channelMembers, channelId])
+
+  const availableMembers = React.useMemo(() => {
+    const available = teamMembers.filter((m: any) => {
+      const userId = m.user_id || m.id
+      const isExisting = existingMemberIds.has(Number(userId))
+      return !isExisting
+    })
+    
+    console.log('Team members:', teamMembers.length)
+    console.log('Existing members:', existingMemberIds.size)
+    console.log('Available members:', available.length)
+    
+    return available
+  }, [teamMembers, existingMemberIds])
+
   const filteredMembers = React.useMemo(() => {
-    if (!availableMembers) return []
-    return availableMembers.filter((m) => {
-      if (!searchQuery) return true
-      const term = searchQuery.toLowerCase()
+    if (!searchQuery) return availableMembers
+    const term = searchQuery.toLowerCase()
+    return availableMembers.filter((m: any) => {
       const fullName = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase()
       return fullName.includes(term) || (m.email || '').toLowerCase().includes(term)
     })
@@ -69,38 +105,31 @@ export function InviteMembersDialog({
     if (selectedIds.length === filteredMembers.length) {
       setSelectedIds([])
     } else {
-      setSelectedIds(filteredMembers.map(m => m.id || m.user_id || 0).filter(id => id > 0))
+      setSelectedIds(filteredMembers.map((m: any) => m.user_id || m.id))
     }
   }
 
   const handleInvite = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0) return
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      // Ensure clean number array
-      const cleanUserIds = selectedIds
-        .map(id => Number(id))
-        .filter(id => !isNaN(id) && id > 0);
-
-      console.log('Sending payload:', { userIds: cleanUserIds });
-
       await dispatch(addMembers({
         channelId,
-        userIds: cleanUserIds // Clean array of numbers
-      })).unwrap();
+        userIds: selectedIds
+      })).unwrap()
 
-      toast.success(`Added ${selectedIds.length} member(s)`);
-      dispatch(fetchChannelMembers(channelId));
-      onMembersAdded?.();
-      onOpenChange(false);
+      toast.success(`Added ${selectedIds.length} member(s)`)
+      await dispatch(fetchChannelMembers(channelId))
+      onMembersAdded?.()
+      onOpenChange(false)
     } catch (error: any) {
-      console.error('Add members error:', error);
-      toast.error(error || "Failed to add members");
+      console.error('Add members error:', error)
+      toast.error(error || "Failed to add members")
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -110,7 +139,10 @@ export function InviteMembersDialog({
     }
   }
 
-  const selectedMembers = availableMembers?.filter(m => selectedIds.includes(m.id || m.user_id || 0)) || []
+  const selectedMembers = availableMembers.filter((m: any) => {
+    const userId = m.user_id || m.id
+    return selectedIds.includes(userId)
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -126,7 +158,6 @@ export function InviteMembersDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -137,7 +168,6 @@ export function InviteMembersDialog({
             />
           </div>
 
-          {/* Selected Members */}
           {selectedIds.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -147,13 +177,13 @@ export function InviteMembersDialog({
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedMembers.map((m) => {
-                  const memberId = m.id || m.user_id || 0
+                {selectedMembers.map((m: any) => {
+                  const userId = m.user_id || m.id
                   return (
-                    <Badge key={memberId} variant="secondary" className="flex items-center gap-1 pr-1">
+                    <Badge key={userId} variant="secondary" className="flex items-center gap-1 pr-1">
                       {m.first_name} {m.last_name}
                       <button
-                        onClick={() => toggleSelect(memberId)}
+                        onClick={() => toggleSelect(userId)}
                         className="ml-1 rounded-full p-0.5 hover:bg-muted"
                         type="button"
                       >
@@ -166,7 +196,6 @@ export function InviteMembersDialog({
             </div>
           )}
 
-          {/* Select All */}
           {filteredMembers.length > 0 && (
             <div className="flex items-center gap-2 px-1">
               <Checkbox
@@ -180,7 +209,6 @@ export function InviteMembersDialog({
             </div>
           )}
 
-          {/* Members List */}
           <ScrollArea className="h-[300px] rounded-md border border-border">
             {isLoading ? (
               <div className="flex items-center justify-center h-full py-12">
@@ -188,19 +216,20 @@ export function InviteMembersDialog({
               </div>
             ) : filteredMembers.length > 0 ? (
               <div className="p-2 space-y-1">
-                {filteredMembers.map((member) => {
-                  const memberId = member.id || member.user_id || 0
-                  const isSelected = selectedIds.includes(memberId)
+                {filteredMembers.map((member: any) => {
+                  const userId = member.user_id || member.id
+                  const isSelected = selectedIds.includes(userId)
                   return (
                     <div
-                      key={memberId}
-                      onClick={() => toggleSelect(memberId)}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
-                        }`}
+                      key={userId}
+                      onClick={() => toggleSelect(userId)}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                        isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                      }`}
                     >
                       <Checkbox
                         checked={isSelected}
-                        onCheckedChange={() => toggleSelect(memberId)}
+                        onCheckedChange={() => toggleSelect(userId)}
                         className="pointer-events-none"
                       />
                       <div className="relative h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold flex-shrink-0">

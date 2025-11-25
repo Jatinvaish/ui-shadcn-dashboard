@@ -1,4 +1,4 @@
-// components/chat/message-list.tsx - UPDATED WITH DELIVERY STATUS
+// components/chat/message-list.tsx - UPDATED
 "use client"
 
 import React, { useRef, useEffect } from "react"
@@ -24,10 +24,13 @@ export interface Message {
   am_i_mentioned?: boolean
   threadId?: string
   parentId?: string
-  // Delivery status fields
   is_sent?: boolean
   is_delivered?: boolean
   is_read?: boolean
+  read_count?: number
+  delivered_count?: number
+  read_by_user_ids?: string
+  delivered_to_user_ids?: string
 }
 
 interface MessageListProps {
@@ -40,7 +43,7 @@ interface MessageListProps {
   onDelete?: (messageId: string) => void
   onEdit?: (messageId: string, newContent: string) => void
   onPin?: (messageId: string, isPinned: boolean) => void
-  onReplyInThread?: (content: string, parentId: string) => void
+  onReplyInThread?: (content: string, parentId: number) => Promise<boolean>
   onForward?: (messageId: string) => void
 }
 
@@ -61,7 +64,6 @@ export function MessageList({
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const prevMessagesLengthRef = useRef(messages.length)
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current && messages.length > prevMessagesLengthRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -69,12 +71,10 @@ export function MessageList({
     prevMessagesLengthRef.current = messages.length
   }, [messages])
 
-  // Scroll to specific message
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      // Highlight effect
       element.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20')
       setTimeout(() => {
         element.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20')
@@ -82,7 +82,6 @@ export function MessageList({
     }
   }
 
-  // Group by date - Sort by latest first
   const groupedMessages = React.useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
     
@@ -125,6 +124,11 @@ export function MessageList({
     }
   }
 
+  const handleReplyInThreadWrapper = async (content: string, parentId: string) => {
+    if (!onReplyInThread) return;
+    await onReplyInThread(content, parseInt(parentId));
+  };
+
   return (
     <div ref={scrollRef} className="flex-1 space-y-0 overflow-y-auto px-4 md:px-6 py-3 md:py-4 bg-background">
       {messages.length === 0 ? (
@@ -137,7 +141,6 @@ export function MessageList({
       ) : (
         groupedMessages.map((group, groupIndex) => (
           <div key={groupIndex} className="space-y-0">
-            {/* Date divider */}
             <div className="flex items-center gap-3 my-4">
               <div className="flex-1 h-px bg-border"></div>
               <span className="text-xs text-muted-foreground font-medium px-2">
@@ -146,7 +149,6 @@ export function MessageList({
               <div className="flex-1 h-px bg-border"></div>
             </div>
 
-            {/* Messages */}
             {group.messages.map((message) => (
               <div
                 key={message.id}
@@ -166,7 +168,7 @@ export function MessageList({
                   onDelete={onDelete}
                   onEdit={onEdit}
                   onPin={onPin}
-                  onReplyInThread={onReplyInThread}
+                  onReplyInThread={handleReplyInThreadWrapper}
                   onForward={onForward}
                   onScrollToMessage={scrollToMessage}
                 />
