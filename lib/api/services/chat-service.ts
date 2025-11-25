@@ -10,6 +10,7 @@ const extractData = <T>(response: any): T => {
   return response as T;
 };
 
+
 // ==================== ENUMS ====================
 export enum ChannelType { DIRECT = 'direct', GROUP = 'group', CAMPAIGN = 'campaign', PROJECT = 'project' }
 export enum MessageType { TEXT = 'text', FILE = 'file', IMAGE = 'image', VIDEO = 'video', AUDIO = 'audio', SYSTEM = 'system' }
@@ -26,22 +27,46 @@ export interface Channel {
 }
 
 export interface Message {
-  id: number; channel_id: number; sender_user_id: number; sender_tenant_id: number;
-  sender_first_name?: string; sender_last_name?: string; sender_email?: string; sender_avatar_url?: string;
-  message_type: MessageType; content: string;
-  has_attachments?: boolean; has_mentions?: boolean;
-  is_edited?: boolean; edited_at?: string; is_deleted?: boolean;
-  is_pinned?: boolean; pinned_at?: string; pinned_by?: number;
-  reply_to_message_id?: number; thread_id?: number;
-  sent_at: string; created_at: string;
-  reaction_count?: number; reply_count?: number;
-  channel_name?: string; reactions?: Reaction[];
-  reply_to_author_name?: string; reply_to_content?: string;
+  id: number;
+  channel_id: number;
+  sender_user_id: number;
+  sender_tenant_id: number;
+  sender_first_name?: string;
+  sender_last_name?: string;
+  sender_email?: string;
+  sender_avatar_url?: string;
+  message_type: MessageType;
+  content: string;
+  has_attachments?: boolean;
+  has_mentions?: boolean;
+  is_edited?: boolean;
+  edited_at?: string;
+  is_deleted?: boolean;
+  is_pinned?: boolean;
+  pinned_at?: string;
+  pinned_by?: number;
+  reply_to_message_id?: number;
+  thread_id?: number;
+  sent_at: string;
+  created_at: string;
+  reaction_count?: number;
+  reply_count?: number;
+  channel_name?: string;
+  reactions?: Reaction[];
+  reply_to_author_name?: string;
+  reply_to_content?: string;
+
+  // FIX 10: Add WhatsApp-style read status fields
+  is_sent?: boolean;       // Message sent to server
+  is_delivered?: boolean;  // Message delivered to recipient(s)
+  is_read?: boolean;       // Message read by recipient(s)
+  delivered_at?: string;   // When delivered
+  read_at?: string;        // When read
 }
 
-export interface Reaction { 
-  id: number; message_id: number; user_id: number; emoji: string; 
-  count?: number; userReacted?: boolean; created_at: string; 
+export interface Reaction {
+  id: number; message_id: number; user_id: number; emoji: string;
+  count?: number; userReacted?: boolean; created_at: string;
 }
 
 export interface Member {
@@ -80,16 +105,16 @@ export interface CreateChannelPayload {
   relatedType?: string; relatedId?: number;
 }
 
-export interface UpdateChannelPayload { 
-  name?: string; description?: string; isPrivate?: boolean; 
+export interface UpdateChannelPayload {
+  name?: string; description?: string; isPrivate?: boolean;
 }
 
-export interface MuteChannelPayload { 
-  isMuted: boolean; muteUntil?: string; 
+export interface MuteChannelPayload {
+  isMuted: boolean; muteUntil?: string;
 }
 
-export interface UpdateMemberRolePayload { 
-  role: 'admin' | 'member' | 'owner'; 
+export interface UpdateMemberRolePayload {
+  role: 'admin' | 'member' | 'owner';
 }
 
 export interface NotificationPreferencePayload {
