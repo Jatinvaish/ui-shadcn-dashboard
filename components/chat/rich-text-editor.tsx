@@ -313,7 +313,7 @@ export function RichTextEditor({
                 <Code className="h-3.5 w-3.5" />
               </Button>
 
-              <div className="w-px h-5 bg-border mx-1" />
+              <div className="w-px h-5 bg-border mx-1" /> 
 
               <Button size="icon" variant="ghost" onClick={toggleBulletList} disabled={disabled} className="h-7 w-7 p-0" title="Bullet list">
                 <ListIcon className="h-3.5 w-3.5" />
