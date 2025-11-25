@@ -144,6 +144,27 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+  const handleMarkAsRead = (event: CustomEvent) => {
+    const { messageId, channelId } = event.detail;
+    
+    if (isConnected) {
+      markAsReadWS(parseInt(messageId), channelId);
+    } else {
+      dispatch(markAsRead({ 
+        channelId, 
+        messageId: parseInt(messageId) 
+      }));
+    }
+  };
+
+  window.addEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+  
+  return () => {
+    window.removeEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+  };
+}, [isConnected, markAsReadWS, dispatch]);
+
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
       const members = channelMembers[channel.id] || [];
