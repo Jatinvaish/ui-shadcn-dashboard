@@ -12,7 +12,7 @@ export interface Message {
   content: string
   timestamp: Date
   edited?: boolean
-  reactions?: Array<{ emoji: string; count: number; userReacted?: boolean }>
+  reactions?: any
   threadReplies?: number
   files?: Array<{ name: string; size: number }>
   replyTo?: {
