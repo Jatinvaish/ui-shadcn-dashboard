@@ -1,8 +1,8 @@
 // store/slices/chatSlice.ts - COMPLETE TYPE-SAFE VERSION
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { 
-  ChatService, Channel, Message, Member, ChannelType, 
-  SendMessagePayload, CreateChannelPayload, UpdateChannelPayload, SearchResults 
+import {
+  ChatService, Channel, Message, Member, ChannelType,
+  SendMessagePayload, CreateChannelPayload, UpdateChannelPayload, SearchResults
 } from '../../lib/api/services/chat-service';
 
 interface ChatState {
@@ -514,6 +514,33 @@ const chatSlice = createSlice({
         state.messages[cid].push(action.payload);
       }
     },
+    updateMessageStatus: (
+      state,
+      action: PayloadAction<{
+        messageId: number;
+        status: 'delivered' | 'read';
+        timestamp: string;
+      }>
+    ) => {
+      const { messageId, status, timestamp } = action.payload;
+
+      // Update in all channels
+      Object.keys(state.messages).forEach(channelId => {
+        const idx = state.messages[+channelId]?.findIndex(m => m.id === messageId);
+        if (idx !== -1) {
+          const msg = state.messages[+channelId][idx];
+
+          if (status === 'delivered') {
+            msg.is_delivered = true;
+            msg.delivered_at = timestamp;
+          } else if (status === 'read') {
+            msg.is_delivered = true;
+            msg.is_read = true;
+            msg.read_at = timestamp;
+          }
+        }
+      });
+    },
     updateMessageInChannel: (state, action: PayloadAction<Message>) => {
       const cid = action.payload.channel_id;
       if (state.messages[cid]) {
@@ -752,6 +779,7 @@ export const {
   setSelectedChannel,
   clearSearchResults,
   addMessageToChannel,
+  updateMessageStatus,
   updateMessageInChannel,
   removeMessageFromChannel,
   addTypingUser,
