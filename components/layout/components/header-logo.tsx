@@ -13,14 +13,15 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { selectCurrentTenant, fetchTenantMembers } from "@/store/slices/tenantSlice";
 import { selectUser } from "@/store/slices/authSlice";
 import { AddUserDialog } from "@/app/dashboard/access-control/users/add-user-dialog";
+import { cn } from "@/lib/utils";
 
 export function HeaderLogo() {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
-  const { isMobile, sidebarToggle } = useLayout();
+  const { isMobile, sidebarToggle, showSecondarySidebar } = useLayout();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
-  
+
   const currentUser = useAppSelector(selectUser);
   const currentTenant = useAppSelector(selectCurrentTenant);
 
@@ -65,7 +66,7 @@ export function HeaderLogo() {
                 <SheetHeader className="space-y-0 p-0" />
                 <SheetBody className="flex grow p-0">
                   <SidebarPrimary />
-                  <SidebarSecondary />
+                  {showSecondarySidebar && <SidebarSecondary />}
                 </SheetBody>
               </SheetContent>
             </Sheet>
@@ -80,13 +81,15 @@ export function HeaderLogo() {
                 <span>Add User</span>
               </Button>
             </IfHasAccess>
-            <Button
-              mode="icon"
-              variant="ghost"
-              onClick={sidebarToggle}
-              className="text-muted-foreground hover:text-foreground">
-              <PanelRight className="-rotate-180 opacity-100 in-data-[sidebar-open=false]:rotate-0" />
-            </Button>
+            {showSecondarySidebar && (
+              <Button
+                mode="icon"
+                variant="ghost"
+                onClick={sidebarToggle}
+                className="text-muted-foreground hover:text-foreground">
+                <PanelRight className="-rotate-180 opacity-100 in-data-[sidebar-open=false]:rotate-0" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

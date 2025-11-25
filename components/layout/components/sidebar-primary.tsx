@@ -1,4 +1,4 @@
-// components/layout/sidebar-primary.tsx - COMPLETE WITH REAL DATA
+// components/layout/sidebar-primary.tsx - WITH SECONDARY SIDEBAR FLAG
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -21,7 +21,8 @@ import {
   Users,
   Mails,
   NotepadText,
-  Bell
+  Bell,
+  LockIcon
 } from "lucide-react";
 import {
   Avatar,
@@ -47,6 +48,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logout, selectUser } from "@/store/slices/authSlice";
 import { toast } from "sonner";
 import { toAbsoluteUrl } from "@/lib/helpers";
+import { usePermissionContext } from "@/contexts/permission-context";
 
 const menuItems = [
   {
@@ -54,45 +56,90 @@ const menuItems = [
     icon: ChartPieIcon,
     tooltip: "Dashboards",
     path: "/dashboard",
-    rootPath: "/dashboard"
+    rootPath: "/dashboard",
+    showSecondarySidebar: false, // Flag to control secondary sidebar visibility
+    menuKey: "dashboards" // Permission key for access control
   },
   {
     id: "access-control",
     icon: Shield,
     tooltip: "Access Control",
     path: "/dashboard/access-control",
-    rootPath: "/dashboard/access-control"
+    rootPath: "/dashboard/access-control",
+    showSecondarySidebar: true, // Flag to control secondary sidebar visibility
+    menuKey: "access-control" // Permission key for access control
   },
   {
     id: "chat",
     icon: MessageSquareIcon,
     tooltip: "Chat",
-    path: "#",
-    rootPath: "#"
+    path: "/dashboard/chat",
+    rootPath: "/dashboard/chat",
+    showSecondarySidebar: false, // Flag to control secondary sidebar visibility
+    menuKey: "chat" // Permission key for access control
   }
 ];
 
 export function SidebarPrimary() {
-  const pathname =   usePathname();
+  const pathname = usePathname();
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { activeSecondaryMenu, setActiveSecondaryMenu } = useLayout();
+  const { activeSecondaryMenu, setActiveSecondaryMenu, setShowSecondarySidebar } = useLayout();
   const [selectedMenuItem, setSelectedMenuItem] = useState(menuItems[0]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const user = useAppSelector(selectUser);
+
+  const { isLoading, canAccessMenu, isSystemAdmin, blockedMenus } = usePermissionContext();
 
   useEffect(() => {
     menuItems.forEach((item) => {
       if (item.rootPath === pathname || (item.rootPath && pathname.includes(item.rootPath))) {
         setSelectedMenuItem(item);
         setActiveSecondaryMenu(item.id);
+        setShowSecondarySidebar(item.showSecondarySidebar);
       }
     });
-  }, [pathname, setActiveSecondaryMenu]);
+  }, [pathname, setActiveSecondaryMenu, setShowSecondarySidebar]);
+
+  const isBlocked = (menuKey: string) => {
+    return blockedMenus.some((blocked: any) => {
+      const key = typeof blocked === "string" ? blocked : blocked?.menu_key;
+      return key === menuKey;
+    });
+  };
+
+  const getBlockReason = (menuKey: string) => {
+    const blocked = blockedMenus.find((b: any) => {
+      const key = typeof b === "string" ? b : b?.menu_key;
+      return key === menuKey;
+    });
+    if (blocked && typeof blocked === "object") {
+      return blocked.block_reason || blocked.missing_permissions;
+    }
+    return "Missing required permissions";
+  };
 
   const handleMenuClick = (item: (typeof menuItems)[0]) => {
+    // Check if menu is blocked
+    if (isBlocked(item.menuKey)) {
+      router.push("/dashboard/errors/403");
+      return;
+    }
+
+    // Check if user has access to the menu
+    // if (!canAccessMenu(item.menuKey)) {
+    //   toast.error("You don't have permission to access this section");
+    //   return;
+    // }
+
     setSelectedMenuItem(item);
     setActiveSecondaryMenu(item.id);
+    setShowSecondarySidebar(item.showSecondarySidebar);
+
+    // If showSecondarySidebar is false, navigate directly to the path
+    if (!item.showSecondarySidebar && item.path && item.path !== "#") {
+      router.push(item.path);
+    }
   };
 
   const handleLogout = async () => {
@@ -133,25 +180,63 @@ export function SidebarPrimary() {
       {/* Navigation */}
       <ScrollArea className="h-[calc(100vh-13rem)] w-full grow lg:h-[calc(100vh-5.5rem)]">
         <div className="flex shrink-0 grow flex-col items-center gap-1">
-          {menuItems.map((item, index) => (
-            <Tooltip key={index}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  mode="icon"
-                  onClick={() => handleMenuClick(item)}
-                  {...(item.id === activeSecondaryMenu ? { "data-state": "open" } : {})}
-                  className={cn(
-                    "size-9 shrink-0 rounded-md",
-                    "data-[state=open]:bg-primary data-[state=open]:text-primary-foreground",
-                    "hover:text-foreground"
-                  )}>
-                  <item.icon className="size-4.5!" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">{item.tooltip}</TooltipContent>
-            </Tooltip>
-          ))}
+          {menuItems.map((item, index) => {
+            // const blocked = isBlocked(item.menuKey);
+            const blocked = false;
+            // const hasAccess = canAccessMenu(item.menuKey);
+            // const blockReason = getBlockReason(item.menuKey);
+
+            // If blocked, show with lock icon and tooltip
+            if (blocked) {
+              return (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      mode="icon"
+                      disabled
+                      className={cn(
+                        "relative size-9 shrink-0 cursor-not-allowed rounded-md opacity-50",
+                        "hover:text-muted-foreground"
+                      )}>
+                      <item.icon className="size-4.5!" />
+                      <LockIcon className="text-destructive absolute right-0 bottom-0 size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    <p className="mb-1 text-xs font-semibold">Access Restricted</p>
+                    {/* <p className="text-xs">{blockReason}</p> */}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+
+            // If no access but not blocked, don't show the menu item
+            // if (!hasAccess && !isSystemAdmin) {
+            //   return null;
+            // }
+
+            // Normal accessible menu item
+            return (
+              <Tooltip key={index}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    mode="icon"
+                    onClick={() => handleMenuClick(item)}
+                    {...(item.id === activeSecondaryMenu ? { "data-state": "open" } : {})}
+                    className={cn(
+                      "size-9 shrink-0 rounded-md",
+                      "data-[state=open]:bg-primary data-[state=open]:text-primary-foreground",
+                      "hover:text-foreground"
+                    )}>
+                    <item.icon className="size-4.5!" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">{item.tooltip}</TooltipContent>
+              </Tooltip>
+            );
+          })}
         </div>
       </ScrollArea>
 
