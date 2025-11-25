@@ -21,6 +21,7 @@ export interface Message {
     content: string
   }
   isPinned?: boolean
+  am_i_mentioned?: boolean
   threadId?: string
   parentId?: string
   // Delivery status fields
