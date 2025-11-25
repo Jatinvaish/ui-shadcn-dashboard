@@ -1,4 +1,4 @@
-// lib/api/services/chat-service.ts - COMPLETE SLACK-LIKE FRONTEND SERVICE
+// lib/api/services/chat-service.ts - COMPLETE FIXED VERSION
 import { encryptedApiClient } from '../encrypted-client';
 import { API_ENDPOINTS } from '../endpoints';
 
@@ -22,6 +22,7 @@ export interface Channel {
   last_message_at?: string; last_activity_at?: string;
   is_muted?: boolean; is_pinned?: boolean; role?: string;
   last_read_message_id?: number; created_at?: string; updated_at?: string;
+  isExisting?: boolean; // For existing DM detection
 }
 
 export interface Message {
@@ -38,7 +39,10 @@ export interface Message {
   reply_to_author_name?: string; reply_to_content?: string;
 }
 
-export interface Reaction { id: number; message_id: number; user_id: number; emoji: string; count?: number; userReacted?: boolean; created_at: string; }
+export interface Reaction { 
+  id: number; message_id: number; user_id: number; emoji: string; 
+  count?: number; userReacted?: boolean; created_at: string; 
+}
 
 export interface Member {
   id?: number; user_id: number; channel_id?: number; role: string;
@@ -76,13 +80,17 @@ export interface CreateChannelPayload {
   relatedType?: string; relatedId?: number;
 }
 
-export interface UpdateChannelPayload { name?: string; description?: string; isPrivate?: boolean; }
+export interface UpdateChannelPayload { 
+  name?: string; description?: string; isPrivate?: boolean; 
+}
 
-export interface MuteChannelPayload { isMuted: boolean; muteUntil?: string; }
+export interface MuteChannelPayload { 
+  isMuted: boolean; muteUntil?: string; 
+}
 
-export interface AddMembersPayload { userIds: number[]; role?: string; }
-
-export interface UpdateMemberRolePayload { role: 'admin' | 'member' | 'owner'; }
+export interface UpdateMemberRolePayload { 
+  role: 'admin' | 'member' | 'owner'; 
+}
 
 export interface NotificationPreferencePayload {
   eventType: string; emailEnabled?: boolean; smsEnabled?: boolean;
@@ -183,8 +191,8 @@ export class ChatService {
     return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.PIN(channelId), { isPinned });
   }
 
-  static async muteChannel(channelId: number, payload: MuteChannelPayload) {
-    return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.MUTE(channelId), payload);
+  static async muteChannel(channelId: number, isMuted: boolean, muteUntil?: string) {
+    return encryptedApiClient.post(API_ENDPOINTS.CHAT.CHANNELS.MUTE(channelId), { isMuted, muteUntil });
   }
 
   static async getChannelFiles(channelId: number, limit = 50) {
@@ -196,7 +204,10 @@ export class ChatService {
     return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.MEMBERS.LIST(channelId)));
   }
 
-  static async addMembers(channelId: number, payload: AddMembersPayload) {
+  static async addMembers(channelId: number, userIds: number[]) {
+    // Clean payload - only send userIds array
+    const payload = { userIds };
+    console.log("🚀 ChatService.addMembers:", { channelId, payload });
     return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.MEMBERS.ADD(channelId), payload));
   }
 
@@ -204,8 +215,8 @@ export class ChatService {
     return encryptedApiClient.delete(API_ENDPOINTS.CHAT.MEMBERS.REMOVE(channelId, userId));
   }
 
-  static async updateMemberRole(channelId: number, userId: number, payload: UpdateMemberRolePayload) {
-    return encryptedApiClient.put(API_ENDPOINTS.CHAT.MEMBERS.UPDATE_ROLE(channelId, userId), payload);
+  static async updateMemberRole(channelId: number, userId: number, role: string) {
+    return encryptedApiClient.put(API_ENDPOINTS.CHAT.MEMBERS.UPDATE_ROLE(channelId, userId), { role });
   }
 
   static async getAvailableMembersForChannel(channelId: number) {
@@ -222,7 +233,8 @@ export class ChatService {
     return extractData(await encryptedApiClient.get(API_ENDPOINTS.CHAT.TEAM.MEMBERS, { params: { search } }));
   }
 
-  static async startTeamChat(payload: { memberIds: number[]; name?: string }) {
+  static async startTeamChat(memberIds: number[], name?: string) {
+    const payload = { memberIds, name };
     return extractData(await encryptedApiClient.post(API_ENDPOINTS.CHAT.TEAM.START_CHAT, payload));
   }
 

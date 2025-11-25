@@ -22,16 +22,16 @@ interface InviteMembersDialogProps {
   onMembersAdded?: () => void
 }
 
-export function InviteMembersDialog({ 
-  open, 
-  onOpenChange, 
-  channelId, 
+export function InviteMembersDialog({
+  open,
+  onOpenChange,
+  channelId,
   channelName,
-  onMembersAdded 
+  onMembersAdded
 }: InviteMembersDialogProps) {
   const dispatch = useAppDispatch()
   const { availableMembers } = useAppSelector((state) => state.chat)
-  
+
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -58,9 +58,9 @@ export function InviteMembersDialog({
   }, [availableMembers, searchQuery])
 
   const toggleSelect = (userId: number) => {
-    setSelectedIds(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId) 
+    setSelectedIds(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
         : [...prev, userId]
     )
   }
@@ -74,26 +74,33 @@ export function InviteMembersDialog({
   }
 
   const handleInvite = async () => {
-    if (selectedIds.length === 0) return
-    
-    setIsSubmitting(true)
+    if (selectedIds.length === 0) return;
+
+    setIsSubmitting(true);
     try {
-      // FIX: Send proper payload matching backend DTO
-      await dispatch(addMembers({ 
-        channelId, 
-        userIds: selectedIds  // This must be array of numbers
-      })).unwrap()
-      
-      toast.success(`Added ${selectedIds.length} member(s) to #${channelName}`)
-      dispatch(fetchChannelMembers(channelId))
-      onMembersAdded?.()
-      onOpenChange(false)
+      // Ensure clean number array
+      const cleanUserIds = selectedIds
+        .map(id => Number(id))
+        .filter(id => !isNaN(id) && id > 0);
+
+      console.log('Sending payload:', { userIds: cleanUserIds });
+
+      await dispatch(addMembers({
+        channelId,
+        userIds: cleanUserIds // Clean array of numbers
+      })).unwrap();
+
+      toast.success(`Added ${selectedIds.length} member(s)`);
+      dispatch(fetchChannelMembers(channelId));
+      onMembersAdded?.();
+      onOpenChange(false);
     } catch (error: any) {
-      toast.error(error || "Failed to add members")
+      console.error('Add members error:', error);
+      toast.error(error || "Failed to add members");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -145,8 +152,8 @@ export function InviteMembersDialog({
                   return (
                     <Badge key={memberId} variant="secondary" className="flex items-center gap-1 pr-1">
                       {m.first_name} {m.last_name}
-                      <button 
-                        onClick={() => toggleSelect(memberId)} 
+                      <button
+                        onClick={() => toggleSelect(memberId)}
                         className="ml-1 rounded-full p-0.5 hover:bg-muted"
                         type="button"
                       >
@@ -162,7 +169,7 @@ export function InviteMembersDialog({
           {/* Select All */}
           {filteredMembers.length > 0 && (
             <div className="flex items-center gap-2 px-1">
-              <Checkbox 
+              <Checkbox
                 checked={selectedIds.length === filteredMembers.length && filteredMembers.length > 0}
                 onCheckedChange={selectAll}
                 id="select-all"
@@ -188,14 +195,13 @@ export function InviteMembersDialog({
                     <div
                       key={memberId}
                       onClick={() => toggleSelect(memberId)}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                        isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                        }`}
                     >
-                      <Checkbox 
-                        checked={isSelected} 
+                      <Checkbox
+                        checked={isSelected}
                         onCheckedChange={() => toggleSelect(memberId)}
-                        className="pointer-events-none" 
+                        className="pointer-events-none"
                       />
                       <div className="relative h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold flex-shrink-0">
                         {member.avatar_url ? (
@@ -217,8 +223,8 @@ export function InviteMembersDialog({
               <div className="flex flex-col items-center justify-center h-full text-center p-4 py-12">
                 <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {searchQuery 
-                    ? "No members found matching your search" 
+                  {searchQuery
+                    ? "No members found matching your search"
                     : "All team members are already in this channel"}
                 </p>
               </div>
