@@ -22,6 +22,8 @@ interface LayoutState {
   sidebarToggle: () => void;
   activeSecondaryMenu: string;
   setActiveSecondaryMenu: (menu: string) => void;
+  showSecondarySidebar: boolean;
+  setShowSecondarySidebar: (show: boolean) => void;
 }
 
 const LayoutContext = createContext<LayoutState | undefined>(undefined);
@@ -36,6 +38,7 @@ export function LayoutProvider({ children, style: customStyle, bodyClassName = '
   const isMobile = useIsMobile();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeSecondaryMenu, setActiveSecondaryMenu] = useState('dashboard');
+  const [showSecondarySidebar, setShowSecondarySidebar] = useState(false);
 
   const defaultStyle: React.CSSProperties = {
     '--sidebar-width': SIDEBAR_WIDTH,
@@ -71,13 +74,16 @@ export function LayoutProvider({ children, style: customStyle, bodyClassName = '
         isSidebarOpen,
         sidebarToggle,
         activeSecondaryMenu,
-        setActiveSecondaryMenu
+        setActiveSecondaryMenu,
+        showSecondarySidebar,
+        setShowSecondarySidebar
       }}
     >
       <div
         data-slot="layout-wrapper"
         className="flex grow"
         data-sidebar-open={isSidebarOpen}
+        data-show-secondary-sidebar={showSecondarySidebar}
         style={style}
       >
         <TooltipProvider delayDuration={0}>
