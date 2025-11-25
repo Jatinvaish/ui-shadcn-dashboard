@@ -19,6 +19,8 @@ interface User {
   tenantId?: string;
   userType?: string;
   user_type?: string;
+  first_name?: string;
+  last_name?: string;
   onboardingRequired?: boolean;
   roles?: string[];
   permissions?: string[];

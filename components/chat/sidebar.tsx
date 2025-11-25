@@ -1,3 +1,4 @@
+// components/chat/sidebar.tsx
 "use client";
 
 import React from "react";
@@ -65,7 +66,6 @@ export function Sidebar({
   const [directMessageOpen, setDirectMessageOpen] = React.useState(false);
   const [userStatusOpen, setUserStatusOpen] = React.useState(false);
 
-  // Sort: pinned first, then by unread, then alphabetically
   const sortedChannels = React.useMemo(() => {
     return [...channels].sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -101,7 +101,6 @@ export function Sidebar({
     <div className="bg-sidebar text-sidebar-foreground flex h-screen w-full md:w-72 flex-col overflow-hidden border-r border-border">
       {/* Header */}
       <div className="border-border flex h-14 flex-shrink-0 items-center border-b px-4 gap-3">
-        {/* Mobile Menu Button */}
         <button
           onClick={onMenuClick}
           className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors">
@@ -110,7 +109,6 @@ export function Sidebar({
           </svg>
         </button>
 
-        {/* Title */}
         <h2 className="font-display truncate text-base font-semibold flex-1">
           {activeTab === "chat" ? "Chat" : activeTab === "channels" ? "Teams" : "Activity"}
         </h2>

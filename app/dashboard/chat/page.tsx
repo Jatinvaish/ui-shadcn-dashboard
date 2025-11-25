@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - UPDATED FOR NEW STRUCTURE
+// app/dashboard/chat/page.tsx - COMPLETE & PRODUCTION READY
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -49,14 +49,12 @@ const ChatPage = () => {
     isConnected 
   } = useWebSocket(token, currentUser?.id || null);
 
-  // UI State
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
   const [isPrimarySidebarOpen, setIsPrimarySidebarOpen] = useState(false);
   const [showThreadSidebar, setShowThreadSidebar] = useState(false);
   
-  // Dialogs
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
@@ -66,7 +64,6 @@ const ChatPage = () => {
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // INITIALIZATION
   useEffect(() => {
     const init = async () => {
       try {
@@ -76,27 +73,26 @@ const ChatPage = () => {
           dispatch(fetchTeamMembers()).unwrap(),
         ]);
       } catch (e: any) {
+        console.error('Init error:', e);
         toast.error("Failed to load chat data");
       }
     };
     init();
   }, [dispatch]);
 
-  // LOAD CHANNEL DATA & MEMBERS
   useEffect(() => {
     if (selectedChannel) {
       const loadData = async () => {
         try {
-          const loadedMessages = await dispatch(fetchMessages({ 
+          const result = await dispatch(fetchMessages({ 
             channelId: selectedChannel.id, 
             limit: 50 
           })).unwrap();
           
           await dispatch(fetchChannelMembers(selectedChannel.id)).unwrap();
           
-          // Mark as read if there are messages
-          if (loadedMessages && loadedMessages.length > 0) {
-            const lastMessage = loadedMessages[loadedMessages.length - 1];
+          if (result?.messages && result.messages.length > 0) {
+            const lastMessage = result.messages[result.messages.length - 1];
             if (isConnected) {
               markAsReadWS(lastMessage.id, selectedChannel.id);
             } else {
@@ -109,6 +105,7 @@ const ChatPage = () => {
           
           dispatch(resetUnreadCount(selectedChannel.id));
         } catch (e: any) {
+          console.error('Load data error:', e);
           toast.error("Failed to load messages");
         }
       };
@@ -116,14 +113,12 @@ const ChatPage = () => {
     }
   }, [selectedChannel?.id, dispatch, isConnected, markAsReadWS]);
 
-  // LOAD THREAD MESSAGES
   useEffect(() => {
     if (selectedThreadId) {
       dispatch(fetchThreadMessages({ parentMessageId: selectedThreadId, limit: 50 }));
     }
   }, [selectedThreadId, dispatch]);
 
-  // NOTIFICATIONS
   useEffect(() => { 
     if (successMessage) { 
       toast.success(successMessage); 
@@ -138,7 +133,6 @@ const ChatPage = () => {
     } 
   }, [error, dispatch]);
 
-  // Keyboard shortcut for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -150,7 +144,6 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Get channel display name with proper member names
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
       const members = channelMembers[channel.id] || [];
@@ -164,7 +157,6 @@ const ChatPage = () => {
     return channel.name || "New Channel";
   }, [channelMembers, currentUser]);
 
-  // MESSAGE CONVERSION with proper field mapping
   const convertToFrontendMessage = useCallback((msg: any): Message => {
     const senderFirstName = msg.sender_first_name || msg.first_name || '';
     const senderLastName = msg.sender_last_name || msg.last_name || '';
@@ -191,7 +183,15 @@ const ChatPage = () => {
         authorName: msg.reply_to_author_name || "User", 
         content: msg.reply_to_content || "Previous message" 
       } : undefined,
-    };
+      is_sent: true,
+      is_delivered: (msg.delivered_count || 0) > 0,
+      is_read: (msg.read_count || 0) > 0,
+      read_count: msg.read_count,
+      delivered_count: msg.delivered_count,
+      read_by_user_ids: msg.read_by_user_ids,
+      delivered_to_user_ids: msg.delivered_to_user_ids,
+      am_i_mentioned: msg.am_i_mentioned || false,
+    } as Message;
   }, []);
 
   const currentMessages: Message[] = React.useMemo(() => {
@@ -206,9 +206,8 @@ const ChatPage = () => {
     return thread.map(convertToFrontendMessage);
   }, [selectedThreadId, threadMessages, convertToFrontendMessage]);
 
-  // HANDLERS
   const handleChannelClick = useCallback((channelId: string) => {
-    const channel = channels?.find((c) => c.id.toString() === channelId);
+    const channel = channels?.find((c) => c.id.toString() === channelId || c.channel_id === channelId);
     if (channel) {
       dispatch(setSelectedChannel(channel));
       setSelectedThreadId(null);
@@ -224,7 +223,7 @@ const ChatPage = () => {
     setShowThreadSidebar(false);
   }, [dispatch]);
 
-  const handleSendMessage = useCallback(async (html: string, text: string) => {
+  const handleSendMessage = useCallback(async (html: string, text: string, mentions?: number[]): Promise<boolean> => {
     if (!selectedChannel || !text.trim()) return false;
     
     try {
@@ -234,12 +233,12 @@ const ChatPage = () => {
         messageType: MessageType.TEXT,
         replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         threadId: selectedThreadId || undefined,
+        mentions: mentions && mentions.length > 0 ? mentions : undefined,
       };
       
       if (isConnected) { 
         const success = await sendMessageWS(payload);
         if (!success) {
-          // Fallback to HTTP if WebSocket fails
           await dispatch(sendMessage(payload)).unwrap();
         }
       } else { 
@@ -249,6 +248,7 @@ const ChatPage = () => {
       setReplyingTo(null);
       return true;
     } catch (e: any) { 
+      console.error('Send error:', e);
       toast.error("Failed to send message"); 
       return false; 
     }
@@ -352,16 +352,18 @@ const ChatPage = () => {
     }
   }, [selectedChannel, handleReplyToMessage]);
 
-  const handleReplyInThread = useCallback(async (content: string, parentId: string) => {
-    if (!content.trim()) return;
+  const handleReplyInThread = useCallback(async (content: string, parentId: number): Promise<boolean> => {
+    if (!content.trim()) return false;
     try { 
       await dispatch(replyInThread({ 
-        parentMessageId: parseInt(parentId), 
+        parentMessageId: parentId, 
         content: content.trim() 
       })).unwrap();
       toast.success("Reply sent");
+      return true;
     } catch (e: any) { 
-      toast.error("Failed to send reply"); 
+      toast.error("Failed to send reply");
+      return false;
     }
   }, [dispatch]);
 
@@ -488,7 +490,7 @@ const ChatPage = () => {
   const sidebarChannels = React.useMemo(() => (channels || [])
     .filter((ch) => ch.channel_type !== ChannelType.DIRECT)
     .map((ch) => ({
-      id: ch.id?.toString() || "", 
+      id: ch.channel_id || ch.id?.toString() || "", 
       name: ch.name || "Unnamed Channel", 
       isPrivate: ch.is_private || false, 
       isPinned: Boolean(ch.is_pinned), 
@@ -498,7 +500,7 @@ const ChatPage = () => {
   const sidebarDMs = React.useMemo(() => (channels || [])
     .filter((ch) => ch.channel_type === ChannelType.DIRECT)
     .map((ch) => ({
-      id: ch.id?.toString() || "", 
+      id: ch.channel_id || ch.id?.toString() || "", 
       name: getChannelDisplayName(ch),
       unread: ch.unread_count || 0,
     })), [channels, getChannelDisplayName]);
@@ -530,7 +532,6 @@ const ChatPage = () => {
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
   
-  // Get typing users for current channel
   const currentTypingUsers = React.useMemo(() => {
     if (!selectedChannel) return [];
     const typing = typingUsers[selectedChannel.id] || [];
@@ -562,7 +563,7 @@ const ChatPage = () => {
         <Sidebar 
           channels={sidebarChannels} 
           directMessages={sidebarDMs} 
-          activeId={selectedChannel?.id.toString()} 
+          activeId={selectedChannel?.channel_id || selectedChannel?.id.toString()} 
           activeTab={activeTab}
           onChannelClick={handleChannelClick} 
           onDirectMessageClick={handleChannelClick} 
@@ -665,10 +666,12 @@ const ChatPage = () => {
       {showThreadSidebar && selectedThreadId && (
         <ThreadSidebar 
           threadId={selectedThreadId.toString()} 
+          parentMessageId={selectedThreadId}
           messages={currentThreadMessages} 
           currentUserId={currentUser?.id.toString()}
           onClose={() => setShowThreadSidebar(false)} 
-          onReplyInThread={handleReplyInThread} 
+          onReplyInThread={handleReplyInThread}
+          teamMembers={teamMembersForMentions}
         />
       )}
 
