@@ -1,11 +1,12 @@
-// components/chat/thread-sidebar.tsx - IMPROVED SLACK-LIKE THREAD UI
+// components/chat/thread-sidebar.tsx - FIX 11: Use RichTextEditor
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { X, Send, Loader2, MessageCircle } from 'lucide-react';
+import { X, MessageCircle, Loader2 } from 'lucide-react';
 import { MessageItem } from "./message-item";
+import { RichTextEditor } from "./rich-text-editor";
 import type { Message } from "./message-list";
 import { cn } from "@/lib/utils";
 
@@ -26,18 +27,7 @@ export function ThreadSidebar({
   onReplyInThread,
   isLoading = false,
 }: ThreadSidebarProps) {
-  const [replyContent, setReplyContent] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
-    }
-  }, [replyContent]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -46,31 +36,21 @@ export function ThreadSidebar({
     }
   }, [messages.length]);
 
-  const handleSendReply = async () => {
-    if (!replyContent.trim() || !threadId) return;
-    
-    setIsSending(true);
-    try {
-      await onReplyInThread?.(replyContent.trim(), threadId);
-      setReplyContent("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-      }
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendReply();
-    }
-  };
-
   // Get parent message and replies
   const parentMessage = messages.length > 0 ? messages[0] : null;
   const replies = messages.slice(1);
+
+  // Handle send from RichTextEditor
+  const handleSend = async (html: string, text: string): Promise<boolean> => {
+    if (!text.trim() || !threadId) return false;
+    
+    try {
+      await onReplyInThread?.(text.trim(), threadId);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
 
   return (
     <>
@@ -80,17 +60,17 @@ export function ThreadSidebar({
         onClick={onClose} 
       />
       
-      {/* Sidebar */}
+      {/* Sidebar - FIX 13: Mobile-first responsive */}
       <div className={cn(
         "fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col lg:h-screen",
         "bg-background border-l border-border overflow-hidden",
         "w-full sm:w-96 lg:w-96 shadow-2xl lg:shadow-none"
       )}>
-        {/* Header */}
-        <div className="px-4 py-3 sm:py-4 h-14 sm:h-16 flex items-center justify-between border-b border-border flex-shrink-0 bg-background">
+        {/* Header - FIX 12: Use theme colors */}
+        <div className="px-4 py-3 sm:py-4 h-14 sm:h-16 flex items-center justify-between border-b border-border flex-shrink-0 bg-card">
           <div>
-            <h3 className="font-display text-sm sm:text-base font-bold flex items-center gap-2">
-              <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+            <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2 text-foreground">
+              <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               Thread
             </h3>
             <p className="text-xs text-muted-foreground">
@@ -108,7 +88,7 @@ export function ThreadSidebar({
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 bg-background" ref={scrollRef}>
+        <div className="flex-1 overflow-y-auto bg-background" ref={scrollRef}>
           <div className="p-2 sm:p-3 space-y-0">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -131,9 +111,11 @@ export function ThreadSidebar({
                     <MessageItem
                       message={parentMessage}
                       isOwn={parentMessage.authorId === currentUserId}
-                      isDirect={true}
+                      isDirect={false}
+                      currentUserId={currentUserId}
                       onReply={() => {}}
                       onReact={() => {}}
+                      onOpenThread={() => {}}
                     />
                   </div>
                 )}
@@ -150,54 +132,27 @@ export function ThreadSidebar({
                       key={message.id}
                       message={message}
                       isOwn={message.authorId === currentUserId}
-                      isDirect={true}
+                      isDirect={false}
+                      currentUserId={currentUserId}
                       onReply={() => {}}
                       onReact={() => {}}
+                      onOpenThread={() => {}}
                     />
                   ))}
                 </div>
               </>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
-        {/* Input */}
-        <div className="border-t border-border flex-shrink-0 bg-background p-3 sm:p-4">
-          <div className="flex flex-col gap-2">
-            <textarea
-              ref={textareaRef}
-              value={replyContent}
-              onChange={(e) => setReplyContent(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Reply in thread..."
-              disabled={!threadId || isSending}
-              className="min-h-[60px] max-h-[120px] resize-none w-full rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              rows={2}
-            />
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-muted-foreground">
-                Press Enter to send, Shift+Enter for new line
-              </p>
-              <Button
-                onClick={handleSendReply}
-                disabled={!replyContent.trim() || !threadId || isSending}
-                size="sm"
-                className={cn(
-                  "gap-2 transition-all",
-                  replyContent.trim() && threadId && !isSending
-                    ? "bg-green-600 hover:bg-green-700"
-                    : ""
-                )}
-              >
-                {isSending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                Reply
-              </Button>
-            </div>
-          </div>
+        {/* FIX 11: Use RichTextEditor instead of simple textarea */}
+        <div className="border-t border-border flex-shrink-0 bg-card">
+          <RichTextEditor 
+            onSend={handleSend}
+            disabled={!threadId || isLoading}
+            placeholder="Reply in thread..."
+            className="border-0"
+          />
         </div>
       </div>
     </>

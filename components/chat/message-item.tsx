@@ -1,4 +1,4 @@
-// components/chat/message-item.tsx - FIXED WITH PROPER ALIGNMENT
+// components/chat/message-item.tsx - PRODUCTION FIXED
 "use client"
 
 import React, { useState } from "react"
@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { EmojiPopover } from "./popovers/emoji-popover"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
 import type { Message } from "./message-list"
-import { MessageCircle, Pin } from "lucide-react"
+import { MessageCircle, Check, CheckCheck } from "lucide-react"
 
 interface MessageItemProps {
   message: Message
@@ -24,6 +24,27 @@ interface MessageItemProps {
   onScrollToMessage?: (messageId: string) => void
 }
 
+// FIX 10: Message Read Status Component (WhatsApp-style ticks)
+const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean }) => {
+  if (!isOwn) return null;
+  
+  const isRead = message.is_read || false;
+  const isDelivered = message.is_delivered || false;
+  const isSent = message.is_sent !== false; // default true
+  
+  if (isRead) {
+    return <CheckCheck className="h-3.5 w-3.5 text-blue-500" strokeWidth={2.5} />;
+  }
+  if (isDelivered) {
+    return <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />;
+  }
+  if (isSent) {
+    return <Check className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />;
+  }
+  
+  return <Check className="h-3.5 w-3.5 text-muted-foreground/50" strokeWidth={2.5} />;
+};
+
 export function MessageItem({
   message,
   isOwn,
@@ -40,6 +61,7 @@ export function MessageItem({
   onScrollToMessage,
 }: MessageItemProps) {
   const [showActions, setShowActions] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
   const formatTime = (date: Date) => {
     return new Date(date).toLocaleTimeString("en-US", {
@@ -55,7 +77,7 @@ export function MessageItem({
     return parts.map((part, index) => {
       if (index % 2 === 1) {
         return (
-          <span key={index} className="text-blue-500 font-semibold bg-blue-50 dark:bg-blue-950 px-1 rounded">
+          <span key={index} className="text-blue-500 font-semibold bg-blue-500/10 px-1 rounded">
             @{part}
           </span>
         );
@@ -72,18 +94,21 @@ export function MessageItem({
     }
   };
 
-  // ✅ FIX 5: PROPER MESSAGE ALIGNMENT - OWN MESSAGES ON RIGHT
+  const handleEmojiSelect = (emoji: string) => {
+    onReact?.(message.id, emoji);
+    setShowEmojiPicker(false);
+  };
+
+  // FIX 2: Remove hover movement, use absolute positioning for actions
   return (
     <div
       className={cn(
-        "flex gap-3 group/message py-2 items-start hover:bg-muted/30 rounded px-3 transition-colors duration-150",
-        isOwn && "flex-row-reverse" // Own messages aligned to right
+        "flex gap-3 py-2 px-3 group relative",
+        isOwn ? "flex-row-reverse" : "flex-row"
       )}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       {/* Avatar */}
-      <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-primary/60 to-primary/80 flex items-center justify-center text-white text-xs font-semibold">
+      <div className="h-8 w-8 flex-shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold">
         {message.authorAvatar ? (
           <img src={message.authorAvatar} alt="" className="h-full w-full rounded-full object-cover" />
         ) : (
@@ -94,28 +119,28 @@ export function MessageItem({
       {/* Message Content */}
       <div className={cn(
         "flex-1 min-w-0 flex flex-col gap-1",
-        isOwn && "items-end" // Align content to right for own messages
+        isOwn && "items-end"
       )}>
-        {/* Header with name and time */}
+        {/* Header with name, time, and read status */}
         <div className={cn(
           "flex items-center gap-2 flex-wrap",
           isOwn && "flex-row-reverse"
         )}>
-          <span className="text-sm font-medium">{message.authorName}</span>
+          <span className="text-sm font-medium text-foreground">{message.authorName}</span>
           <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
+          <MessageReadStatus message={message} isOwn={isOwn} />
           {message.edited && <span className="text-xs text-muted-foreground italic">(edited)</span>}
           {message.isPinned && (
             <div className="flex items-center gap-1 text-xs text-primary">
-              <Pin className="h-3 w-3" />
-              <span>Pinned</span>
+              📌 Pinned
             </div>
           )}
         </div>
 
-        {/* Reply bubble */}
+        {/* Reply bubble (if replying to another message) */}
         {message.replyTo && (
           <div className={cn(
-            "rounded border-l-2 border-primary bg-muted/60 p-2 text-xs w-full max-w-md cursor-pointer hover:bg-muted",
+            "rounded border-l-2 border-primary bg-muted/60 p-2 text-xs w-full max-w-md cursor-pointer hover:bg-muted transition-colors",
             isOwn && "border-l-0 border-r-2"
           )}
           onClick={() => onScrollToMessage?.(message.replyTo!.messageId)}
@@ -125,12 +150,12 @@ export function MessageItem({
           </div>
         )}
 
-        {/* ✅ MESSAGE BUBBLE WITH PROPER STYLING */}
+        {/* FIX 3: Message Bubble - Remove blue color for own messages, use theme colors */}
         <div className={cn(
-          "inline-block max-w-md rounded-lg px-3 py-2",
+          "inline-block max-w-md rounded-lg px-3 py-2 shadow-sm",
           isOwn 
-            ? "bg-blue-600 text-white" // Own messages: blue background
-            : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" // Others: white with border
+            ? "bg-primary/10 text-foreground border border-primary/20" // Theme-based, no hardcoded blue
+            : "bg-card text-card-foreground border border-border"
         )}>
           <p className="break-words text-sm leading-relaxed whitespace-pre-wrap">
             {renderContent(message.content)}
@@ -151,7 +176,7 @@ export function MessageItem({
           </div>
         )}
 
-        {/* Reactions */}
+        {/* FIX 8: Reactions - Improved UI */}
         {message.reactions && message.reactions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
             {message.reactions.map((reaction, index) => (
@@ -159,17 +184,20 @@ export function MessageItem({
                 key={`${reaction.emoji}-${index}`}
                 onClick={() => onReact?.(message.id, reaction.emoji)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs transition-colors hover:bg-accent",
-                  reaction.userReacted && "bg-primary/20 border border-primary",
+                  "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs transition-colors border",
+                  reaction.userReacted 
+                    ? "bg-primary/10 border-primary text-primary" 
+                    : "bg-muted border-border hover:bg-muted/80"
                 )}
               >
-                {reaction.emoji} <span className="text-xs">{reaction.count}</span>
+                <span className="text-base leading-none">{reaction.emoji}</span>
+                {reaction.count > 0 && <span className="text-xs font-medium">{reaction.count}</span>}
               </button>
             ))}
           </div>
         )}
 
-        {/* Thread replies indicator */}
+        {/* FIX 4: Thread replies indicator - Only for group chats */}
         {!isDirect && message.threadReplies && message.threadReplies > 0 && (
           <button
             onClick={() => onOpenThread?.(message.id)}
@@ -181,30 +209,54 @@ export function MessageItem({
         )}
       </div>
 
-      {/* Action buttons */}
-      {showActions && (
-        <div className={cn(
-          "flex items-center gap-1 flex-shrink-0 bg-background rounded shadow-md p-1.5 border border-border",
-          isOwn && "order-first"
-        )}>
-          <MessageActionsPopover
-            isDirect={isDirect}
-            isOwn={isOwn}
-            isPinned={message.isPinned}
-            messageId={message.id}
-            messageContent={message.content}
-            onReply={onReply}
-            onReplyInThread={handleReplyInThread}
-            onDelete={onDelete}
-            onEdit={onEdit}
-            onPin={onPin}
-            onForward={onForward}
-          />
-          <EmojiPopover
-            onEmojiSelect={(emoji) => onReact?.(message.id, emoji)}
-          />
+      {/* FIX 2: Action buttons - Use absolute positioning, no movement */}
+      <div className={cn(
+        "absolute top-0 flex items-center gap-1 bg-popover/95 backdrop-blur-sm rounded shadow-md p-1 border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto",
+        isOwn ? "right-12" : "left-12",
+        "-translate-y-1/2"
+      )}>
+        {/* Emoji Reaction */}
+        <div className="relative">
+          <button
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="p-1.5 hover:bg-muted rounded-md transition-colors"
+            title="React"
+          >
+            😊
+          </button>
+          {showEmojiPicker && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowEmojiPicker(false)} />
+              <div className="absolute bottom-full mb-2 bg-popover border border-border rounded-lg shadow-lg p-2 flex gap-1 z-20">
+                {['👍', '❤️', '😂', '😮', '😢', '🙏', '👏', '🔥'].map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => handleEmojiSelect(emoji)}
+                    className="hover:bg-muted p-1.5 rounded text-lg transition-colors"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
-      )}
+
+        {/* More Actions */}
+        <MessageActionsPopover
+          isDirect={isDirect}
+          isOwn={isOwn}
+          isPinned={message.isPinned}
+          messageId={message.id}
+          messageContent={message.content}
+          onReply={onReply}
+          onReplyInThread={handleReplyInThread}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onPin={onPin}
+          onForward={onForward}
+        />
+      </div>
     </div>
   )
 }

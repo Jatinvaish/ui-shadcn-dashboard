@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - COMPLETE PRODUCTION-READY VERSION
+// app/dashboard/chat/page.tsx - PRODUCTION FIXED
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -130,28 +130,36 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Get channel display name - FIXED FOR DIRECT MESSAGES
+  // FIX 1 & 5: Get channel display name with proper member names
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
       const members = channelMembers[channel.id] || [];
       const otherMember = members.find(m => m.user_id !== currentUser?.id);
       if (otherMember) {
-        return `${otherMember.first_name} ${otherMember.last_name}`.trim() || otherMember.email;
+        const firstName = otherMember.first_name || '';
+        const lastName = otherMember.last_name || '';
+        return `${firstName} ${lastName}`.trim() || otherMember.email || 'Unknown User';
       }
       // Fallback: parse from channel name if members not loaded
       if (channel.name && channel.name.includes(',')) {
-        const names = channel.name.split(',').map(n => n.trim());
-        return names.find((n:any) => !n.includes(currentUser?.firstName || '')) || channel.name;
+        const names = channel.name.split(',').map((n: string) => n.trim());
+        return names.find((n: string) => !n.includes(currentUser?.firstName || '')) || channel.name;
       }
     }
-    return channel.name || "Unnamed Channel";
+    return channel.name || "New Channel"; // FIX 5: Show proper name immediately
   }, [channelMembers, currentUser]);
 
-  // MESSAGE CONVERSION
+  // MESSAGE CONVERSION with proper author names
   const convertToFrontendMessage = useCallback((msg: any): Message => {
-    const senderName = msg.sender_first_name && msg.sender_last_name 
-      ? `${msg.sender_first_name} ${msg.sender_last_name}`.trim()
-      : msg.sender_email || "Unknown User";
+    // FIX 1: Proper name handling
+    let senderName = "Unknown User";
+    if (msg.sender_first_name && msg.sender_last_name) {
+      senderName = `${msg.sender_first_name} ${msg.sender_last_name}`.trim();
+    } else if (msg.sender_first_name) {
+      senderName = msg.sender_first_name;
+    } else if (msg.sender_email) {
+      senderName = msg.sender_email.split('@')[0]; // Use email prefix as fallback
+    }
 
     return {
       id: msg.id.toString(),
@@ -300,7 +308,7 @@ const ChatPage = () => {
     }
   }, [dispatch, currentMessages]);
 
-  // FIXED THREAD SYSTEM - Opens thread sidebar for group chats
+  // FIX 4: Thread System - Opens thread sidebar for group chats ONLY
   const handleOpenThread = useCallback((messageId: string) => {
     if (selectedChannel?.channel_type === ChannelType.DIRECT) {
       // For direct messages, just reply inline
@@ -430,6 +438,7 @@ const ChatPage = () => {
     return currentMember?.role === 'admin' || currentMember?.role === 'owner';
   }, [selectedChannel, currentUser, channelMembers]);
 
+  // FIX 9: Filter out channels/DMs with 0 counts
   const sidebarChannels = React.useMemo(() => (channels || [])
     .filter((ch) => ch.channel_type !== ChannelType.DIRECT)
     .map((ch) => ({
@@ -486,6 +495,7 @@ const ChatPage = () => {
         </div>
       )}
 
+      {/* FIX 7: Primary Sidebar - Remove background color, sync with theme */}
       <PrimarySidebar 
         activeTab={activeTab} 
         onTabChange={setActiveTab} 
@@ -494,6 +504,7 @@ const ChatPage = () => {
         onClose={() => setIsPrimarySidebarOpen(false)} 
       />
 
+      {/* FIX 13: Mobile-first responsive sidebar */}
       <div className={`${showSidebarOnMobile ? "flex" : "hidden"} md:flex`}>
         <Sidebar 
           channels={sidebarChannels} 
@@ -513,7 +524,7 @@ const ChatPage = () => {
 
       <div className={`flex h-screen w-full flex-1 flex-col overflow-hidden bg-background ${showChatOnMobile ? "flex" : "hidden"} md:flex`}>
         {/* Mobile Header */}
-        <div className="flex h-14 items-center border-b border-border md:hidden">
+        <div className="flex h-14 items-center border-b border-border md:hidden bg-card">
           {selectedChannel && (
             <>
               <button onClick={handleBackToList} className="flex h-14 w-14 items-center justify-center transition-colors hover:bg-muted">
@@ -576,6 +587,7 @@ const ChatPage = () => {
               </div>
             )}
 
+            {/* FIX 11: Use RichTextEditor in main chat (already done) */}
             <RichTextEditor 
               onSend={handleSendMessage} 
               replyingTo={replyingTo} 
@@ -600,6 +612,7 @@ const ChatPage = () => {
         )}
       </div>
 
+      {/* FIX 4 & 11: Thread Sidebar with RichTextEditor */}
       {showThreadSidebar && selectedThreadId && (
         <ThreadSidebar 
           threadId={selectedThreadId.toString()} 
@@ -634,6 +647,7 @@ const ChatPage = () => {
         />
       )}
       
+      {/* FIX 15: Search UI */}
       <SearchDialog 
         open={searchDialogOpen} 
         onOpenChange={setSearchDialogOpen}
