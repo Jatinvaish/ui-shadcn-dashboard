@@ -24,24 +24,26 @@ interface MessageItemProps {
   onScrollToMessage?: (messageId: string) => void
 }
 
+
 const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean }) => {
   if (!isOwn) return null;
-  
+
   const readCount = message.read_count || 0;
   const deliveredCount = message.delivered_count || 0;
   const readByUserIds = message.read_by_user_ids?.split(',').filter(Boolean) || [];
   const deliveredToUserIds = message.delivered_to_user_ids?.split(',').filter(Boolean) || [];
-  
+
   const isRead = readCount > 0 || readByUserIds.length > 0;
   const isDelivered = deliveredCount > 0 || deliveredToUserIds.length > 0;
-  
+
+  // ✅ NEW: Animated transitions
   if (isRead) {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-0.5 cursor-help">
-              <CheckCheck className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
+            <div className="flex items-center gap-0.5 cursor-help animate-in fade-in duration-300">
+              <CheckCheck className="h-3.5 w-3.5 text-blue-500 transition-all duration-300" strokeWidth={2.5} />
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -51,14 +53,14 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
       </TooltipProvider>
     );
   }
-  
+
   if (isDelivered) {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-0.5 cursor-help">
-              <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />
+            <div className="flex items-center gap-0.5 cursor-help animate-in fade-in duration-300">
+              <CheckCheck className="h-3.5 w-3.5 text-gray-500 transition-all duration-300" strokeWidth={2.5} />
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -68,13 +70,13 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
       </TooltipProvider>
     );
   }
-  
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center gap-0.5 cursor-help">
-            <Check className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />
+          <div className="flex items-center gap-0.5 cursor-help animate-in fade-in duration-300">
+            <Check className="h-3.5 w-3.5 text-gray-400 transition-all duration-300" strokeWidth={2.5} />
           </div>
         </TooltipTrigger>
         <TooltipContent>
@@ -112,17 +114,17 @@ export function MessageItem({
   const renderContent = (content: string) => {
     const mentionRegex = /@(\w+)/g;
     const parts = content.split(mentionRegex);
-    
+
     return parts.map((part, index) => {
       if (index % 2 === 1) {
         const isMentioningMe = message?.am_i_mentioned || false;
         return (
-          <span 
-            key={index} 
+          <span
+            key={index}
             className={cn(
               "font-semibold px-1 rounded",
-              isMentioningMe 
-                ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400" 
+              isMentioningMe
+                ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400"
                 : "text-primary bg-primary/10"
             )}
           >
@@ -149,21 +151,21 @@ export function MessageItem({
 
   const groupedReactions = React.useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
-    
-    const reactionMap = new Map<string, { 
-      emoji: string; 
-      count: number; 
-      userReacted: boolean; 
+
+    const reactionMap = new Map<string, {
+      emoji: string;
+      count: number;
+      userReacted: boolean;
       userIds: number[];
       users: string[];
     }>();
-    
+
     message.reactions.forEach((reaction: any) => {
       const existing = reactionMap.get(reaction.emoji);
       const reactorId = reaction.user_id || 0;
       const reactorName = `${reaction.first_name || ''} ${reaction.last_name || ''}`.trim();
       const userReacted = reactorId.toString() === currentUserId;
-      
+
       if (existing) {
         existing.count += 1;
         existing.userReacted = existing.userReacted || userReacted;
@@ -181,7 +183,7 @@ export function MessageItem({
         });
       }
     });
-    
+
     return Array.from(reactionMap.values()).sort((a, b) => b.count - a.count);
   }, [message.reactions, currentUserId]);
 
@@ -220,7 +222,7 @@ export function MessageItem({
         </div>
 
         {message.replyTo && (
-          <div 
+          <div
             className={cn(
               "rounded border-l-2 border-primary bg-muted/60 p-2 text-xs w-full max-w-md cursor-pointer hover:bg-muted transition-colors",
               isOwn && "border-l-0 border-r-2"
@@ -234,7 +236,7 @@ export function MessageItem({
 
         <div className={cn(
           "inline-block max-w-md rounded-lg px-3 py-2 shadow-sm",
-          isOwn 
+          isOwn
             ? "bg-primary text-primary-foreground"
             : "bg-card text-card-foreground border border-border"
         )}>
@@ -267,8 +269,8 @@ export function MessageItem({
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs transition-all border",
                         "hover:scale-110 active:scale-95",
-                        reaction.userReacted 
-                          ? "bg-primary/20 border-primary text-primary font-medium shadow-sm" 
+                        reaction.userReacted
+                          ? "bg-primary/20 border-primary text-primary font-medium shadow-sm"
                           : "bg-muted border-border hover:bg-muted/80 hover:border-primary/30"
                       )}
                     >
