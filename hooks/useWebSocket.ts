@@ -1,4 +1,4 @@
-// hooks/useWebSocket.ts - COMPLETE & ROBUST
+// hooks/useWebSocket.ts - COMPLETE WITH READ STATUS TRACKING
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAppDispatch } from '@/store/hooks';
@@ -10,6 +10,7 @@ import {
   removeTypingUser,
   setOnlineUsers,
   incrementUnreadCount,
+  updateMessageStatus,
 } from '@/store/slices/chatSlice';
 import type { SendMessagePayload } from '@/lib/api/services/chat-service';
 
@@ -20,6 +21,7 @@ interface UseWebSocketReturn {
   sendMessage: (data: SendMessagePayload) => boolean;
   startTyping: (channelId: number) => void;
   stopTyping: (channelId: number) => void;
+  updateDeliveryStatus: (messageId: number, status: 'delivered' | 'read') => void;
   reconnect: () => void;
   disconnect: () => void;
   isConnected: boolean;
@@ -35,6 +37,7 @@ export const useWebSocket = (
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 10;
   const typingTimeoutsRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const visibilityStateRef = useRef<'visible' | 'hidden'>('visible');
 
   const connect = useCallback(() => {
     // Don't connect without auth
@@ -69,7 +72,7 @@ export const useWebSocket = (
       forceNew: true,
     });
 
-    // CONNECTION EVENTS
+    // ==================== CONNECTION EVENTS ====================
     socket.on('connect', () => {
       console.log('✅ WebSocket: Connected - ID:', socket.id);
       setIsConnected(true);
@@ -111,7 +114,7 @@ export const useWebSocket = (
       }
     });
 
-    // MESSAGE EVENTS
+    // ==================== MESSAGE EVENTS ====================
     socket.on('message', (data: { event: string; message: any }) => {
       console.log('📨 WebSocket: Message received -', data.event);
 
@@ -120,9 +123,18 @@ export const useWebSocket = (
           case 'new_message':
             if (data.message) {
               dispatch(addMessageToChannel(data.message));
+              
               // Increment unread if not from current user
               if (data.message.sender_user_id !== userId) {
                 dispatch(incrementUnreadCount(data.message.channel_id));
+                
+                // ✅ AUTO-SEND DELIVERY CONFIRMATION
+                if (visibilityStateRef.current === 'visible') {
+                  socket.emit('update_delivery_status', {
+                    messageId: data.message.id,
+                    status: 'delivered',
+                  });
+                }
               }
             }
             break;
@@ -155,13 +167,39 @@ export const useWebSocket = (
       console.log('📨 WebSocket: new_message event');
       if (message) {
         dispatch(addMessageToChannel(message));
+        
         if (message.sender_user_id !== userId) {
           dispatch(incrementUnreadCount(message.channel_id));
+          
+          // ✅ AUTO-SEND DELIVERY CONFIRMATION
+          if (visibilityStateRef.current === 'visible') {
+            socket.emit('update_delivery_status', {
+              messageId: message.id,
+              status: 'delivered',
+            });
+          }
         }
       }
     });
 
-    // TYPING INDICATORS
+    // ==================== READ STATUS EVENTS ====================
+    // ✅ NEW: Listen for delivery/read status updates
+    socket.on('message_status_updated', (data: {
+      messageId: number;
+      userId: number;
+      status: 'delivered' | 'read';
+      timestamp: string;
+    }) => {
+      console.log('✅ WebSocket: Message status updated -', data);
+      
+      dispatch(updateMessageStatus({
+        messageId: data.messageId,
+        status: data.status,
+        timestamp: data.timestamp,
+      }));
+    });
+
+    // ==================== TYPING INDICATORS ====================
     socket.on('user_typing', (data: { channelId: number; userId: number; isTyping: boolean }) => {
       if (data.userId === userId) return; // Ignore own typing
 
@@ -187,7 +225,7 @@ export const useWebSocket = (
       }
     });
 
-    // PRESENCE
+    // ==================== PRESENCE ====================
     socket.on('online_users', (data: { userIds: number[] }) => {
       console.log('👥 WebSocket: Online users -', data.userIds?.length || 0);
       dispatch(setOnlineUsers(data.userIds || []));
@@ -199,6 +237,18 @@ export const useWebSocket = (
 
     socketRef.current = socket;
   }, [token, userId, dispatch]);
+
+  // ==================== PAGE VISIBILITY TRACKING ====================
+  // ✅ Track when user switches tabs to delay delivery confirmations
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      visibilityStateRef.current = document.hidden ? 'hidden' : 'visible';
+      console.log('👁️ Page visibility:', visibilityStateRef.current);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // Initialize connection
   useEffect(() => {
@@ -221,7 +271,7 @@ export const useWebSocket = (
     };
   }, [connect]);
 
-  // SEND MESSAGE
+  // ==================== SEND MESSAGE ====================
   const sendMessage = useCallback((data: SendMessagePayload): boolean => {
     if (!socketRef.current?.connected) {
       console.warn('⚠️ WebSocket: Not connected, cannot send message');
@@ -230,7 +280,11 @@ export const useWebSocket = (
 
     try {
       console.log('📤 WebSocket: Sending message to channel', data.channelId);
-      socketRef.current.emit('send_message', data, (response: { success: boolean; messageId?: number; error?: string }) => {
+      socketRef.current.emit('send_message', data, (response: { 
+        success: boolean; 
+        messageId?: number; 
+        error?: string 
+      }) => {
         if (response?.success) {
           console.log('✅ WebSocket: Message sent -', response.messageId);
         } else {
@@ -244,7 +298,7 @@ export const useWebSocket = (
     }
   }, []);
 
-  // TYPING INDICATORS
+  // ==================== TYPING INDICATORS ====================
   const startTyping = useCallback((channelId: number) => {
     if (!socketRef.current?.connected) return;
     socketRef.current.emit('typing_start', { channelId });
@@ -255,7 +309,29 @@ export const useWebSocket = (
     socketRef.current.emit('typing_stop', { channelId });
   }, []);
 
-  // MANUAL RECONNECT
+  // ==================== UPDATE DELIVERY STATUS ====================
+  // ✅ NEW: Send delivery/read status updates
+  const updateDeliveryStatus = useCallback((
+    messageId: number, 
+    status: 'delivered' | 'read'
+  ) => {
+    if (!socketRef.current?.connected) {
+      console.warn('⚠️ WebSocket: Not connected, cannot update status');
+      return;
+    }
+
+    try {
+      console.log(`📬 WebSocket: Updating message ${messageId} status to ${status}`);
+      socketRef.current.emit('update_delivery_status', {
+        messageId,
+        status,
+      });
+    } catch (error) {
+      console.error('WebSocket: Error updating delivery status -', error);
+    }
+  }, []);
+
+  // ==================== MANUAL RECONNECT ====================
   const reconnect = useCallback(() => {
     if (socketRef.current?.connected) {
       console.log('WebSocket: Already connected');
@@ -272,7 +348,7 @@ export const useWebSocket = (
     }
   }, [connect]);
 
-  // DISCONNECT
+  // ==================== DISCONNECT ====================
   const disconnect = useCallback(() => {
     console.log('🔌 WebSocket: Manual disconnect');
     if (socketRef.current) {
@@ -286,6 +362,7 @@ export const useWebSocket = (
     sendMessage,
     startTyping,
     stopTyping,
+    updateDeliveryStatus, // ✅ NEW: Export delivery status method
     reconnect,
     disconnect,
     isConnected,
