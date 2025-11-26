@@ -1,3 +1,4 @@
+// components/chat/message-item.tsx - COMPLETE WITH ALL FEATURES
 "use client"
 
 import React, { useState } from "react"
@@ -193,6 +194,7 @@ export function MessageItem({
         isOwn ? "flex-row-reverse" : "flex-row"
       )}
     >
+      {/* Avatar */}
       <div className="h-8 w-8 flex-shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold overflow-hidden">
         {message.authorAvatar ? (
           <img src={message.authorAvatar} alt="" className="h-full w-full object-cover" />
@@ -201,10 +203,12 @@ export function MessageItem({
         )}
       </div>
 
+      {/* Message Content */}
       <div className={cn(
         "flex-1 min-w-0 flex flex-col gap-1",
         isOwn && "items-end"
       )}>
+        {/* Message Header */}
         <div className={cn(
           "flex items-center gap-2 flex-wrap text-xs",
           isOwn && "flex-row-reverse"
@@ -220,6 +224,7 @@ export function MessageItem({
           )}
         </div>
 
+        {/* Reply Preview */}
         {message.replyTo && (
           <div
             className={cn(
@@ -233,6 +238,7 @@ export function MessageItem({
           </div>
         )}
 
+        {/* Message Body */}
         <div className={cn(
           "inline-block max-w-md rounded-lg px-3 py-2 shadow-sm",
           isOwn
@@ -244,6 +250,7 @@ export function MessageItem({
           </p>
         </div>
 
+        {/* File Attachments */}
         {message.files && message.files.length > 0 && (
           <div className="space-y-1">
             {message.files.map((file) => (
@@ -257,6 +264,7 @@ export function MessageItem({
           </div>
         )}
 
+        {/* Reactions */}
         {groupedReactions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
             {groupedReactions.map((reaction) => (
@@ -288,6 +296,7 @@ export function MessageItem({
           </div>
         )}
 
+        {/* Thread Reply Count */}
         {!isInThread && !isDirect && message.threadReplies !== undefined && message.threadReplies >= 0 && (
           <button
             onClick={() => onOpenThread?.(message.id)}
@@ -304,11 +313,13 @@ export function MessageItem({
         )}
       </div>
 
+      {/* Message Actions */}
       <div className={cn(
         "absolute top-0 flex items-center gap-1 bg-popover/95 backdrop-blur-sm rounded shadow-md p-1 border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-10",
         isOwn ? "right-12" : "left-12",
         "-translate-y-1/2"
       )}>
+        {/* Quick Emoji Picker */}
         <div className="relative">
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -335,6 +346,7 @@ export function MessageItem({
           )}
         </div>
 
+        {/* More Actions */}
         <MessageActionsPopover
           isDirect={isDirect}
           isOwn={isOwn}

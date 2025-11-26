@@ -1,4 +1,4 @@
-// hooks/useWebSocket.ts - COMPLETE PRODUCTION-READY VERSION
+// hooks/useWebSocket.ts - SOCKET.IO COMPATIBLE + FIXED EVENT LISTENING
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAppDispatch } from '@/store/hooks';
@@ -17,6 +17,7 @@ import {
   updateThreadReplyCount,
   fetchUserChannels,
   addMembersToChannel,
+  addMessageToThread,
 } from '@/store/slices/chatSlice';
 import type { SendMessagePayload } from '@/lib/api/services/chat-service';
 
@@ -55,7 +56,6 @@ export const useWebSocket = (
   const visibilityStateRef = useRef<'visible' | 'hidden'>('visible');
   const messageQueueRef = useRef<Array<{ event: string; data: any; callback?: Function }>>([]);
 
-  // ==================== CONNECTION SETUP ====================
   const connect = useCallback(() => {
     if (!token || !userId) {
       console.log('⚠️ WebSocket: Missing token or userId');
@@ -73,8 +73,9 @@ export const useWebSocket = (
       socketRef.current.disconnect();
     }
 
-    console.log('🔌 WebSocket: Connecting to', WS_URL);
+    console.log('🔌 WebSocket: Connecting to', `${WS_URL}/chat`);
 
+    // ✅ Socket.IO Client Connection
     const socket = io(`${WS_URL}/chat`, {
       auth: { token },
       query: { token },
@@ -84,12 +85,12 @@ export const useWebSocket = (
       reconnectionDelayMax: 10000,
       reconnectionAttempts: maxReconnectAttempts,
       timeout: 20000,
-      forceNew: true,
+      autoConnect: true,
     });
 
-    // ==================== SOCKET EVENT LISTENERS ====================
+    // ==================== CONNECTION EVENTS ====================
     socket.on('connect', () => {
-      console.log('✅ WebSocket: Connected');
+      console.log('✅ WebSocket: Connected - Socket ID:', socket.id);
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
 
@@ -108,6 +109,7 @@ export const useWebSocket = (
       setIsConnected(false);
 
       if (reason === 'io server disconnect') {
+        console.log('🔄 Server disconnected, attempting reconnect...');
         socket.connect();
       }
     });
@@ -128,35 +130,36 @@ export const useWebSocket = (
     });
 
     socket.on('connected', (data) => {
-      console.log('✅ WebSocket: Server acknowledged connection -', data);
+      console.log('✅ WebSocket: Server acknowledged connection:', data);
     });
 
-    // ==================== MESSAGE EVENTS ====================
+    // ==================== MESSAGE EVENT (ALL EVENTS COME THROUGH THIS) ====================
     socket.on('message', (data: any) => {
-      console.log('📨 WebSocket: Message received -', data.event);
+      console.log('📨 WebSocket: Event received -', data.event, data);
 
       try {
         switch (data.event) {
           case 'new_message':
             if (data.message) {
+              console.log('💬 New message:', data.message.id);
               dispatch(addMessageToChannel(data.message));
 
               if (data.message.sender_user_id !== userId) {
                 dispatch(incrementUnreadCount(data.message.channel_id));
 
-                // Auto-mark as delivered if page is visible
-                if (visibilityStateRef.current === 'visible') {
+                // if (visibilityStateRef.current === 'visible') {
                   socket.emit('mark_as_delivered', {
                     messageId: data.message.id,
                     channelId: data.message.channel_id,
                   });
-                }
+                // }
               }
             }
             break;
 
           case 'message_edited':
             if (data.messageId && data.channelId) {
+              console.log('✏️ Message edited:', data.messageId);
               dispatch(updateMessageInChannel({
                 channelId: data.channelId,
                 messageId: data.messageId,
@@ -169,6 +172,7 @@ export const useWebSocket = (
 
           case 'message_deleted':
             if (data.messageId && data.channelId) {
+              console.log('🗑️ Message deleted:', data.messageId);
               dispatch(removeMessageFromChannel({
                 channelId: data.channelId,
                 messageId: data.messageId,
@@ -179,6 +183,7 @@ export const useWebSocket = (
           case 'message_pinned':
           case 'message_unpinned':
             if (data.messageId && data.channelId) {
+              console.log('📌 Message pin status:', data.event);
               dispatch(pinMessageInChannel({
                 channelId: data.channelId,
                 messageId: data.messageId,
@@ -191,6 +196,7 @@ export const useWebSocket = (
 
           case 'reaction_added':
             if (data.messageId && data.emoji && data.channelId) {
+              console.log('👍 Reaction added:', data.emoji, 'to message', data.messageId);
               dispatch(addReactionToMessage({
                 messageId: data.messageId,
                 channelId: data.channelId,
@@ -207,6 +213,7 @@ export const useWebSocket = (
 
           case 'reaction_removed':
             if (data.messageId && data.emoji && data.channelId) {
+              console.log('👎 Reaction removed:', data.emoji, 'from message', data.messageId);
               dispatch(removeReactionFromMessage({
                 messageId: data.messageId,
                 channelId: data.channelId,
@@ -218,6 +225,7 @@ export const useWebSocket = (
 
           case 'message_delivered':
             if (data.messageId) {
+              console.log('✅ Message delivered:', data.messageId);
               dispatch(updateMessageDeliveryStatus({
                 messageId: data.messageId,
                 deliveredBy: data.deliveredBy,
@@ -229,6 +237,7 @@ export const useWebSocket = (
 
           case 'message_read':
             if (data.messageId) {
+              console.log('📖 Message read:', data.messageId);
               dispatch(updateMessageReadStatus({
                 messageId: data.messageId,
                 readBy: data.readBy,
@@ -240,12 +249,26 @@ export const useWebSocket = (
             break;
 
           case 'bulk_read_update':
-            console.log('📖 Bulk read update:', data);
+            if (data.channelId && data.upToMessageId) {
+              console.log('📖 Bulk read update:', data.channelId, 'up to', data.upToMessageId);
+              // Handle bulk read - update UI if needed
+            }
             break;
 
           case 'thread_reply':
             if (data.message && data.parentMessageId) {
+              console.log('🧵 Thread reply:', data.message.id, 'to parent', data.parentMessageId);
+
+              // Add to main channel messages
               dispatch(addMessageToChannel(data.message));
+
+              // Add to thread messages
+              dispatch(addMessageToThread({
+                parentMessageId: data.parentMessageId,
+                message: data.message,
+              }));
+
+              // Update parent message reply count
               dispatch(updateThreadReplyCount({
                 messageId: data.parentMessageId,
                 increment: 1,
@@ -256,8 +279,8 @@ export const useWebSocket = (
           case 'user_mentioned':
           case 'mentioned_in_thread':
             if (data.messageId) {
-              dispatch(incrementUnreadCount(data.channelId));
               console.log('📢 You were mentioned:', data);
+              dispatch(incrementUnreadCount(data.channelId));
             }
             break;
 
@@ -268,7 +291,7 @@ export const useWebSocket = (
 
           case 'members_added':
             if (data.channelId && data.userIds) {
-              console.log('👥 Members added to channel:', data);
+              console.log('👥 Members added to channel:', data.channelId);
               dispatch(addMembersToChannel({
                 channelId: data.channelId,
                 userIds: data.userIds,
@@ -282,15 +305,9 @@ export const useWebSocket = (
       } catch (error) {
         console.error('❌ WebSocket: Error processing message -', error);
       }
-      window.dispatchEvent(new CustomEvent('ws_message', {
-        detail: {
-          type: data.event,
-          payload: data
-        }
-      }));
     });
 
-    // ==================== TYPING INDICATORS ====================
+    // ==================== TYPING INDICATOR EVENTS ====================
     socket.on('user_typing', (data: {
       channelId: number;
       userId: number;
@@ -298,6 +315,8 @@ export const useWebSocket = (
       isTyping: boolean;
     }) => {
       if (data.userId === userId) return;
+
+      console.log('⌨️ Typing event:', data);
 
       if (data.isTyping) {
         dispatch(addTypingUser({
@@ -335,7 +354,6 @@ export const useWebSocket = (
     socketRef.current = socket;
   }, [token, userId, dispatch]);
 
-  // ==================== PAGE VISIBILITY TRACKING ====================
   useEffect(() => {
     const handleVisibilityChange = () => {
       visibilityStateRef.current = document.hidden ? 'hidden' : 'visible';
@@ -346,7 +364,6 @@ export const useWebSocket = (
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // ==================== INITIALIZE CONNECTION ====================
   useEffect(() => {
     connect();
 
@@ -365,7 +382,6 @@ export const useWebSocket = (
     };
   }, [connect]);
 
-  // ==================== HELPER: EMIT WITH QUEUE ====================
   const emitWithQueue = useCallback((
     event: string,
     data: any,
@@ -377,11 +393,11 @@ export const useWebSocket = (
       return false;
     }
 
+    console.log(`📤 Emitting event: ${event}`, data);
     socketRef.current.emit(event, data, callback);
     return true;
   }, []);
 
-  // ==================== SEND MESSAGE ====================
   const sendMessage = useCallback(async (data: SendMessagePayload): Promise<boolean> => {
     return new Promise((resolve) => {
       const success = emitWithQueue('send_message', data, (response: any) => {
@@ -400,7 +416,6 @@ export const useWebSocket = (
     });
   }, [emitWithQueue]);
 
-  // ==================== TYPING INDICATORS ====================
   const startTyping = useCallback((channelId: number) => {
     emitWithQueue('typing_start', { channelId });
   }, [emitWithQueue]);
@@ -409,7 +424,6 @@ export const useWebSocket = (
     emitWithQueue('typing_stop', { channelId });
   }, [emitWithQueue]);
 
-  // ==================== DELIVERY & READ STATUS ====================
   const markAsDelivered = useCallback((messageId: number, channelId: number) => {
     emitWithQueue('mark_as_delivered', { messageId, channelId });
   }, [emitWithQueue]);
@@ -422,7 +436,6 @@ export const useWebSocket = (
     emitWithQueue('bulk_mark_as_read', { channelId, upToMessageId });
   }, [emitWithQueue]);
 
-  // ==================== REACTIONS ====================
   const addReaction = useCallback((messageId: number, emoji: string, channelId: number) => {
     emitWithQueue('add_reaction', { messageId, emoji, channelId }, (response: any) => {
       if (response?.success) {
@@ -441,7 +454,6 @@ export const useWebSocket = (
     });
   }, [emitWithQueue]);
 
-  // ==================== MESSAGE EDITING ====================
   const editMessage = useCallback((
     messageId: number,
     content: string,
@@ -476,7 +488,6 @@ export const useWebSocket = (
     });
   }, [emitWithQueue]);
 
-  // ==================== THREAD REPLIES ====================
   const replyInThread = useCallback((
     parentMessageId: number,
     content: string,
@@ -495,7 +506,6 @@ export const useWebSocket = (
     });
   }, [emitWithQueue]);
 
-  // ==================== MEMBER INVITATIONS ====================
   const inviteMembers = useCallback((channelId: number, userIds: number[]) => {
     emitWithQueue('invite_members', { channelId, userIds }, (response: any) => {
       if (response?.success) {
@@ -506,7 +516,6 @@ export const useWebSocket = (
     });
   }, [emitWithQueue]);
 
-  // ==================== CONNECTION CONTROL ====================
   const reconnect = useCallback(() => {
     if (socketRef.current?.connected) {
       console.log('✅ WebSocket: Already connected');

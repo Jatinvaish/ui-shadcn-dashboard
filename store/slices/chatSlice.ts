@@ -1,4 +1,4 @@
-// store/slices/chatSlice.ts
+// store/slices/chatSlice.ts - PART 1: Types & Initial State
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import {
   ChatService,
@@ -18,39 +18,72 @@ import {
   MessageReadStatus
 } from '../../lib/api/services/chat-service';
 
+// ==================== STATE INTERFACE ====================
 interface ChatState {
+  // Channels
   channels: Channel[];
   selectedChannel: Channel | null;
   isLoadingChannels: boolean;
+  
+  // Messages
   messages: Record<number, Message[]>;
   isLoadingMessages: boolean;
   isSendingMessage: boolean;
+  
+  // Members
   channelMembers: Record<number, Member[]>;
   isLoadingMembers: boolean;
-  threadMessages: Record<number, Message[]>;
-  isLoadingThread: boolean;
-  pinnedMessages: Record<number, Message[]>;
-  searchResults: SearchResults | null;
-  isSearching: boolean;
-  typingUsers: Record<number, Array<{ userId: number; userName?: string }>>;
-  onlineUsers: number[];
-  unreadCount: number;
-  channelUnreadCounts: Record<number, number>;
   teamMembers: Member[];
   availableMembers: Member[];
-  channelFiles: Record<number, Attachment[]>;
+  collaborationMembers: Member[];
+  
+  // Threads
+  threadMessages: Record<number, Message[]>;
+  isLoadingThread: boolean;
+  enhancedThreads: Record<number, any>;
+  
+  // Pinned Messages
+  pinnedMessages: Record<number, Message[]>;
+  
+  // Search
+  searchResults: SearchResults | null;
+  isSearching: boolean;
+  
+  // Real-time features
+  typingUsers: Record<number, Array<{ userId: number; userName?: string }>>;
+  onlineUsers: number[];
+  
+  // Unread tracking
+  unreadCount: number;
+  channelUnreadCounts: Record<number, number>;
+  unreadMentionsCount: number;
+  unreadNotificationsCount: number;
+  
+  // Activities & Notifications
   activities: Activity[];
   unreadActivities: Activity[];
+  channelActivities: Record<number, Activity[]>;
   notifications: Notification[];
-  unreadNotificationsCount: number;
-  unreadMentionsCount: number;
-  mentions: any[];
   notificationPreferences: any[];
+  
+  // Mentions
+  mentions: any[];
+  
+  // Files
+  channelFiles: Record<number, Attachment[]>;
+  
+  // Message details
+  messageDetails: Record<number, Message>;
+  messageAttachments: Record<number, Attachment[]>;
+  messageReactions: Record<number, Reaction[]>;
   messageReadStatuses: Record<number, MessageReadStatus>;
+  
+  // UI state
   error: string | null;
   successMessage: string | null;
 }
 
+// ==================== INITIAL STATE ====================
 const initialState: ChatState = {
   channels: [],
   selectedChannel: null,
@@ -60,8 +93,12 @@ const initialState: ChatState = {
   isSendingMessage: false,
   channelMembers: {},
   isLoadingMembers: false,
+  teamMembers: [],
+  availableMembers: [],
+  collaborationMembers: [],
   threadMessages: {},
   isLoadingThread: false,
+  enhancedThreads: {},
   pinnedMessages: {},
   searchResults: null,
   isSearching: false,
@@ -69,21 +106,24 @@ const initialState: ChatState = {
   onlineUsers: [],
   unreadCount: 0,
   channelUnreadCounts: {},
-  teamMembers: [],
-  availableMembers: [],
-  channelFiles: {},
+  unreadMentionsCount: 0,
+  unreadNotificationsCount: 0,
   activities: [],
   unreadActivities: [],
+  channelActivities: {},
   notifications: [],
-  unreadNotificationsCount: 0,
-  unreadMentionsCount: 0,
-  mentions: [],
   notificationPreferences: [],
+  mentions: [],
+  channelFiles: {},
+  messageDetails: {},
+  messageAttachments: {},
+  messageReactions: {},
   messageReadStatuses: {},
   error: null,
   successMessage: null,
 };
 
+// ==================== HELPER FUNCTIONS ====================
 const normalizeChannel = (ch: any): Channel => ({
   id: parseInt(ch.id || ch.channel_id || 0),
   channel_id: ch.channel_id || ch.id?.toString(),
@@ -105,15 +145,19 @@ const normalizeChannel = (ch: any): Channel => ({
   created_at: ch.created_at,
   updated_at: ch.updated_at,
   isExisting: ch.isExisting,
+  related_type: ch.related_type,
+  related_id: ch.related_id,
 });
 
+// store/slices/chatSlice.ts - PART 2: ALL ASYNC THUNKS (110+ operations)
+
+// ==================== CHANNEL THUNKS ====================
 export const fetchUserChannels = createAsyncThunk<Channel[], number>(
   'chat/fetchUserChannels',
   async (limit = 50, { rejectWithValue }) => {
     try {
       const response = await ChatService.getUserChannels(limit);
-      const channelsArray = Array.isArray(response) ? response : [];
-      return channelsArray.map(normalizeChannel);
+      return response.map(normalizeChannel);
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to fetch channels');
     }
@@ -201,7 +245,10 @@ export const deleteChannel = createAsyncThunk<number, number>(
   }
 );
 
-export const pinChannel = createAsyncThunk<{ channelId: number; isPinned: boolean }, { channelId: number; isPinned: boolean }>(
+export const pinChannel = createAsyncThunk<
+  { channelId: number; isPinned: boolean },
+  { channelId: number; isPinned: boolean }
+>(
   'chat/pinChannel',
   async ({ channelId, isPinned }, { rejectWithValue }) => {
     try {
@@ -213,7 +260,10 @@ export const pinChannel = createAsyncThunk<{ channelId: number; isPinned: boolea
   }
 );
 
-export const muteChannel = createAsyncThunk<{ channelId: number; isMuted: boolean }, { channelId: number; isMuted: boolean; muteUntil?: string }>(
+export const muteChannel = createAsyncThunk<
+  { channelId: number; isMuted: boolean },
+  { channelId: number; isMuted: boolean; muteUntil?: string }
+>(
   'chat/muteChannel',
   async ({ channelId, isMuted, muteUntil }, { rejectWithValue }) => {
     try {
@@ -225,7 +275,10 @@ export const muteChannel = createAsyncThunk<{ channelId: number; isMuted: boolea
   }
 );
 
-export const fetchChannelFiles = createAsyncThunk<{ channelId: number; files: Attachment[] }, { channelId: number; limit?: number }>(
+export const fetchChannelFiles = createAsyncThunk<
+  { channelId: number; files: Attachment[] },
+  { channelId: number; limit?: number }
+>(
   'chat/fetchChannelFiles',
   async ({ channelId, limit = 50 }, { rejectWithValue }) => {
     try {
@@ -237,12 +290,15 @@ export const fetchChannelFiles = createAsyncThunk<{ channelId: number; files: At
   }
 );
 
-export const fetchMessages = createAsyncThunk<{ channelId: number; messages: Message[] }, { channelId: number; limit?: number; beforeId?: number }>(
+// ==================== MESSAGE THUNKS ====================
+export const fetchMessages = createAsyncThunk<
+  { channelId: number; messages: Message[] },
+  { channelId: number; limit?: number; beforeId?: number }
+>(
   'chat/fetchMessages',
   async ({ channelId, limit = 50, beforeId }, { rejectWithValue }) => {
     try {
-      const response = await ChatService.getMessages(channelId, limit, beforeId);
-      const messages = Array.isArray(response) ? response : [];
+      const messages = await ChatService.getMessages(channelId, limit, beforeId);
       return { channelId, messages };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to fetch messages');
@@ -261,7 +317,10 @@ export const sendMessage = createAsyncThunk<Message, SendMessagePayload>(
   }
 );
 
-export const editMessage = createAsyncThunk<{ messageId: number; content: string; channelId: number; mentions?: number[] }, { messageId: number; content: string; channelId: number; mentions?: number[] }>(
+export const editMessage = createAsyncThunk<
+  { messageId: number; content: string; channelId: number; mentions?: number[] },
+  { messageId: number; content: string; channelId: number; mentions?: number[] }
+>(
   'chat/editMessage',
   async ({ messageId, content, channelId, mentions }, { rejectWithValue }) => {
     try {
@@ -273,7 +332,10 @@ export const editMessage = createAsyncThunk<{ messageId: number; content: string
   }
 );
 
-export const deleteMessage = createAsyncThunk<{ messageId: number; channelId: number }, { messageId: number; channelId: number }>(
+export const deleteMessage = createAsyncThunk<
+  { messageId: number; channelId: number },
+  { messageId: number; channelId: number }
+>(
   'chat/deleteMessage',
   async ({ messageId, channelId }, { rejectWithValue }) => {
     try {
@@ -285,7 +347,10 @@ export const deleteMessage = createAsyncThunk<{ messageId: number; channelId: nu
   }
 );
 
-export const pinMessage = createAsyncThunk<{ messageId: number; isPinned: boolean; channelId: number }, { messageId: number; isPinned: boolean; channelId: number }>(
+export const pinMessage = createAsyncThunk<
+  { messageId: number; isPinned: boolean; channelId: number },
+  { messageId: number; isPinned: boolean; channelId: number }
+>(
   'chat/pinMessage',
   async ({ messageId, isPinned, channelId }, { rejectWithValue }) => {
     try {
@@ -297,7 +362,10 @@ export const pinMessage = createAsyncThunk<{ messageId: number; isPinned: boolea
   }
 );
 
-export const fetchPinnedMessages = createAsyncThunk<{ channelId: number; messages: Message[] }, number>(
+export const fetchPinnedMessages = createAsyncThunk<
+  { channelId: number; messages: Message[] },
+  number
+>(
   'chat/fetchPinnedMessages',
   async (channelId, { rejectWithValue }) => {
     try {
@@ -309,7 +377,10 @@ export const fetchPinnedMessages = createAsyncThunk<{ channelId: number; message
   }
 );
 
-export const forwardMessage = createAsyncThunk<any, { messageId: number; targetChannelIds: number[] }>(
+export const forwardMessage = createAsyncThunk<
+  any,
+  { messageId: number; targetChannelIds: number[] }
+>(
   'chat/forwardMessage',
   async ({ messageId, targetChannelIds }, { rejectWithValue }) => {
     try {
@@ -320,11 +391,15 @@ export const forwardMessage = createAsyncThunk<any, { messageId: number; targetC
   }
 );
 
-export const markAsRead = createAsyncThunk<{ channelId: number }, { channelId: number; messageId: number }>(
+export const markAsRead = createAsyncThunk<
+  { channelId: number },
+  { channelId: number; messageId: number }
+>(
   'chat/markAsRead',
   async ({ channelId, messageId }, { rejectWithValue }) => {
     try {
       await ChatService.markAsRead(channelId, messageId);
+      console.log("🚀 ~ channelId, messageId:", channelId, messageId)
       return { channelId };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to mark as read');
@@ -332,7 +407,10 @@ export const markAsRead = createAsyncThunk<{ channelId: number }, { channelId: n
   }
 );
 
-export const bulkMarkAsRead = createAsyncThunk<{ channelId: number }, { channelId: number; upToMessageId: number }>(
+export const bulkMarkAsRead = createAsyncThunk<
+  { channelId: number },
+  { channelId: number; upToMessageId: number }
+>(
   'chat/bulkMarkAsRead',
   async ({ channelId, upToMessageId }, { rejectWithValue }) => {
     try {
@@ -344,6 +422,7 @@ export const bulkMarkAsRead = createAsyncThunk<{ channelId: number }, { channelI
   }
 );
 
+// ==================== MESSAGE DETAILS THUNKS ====================
 export const fetchMessageDetails = createAsyncThunk<Message, number>(
   'chat/fetchMessageDetails',
   async (messageId, { rejectWithValue }) => {
@@ -355,7 +434,10 @@ export const fetchMessageDetails = createAsyncThunk<Message, number>(
   }
 );
 
-export const fetchMessageAttachments = createAsyncThunk<{ messageId: number; attachments: Attachment[] }, number>(
+export const fetchMessageAttachments = createAsyncThunk<
+  { messageId: number; attachments: Attachment[] },
+  number
+>(
   'chat/fetchMessageAttachments',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -367,7 +449,10 @@ export const fetchMessageAttachments = createAsyncThunk<{ messageId: number; att
   }
 );
 
-export const fetchMessageReactions = createAsyncThunk<{ messageId: number; reactions: Reaction[] }, number>(
+export const fetchMessageReactions = createAsyncThunk<
+  { messageId: number; reactions: Reaction[] },
+  number
+>(
   'chat/fetchMessageReactions',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -379,7 +464,11 @@ export const fetchMessageReactions = createAsyncThunk<{ messageId: number; react
   }
 );
 
-export const addReaction = createAsyncThunk<{ messageId: number; emoji: string }, { messageId: number; emoji: string }>(
+// ==================== REACTION THUNKS ====================
+export const addReaction = createAsyncThunk<
+  { messageId: number; emoji: string },
+  { messageId: number; emoji: string }
+>(
   'chat/addReaction',
   async ({ messageId, emoji }, { rejectWithValue }) => {
     try {
@@ -391,7 +480,10 @@ export const addReaction = createAsyncThunk<{ messageId: number; emoji: string }
   }
 );
 
-export const removeReaction = createAsyncThunk<{ messageId: number; emoji: string }, { messageId: number; emoji: string }>(
+export const removeReaction = createAsyncThunk<
+  { messageId: number; emoji: string },
+  { messageId: number; emoji: string }
+>(
   'chat/removeReaction',
   async ({ messageId, emoji }, { rejectWithValue }) => {
     try {
@@ -403,7 +495,11 @@ export const removeReaction = createAsyncThunk<{ messageId: number; emoji: strin
   }
 );
 
-export const fetchThreadMessages = createAsyncThunk<{ parentMessageId: number; messages: Message[] }, { parentMessageId: number; limit?: number }>(
+// ==================== THREAD THUNKS ====================
+export const fetchThreadMessages = createAsyncThunk<
+  { parentMessageId: number; messages: Message[] },
+  { parentMessageId: number; limit?: number }
+>(
   'chat/fetchThreadMessages',
   async ({ parentMessageId, limit = 50 }, { rejectWithValue }) => {
     try {
@@ -415,7 +511,10 @@ export const fetchThreadMessages = createAsyncThunk<{ parentMessageId: number; m
   }
 );
 
-export const replyInThread = createAsyncThunk<{ parentMessageId: number; message: Message }, { parentMessageId: number; content: string }>(
+export const replyInThread = createAsyncThunk<
+  { parentMessageId: number; message: Message },
+  { parentMessageId: number; content: string }
+>(
   'chat/replyInThread',
   async ({ parentMessageId, content }, { rejectWithValue }) => {
     try {
@@ -427,18 +526,26 @@ export const replyInThread = createAsyncThunk<{ parentMessageId: number; message
   }
 );
 
-export const fetchEnhancedThread = createAsyncThunk<any, { messageId: number; limit?: number }>(
+export const fetchEnhancedThread = createAsyncThunk<
+  { messageId: number; data: any },
+  { messageId: number; limit?: number }
+>(
   'chat/fetchEnhancedThread',
   async ({ messageId, limit = 50 }, { rejectWithValue }) => {
     try {
-      return await ChatService.getEnhancedThread(messageId, limit);
+      const data = await ChatService.getEnhancedThread(messageId, limit);
+      return { messageId, data };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to fetch enhanced thread');
     }
   }
 );
 
-export const fetchChannelMembers = createAsyncThunk<{ channelId: number; members: Member[] }, number>(
+// ==================== MEMBER THUNKS ====================
+export const fetchChannelMembers = createAsyncThunk<
+  { channelId: number; members: Member[] },
+  number
+>(
   'chat/fetchChannelMembers',
   async (channelId, { rejectWithValue }) => {
     try {
@@ -450,7 +557,10 @@ export const fetchChannelMembers = createAsyncThunk<{ channelId: number; members
   }
 );
 
-export const addMembers = createAsyncThunk<{ channelId: number; addedMembers: number[] }, { channelId: number; userIds: number[] }>(
+export const addMembers = createAsyncThunk<
+  { channelId: number; addedMembers: number[] },
+  { channelId: number; userIds: number[] }
+>(
   'chat/addMembers',
   async ({ channelId, userIds }, { rejectWithValue }) => {
     try {
@@ -462,7 +572,10 @@ export const addMembers = createAsyncThunk<{ channelId: number; addedMembers: nu
   }
 );
 
-export const removeMember = createAsyncThunk<{ channelId: number; userId: number }, { channelId: number; userId: number }>(
+export const removeMember = createAsyncThunk<
+  { channelId: number; userId: number },
+  { channelId: number; userId: number }
+>(
   'chat/removeMember',
   async ({ channelId, userId }, { rejectWithValue }) => {
     try {
@@ -474,7 +587,10 @@ export const removeMember = createAsyncThunk<{ channelId: number; userId: number
   }
 );
 
-export const updateMemberRole = createAsyncThunk<{ channelId: number; userId: number; role: string }, { channelId: number; userId: number; role: string }>(
+export const updateMemberRole = createAsyncThunk<
+  { channelId: number; userId: number; role: string },
+  { channelId: number; userId: number; role: string }
+>(
   'chat/updateMemberRole',
   async ({ channelId, userId, role }, { rejectWithValue }) => {
     try {
@@ -482,6 +598,18 @@ export const updateMemberRole = createAsyncThunk<{ channelId: number; userId: nu
       return { channelId, userId, role };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to update role');
+    }
+  }
+);
+
+// ==================== TEAM & COLLABORATION THUNKS ====================
+export const fetchTeamMembers = createAsyncThunk<Member[], string | undefined>(
+  'chat/fetchTeamMembers',
+  async (search, { rejectWithValue }) => {
+    try {
+      return await ChatService.getTeamMembers(search);
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to fetch team members');
     }
   }
 );
@@ -497,18 +625,10 @@ export const fetchAvailableMembers = createAsyncThunk<Member[], number>(
   }
 );
 
-export const fetchTeamMembers = createAsyncThunk<Member[], string | undefined>(
-  'chat/fetchTeamMembers',
-  async (search, { rejectWithValue }) => {
-    try {
-      return await ChatService.getTeamMembers(search);
-    } catch (e: any) {
-      return rejectWithValue(e?.message || 'Failed to fetch team members');
-    }
-  }
-);
-
-export const startTeamChat = createAsyncThunk<Channel, { memberIds: number[]; name?: string }>(
+export const startTeamChat = createAsyncThunk<
+  Channel,
+  { memberIds: number[]; name?: string }
+>(
   'chat/startTeamChat',
   async ({ memberIds, name }, { rejectWithValue }) => {
     try {
@@ -518,8 +638,26 @@ export const startTeamChat = createAsyncThunk<Channel, { memberIds: number[]; na
     }
   }
 );
+  
 
-export const searchChat = createAsyncThunk<SearchResults, { query: string; opts?: any }>(
+export const searchCollaborationMembers = createAsyncThunk<Member[], string>(
+  'chat/searchCollaborationMembers',
+  async (query, { rejectWithValue }) => {
+    try {
+      return await ChatService.searchCollaborationMembers(query);
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to search members');
+    }
+  }
+);
+
+// store/slices/chatSlice.ts - PART 3: Remaining Thunks, Reducers & Export
+
+// ==================== SEARCH THUNK ====================
+export const searchChat = createAsyncThunk<
+  SearchResults,
+  { query: string; opts?: any }
+>(
   'chat/search',
   async ({ query, opts }, { rejectWithValue }) => {
     try {
@@ -530,6 +668,7 @@ export const searchChat = createAsyncThunk<SearchResults, { query: string; opts?
   }
 );
 
+// ==================== MENTIONS THUNKS ====================
 export const fetchUserMentions = createAsyncThunk<any[], number>(
   'chat/fetchUserMentions',
   async (limit = 50, { rejectWithValue }) => {
@@ -553,11 +692,16 @@ export const fetchUnreadMentionsCount = createAsyncThunk<number, void>(
   }
 );
 
-export const fetchChannelActivities = createAsyncThunk<Activity[], { channelId: number; limit?: number }>(
+// ==================== ACTIVITIES THUNKS ====================
+export const fetchChannelActivities = createAsyncThunk<
+  { channelId: number; activities: Activity[] },
+  { channelId: number; limit?: number }
+>(
   'chat/fetchChannelActivities',
   async ({ channelId, limit = 50 }, { rejectWithValue }) => {
     try {
-      return await ChatService.getChannelActivities(channelId, limit);
+      const activities = await ChatService.getChannelActivities(channelId, limit);
+      return { channelId, activities };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to fetch activities');
     }
@@ -587,6 +731,7 @@ export const markActivitiesAsRead = createAsyncThunk<number[], number[]>(
   }
 );
 
+// ==================== NOTIFICATIONS THUNKS ====================
 export const fetchUnreadNotificationsCount = createAsyncThunk<number, void>(
   'chat/fetchUnreadNotificationsCount',
   async (_, { rejectWithValue }) => {
@@ -599,7 +744,10 @@ export const fetchUnreadNotificationsCount = createAsyncThunk<number, void>(
   }
 );
 
-export const fetchUserNotifications = createAsyncThunk<Notification[], { limit?: number; page?: number }>(
+export const fetchUserNotifications = createAsyncThunk<
+  Notification[],
+  { limit?: number; page?: number }
+>(
   'chat/fetchUserNotifications',
   async ({ limit = 50, page = 1 }, { rejectWithValue }) => {
     try {
@@ -633,7 +781,10 @@ export const fetchNotificationPreferences = createAsyncThunk<any[], void>(
   }
 );
 
-export const updateNotificationPreferences = createAsyncThunk<any, NotificationPreferencePayload>(
+export const updateNotificationPreferences = createAsyncThunk<
+  any,
+  NotificationPreferencePayload
+>(
   'chat/updateNotificationPreferences',
   async (payload, { rejectWithValue }) => {
     try {
@@ -644,6 +795,7 @@ export const updateNotificationPreferences = createAsyncThunk<any, NotificationP
   }
 );
 
+// ==================== PRESENCE THUNKS ====================
 export const setUserOnline = createAsyncThunk<void, void>(
   'chat/setUserOnline',
   async (_, { rejectWithValue }) => {
@@ -677,7 +829,11 @@ export const fetchOnlineUsers = createAsyncThunk<number[], void>(
   }
 );
 
-export const updateDeliveryStatus = createAsyncThunk<{ messageId: number; status: 'delivered' | 'read' }, { messageId: number; status: 'delivered' | 'read' }>(
+// ==================== DELIVERY & READ STATUS THUNKS ====================
+export const updateDeliveryStatus = createAsyncThunk<
+  { messageId: number; status: 'delivered' | 'read' },
+  { messageId: number; status: 'delivered' | 'read' }
+>(
   'chat/updateDeliveryStatus',
   async ({ messageId, status }, { rejectWithValue }) => {
     try {
@@ -689,7 +845,10 @@ export const updateDeliveryStatus = createAsyncThunk<{ messageId: number; status
   }
 );
 
-export const markAsDelivered = createAsyncThunk<{ messageId: number }, { messageId: number }>(
+export const markAsDelivered = createAsyncThunk<
+  { messageId: number },
+  { messageId: number }
+>(
   'chat/markAsDelivered',
   async ({ messageId }, { rejectWithValue }) => {
     try {
@@ -701,7 +860,10 @@ export const markAsDelivered = createAsyncThunk<{ messageId: number }, { message
   }
 );
 
-export const fetchMessageReadStatus = createAsyncThunk<{ messageId: number; readStatus: MessageReadStatus }, number>(
+export const fetchMessageReadStatus = createAsyncThunk<
+  { messageId: number; readStatus: MessageReadStatus },
+  number
+>(
   'chat/fetchMessageReadStatus',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -713,7 +875,10 @@ export const fetchMessageReadStatus = createAsyncThunk<{ messageId: number; read
   }
 );
 
-export const fetchDetailedReadStatus = createAsyncThunk<{ messageId: number; readStatus: MessageReadStatus }, number>(
+export const fetchDetailedReadStatus = createAsyncThunk<
+  { messageId: number; readStatus: MessageReadStatus },
+  number
+>(
   'chat/fetchDetailedReadStatus',
   async (messageId, { rejectWithValue }) => {
     try {
@@ -737,10 +902,12 @@ export const fetchUnreadCount = createAsyncThunk<number, void>(
   }
 );
 
+// ==================== SLICE ====================
 const chatSlice = createSlice({
   name: 'chat',
   initialState,
   reducers: {
+    // ✅ UI State Management
     clearError: (state) => {
       state.error = null;
     },
@@ -753,18 +920,58 @@ const chatSlice = createSlice({
     clearSearchResults: (state) => {
       state.searchResults = null;
     },
+
+    // ✅ Real-time Message Updates (WebSocket)
     addMessageToChannel: (state, action: PayloadAction<Message>) => {
       const channelId = action.payload.channel_id;
       if (!state.messages[channelId]) {
         state.messages[channelId] = [];
       }
-      
-      const existingIndex = state.messages[channelId].findIndex((m) => m.id === action.payload.id);
-      if (existingIndex === -1) {
+      if (!state.messages[channelId].some((m) => m.id === action.payload.id)) {
         state.messages[channelId].push(action.payload);
       }
     },
-    updateMessageDeliveryStatus: (state, action: PayloadAction<{ messageId: number; deliveredBy: number; deliveredCount: number; timestamp: string }>) => {
+
+    updateMessageInChannel: (state, action: PayloadAction<{
+      channelId: number;
+      messageId: number;
+      content: string;
+      mentions?: number[];
+      editedAt: string;
+    }>) => {
+      const { channelId, messageId, content, mentions, editedAt } = action.payload;
+      if (state.messages[channelId]) {
+        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
+        if (messageIndex !== -1) {
+          const message = state.messages[channelId][messageIndex];
+          message.content = content;
+          message.is_edited = true;
+          message.edited_at = editedAt;
+          if (mentions && mentions.length > 0) {
+            message.mentioned_user_ids = mentions.join(',');
+            message.has_mentions = true;
+          }
+        }
+      }
+    },
+
+    removeMessageFromChannel: (state, action: PayloadAction<{
+      channelId: number;
+      messageId: number;
+    }>) => {
+      const { channelId, messageId } = action.payload;
+      if (state.messages[channelId]) {
+        state.messages[channelId] = state.messages[channelId].filter((m) => m.id !== messageId);
+      }
+    },
+
+    // ✅ Delivery & Read Status Updates (WebSocket)
+    updateMessageDeliveryStatus: (state, action: PayloadAction<{
+      messageId: number;
+      deliveredBy: number;
+      deliveredCount: number;
+      timestamp: string;
+    }>) => {
       const { messageId, deliveredBy, deliveredCount } = action.payload;
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
@@ -780,7 +987,14 @@ const chatSlice = createSlice({
         }
       });
     },
-    updateMessageReadStatus: (state, action: PayloadAction<{ messageId: number; readBy: number; readByName?: string; readCount: number; timestamp: string }>) => {
+
+    updateMessageReadStatus: (state, action: PayloadAction<{
+      messageId: number;
+      readBy: number;
+      readByName?: string;
+      readCount: number;
+      timestamp: string;
+    }>) => {
       const { messageId, readBy, readCount } = action.payload;
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
@@ -802,14 +1016,28 @@ const chatSlice = createSlice({
         }
       });
     },
-    addReactionToMessage: (state, action: PayloadAction<{ messageId: number; channelId: number; reaction: { emoji: string; userId: number; userName?: string; avatarUrl?: string; timestamp: string } }>) => {
+
+    // ✅ Reaction Updates (WebSocket)
+    addReactionToMessage: (state, action: PayloadAction<{
+      messageId: number;
+      channelId: number;
+      reaction: {
+        emoji: string;
+        userId: number;
+        userName?: string;
+        avatarUrl?: string;
+        timestamp: string;
+      };
+    }>) => {
       const { messageId, channelId, reaction } = action.payload;
       if (state.messages[channelId]) {
         const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
         if (messageIndex !== -1) {
           const message = state.messages[channelId][messageIndex];
           if (!message.reactions) message.reactions = [];
-          const existingReaction = message.reactions.find((r) => r.user_id === reaction.userId && r.emoji === reaction.emoji);
+          const existingReaction = message.reactions.find(
+            (r) => r.user_id === reaction.userId && r.emoji === reaction.emoji
+          );
           if (!existingReaction) {
             message.reactions.push({
               id: Date.now(),
@@ -826,20 +1054,36 @@ const chatSlice = createSlice({
         }
       }
     },
-    removeReactionFromMessage: (state, action: PayloadAction<{ messageId: number; channelId: number; emoji: string; userId: number }>) => {
+
+    removeReactionFromMessage: (state, action: PayloadAction<{
+      messageId: number;
+      channelId: number;
+      emoji: string;
+      userId: number;
+    }>) => {
       const { messageId, channelId, emoji, userId } = action.payload;
       if (state.messages[channelId]) {
         const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
         if (messageIndex !== -1) {
           const message = state.messages[channelId][messageIndex];
           if (message.reactions) {
-            message.reactions = message.reactions.filter((r) => !(r.user_id === userId && r.emoji === emoji));
+            message.reactions = message.reactions.filter(
+              (r) => !(r.user_id === userId && r.emoji === emoji)
+            );
             message.reaction_count = Math.max(0, (message.reaction_count || 0) - 1);
           }
         }
       }
     },
-    pinMessageInChannel: (state, action: PayloadAction<{ channelId: number; messageId: number; isPinned: boolean; pinnedBy?: number; pinnedAt?: string }>) => {
+
+    // ✅ Pin Updates (WebSocket)
+    pinMessageInChannel: (state, action: PayloadAction<{
+      channelId: number;
+      messageId: number;
+      isPinned: boolean;
+      pinnedBy?: number;
+      pinnedAt?: string;
+    }>) => {
       const { channelId, messageId, isPinned, pinnedBy, pinnedAt } = action.payload;
       if (state.messages[channelId]) {
         const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
@@ -851,7 +1095,12 @@ const chatSlice = createSlice({
         }
       }
     },
-    updateThreadReplyCount: (state, action: PayloadAction<{ messageId: number; increment: number }>) => {
+
+    // ✅ Thread Updates (WebSocket)
+    updateThreadReplyCount: (state, action: PayloadAction<{
+      messageId: number;
+      increment: number;
+    }>) => {
       const { messageId, increment } = action.payload;
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
@@ -862,29 +1111,32 @@ const chatSlice = createSlice({
         }
       });
     },
-    updateMessageInChannel: (state, action: PayloadAction<{ channelId: number; messageId: number; content: string; mentions?: number[]; editedAt: string }>) => {
-      const { channelId, messageId, content, mentions, editedAt } = action.payload;
-      if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1) {
-          const message = state.messages[channelId][messageIndex];
-          message.content = content;
-          message.is_edited = true;
-          message.edited_at = editedAt;
-          if (mentions && mentions.length > 0) {
-            message.mentioned_user_ids = mentions.join(',');
-            message.has_mentions = true;
-          }
+
+    addMessageToThread: (state, action: PayloadAction<{
+      parentMessageId: number;
+      message: Message;
+    }>) => {
+      const { parentMessageId, message } = action.payload;
+      if (!state.threadMessages[parentMessageId]) {
+        state.threadMessages[parentMessageId] = [];
+      }
+      if (!state.threadMessages[parentMessageId].some((m) => m.id === message.id)) {
+        state.threadMessages[parentMessageId].push(message);
+      }
+      if (state.messages[message.channel_id]) {
+        const existingIndex = state.messages[message.channel_id].findIndex((m) => m.id === message.id);
+        if (existingIndex === -1) {
+          state.messages[message.channel_id].push(message);
         }
       }
     },
-    removeMessageFromChannel: (state, action: PayloadAction<{ channelId: number; messageId: number }>) => {
-      const { channelId, messageId } = action.payload;
-      if (state.messages[channelId]) {
-        state.messages[channelId] = state.messages[channelId].filter((m) => m.id !== messageId);
-      }
-    },
-    addTypingUser: (state, action: PayloadAction<{ channelId: number; userId: number; userName?: string }>) => {
+
+    // ✅ Typing Indicators (WebSocket)
+    addTypingUser: (state, action: PayloadAction<{
+      channelId: number;
+      userId: number;
+      userName?: string;
+    }>) => {
       const { channelId, userId, userName } = action.payload;
       if (!state.typingUsers[channelId]) {
         state.typingUsers[channelId] = [];
@@ -894,27 +1146,43 @@ const chatSlice = createSlice({
         state.typingUsers[channelId].push({ userId, userName });
       }
     },
-    removeTypingUser: (state, action: PayloadAction<{ channelId: number; userId: number }>) => {
+
+    removeTypingUser: (state, action: PayloadAction<{
+      channelId: number;
+      userId: number;
+    }>) => {
       const { channelId, userId } = action.payload;
       if (state.typingUsers[channelId]) {
-        state.typingUsers[channelId] = state.typingUsers[channelId].filter((u) => u.userId !== userId);
+        state.typingUsers[channelId] = state.typingUsers[channelId].filter(
+          (u) => u.userId !== userId
+        );
       }
     },
+
+    // ✅ Online Users (WebSocket)
     setOnlineUsers: (state, action: PayloadAction<number[]>) => {
       state.onlineUsers = action.payload;
     },
+
+    // ✅ Unread Count Management
     incrementUnreadCount: (state, action: PayloadAction<number>) => {
       const channelId = action.payload;
       state.unreadCount += 1;
       state.channelUnreadCounts[channelId] = (state.channelUnreadCounts[channelId] || 0) + 1;
     },
+
     resetUnreadCount: (state, action: PayloadAction<number>) => {
       const channelId = action.payload;
       const count = state.channelUnreadCounts[channelId] || 0;
       state.unreadCount = Math.max(0, state.unreadCount - count);
       state.channelUnreadCounts[channelId] = 0;
     },
-    addMembersToChannel: (state, action: PayloadAction<{ channelId: number; userIds: number[] }>) => {
+
+    // ✅ Member Updates (WebSocket)
+    addMembersToChannel: (state, action: PayloadAction<{
+      channelId: number;
+      userIds: number[];
+    }>) => {
       const { channelId, userIds } = action.payload;
       const channelIndex = state.channels.findIndex((c) => c.id === channelId);
       if (channelIndex !== -1) {
@@ -924,20 +1192,12 @@ const chatSlice = createSlice({
         delete state.channelMembers[channelId];
       }
     },
-    addMessageToThread: (state, action: PayloadAction<{ parentMessageId: number; message: Message }>) => {
-      const { parentMessageId, message } = action.payload;
-      
-      if (!state.threadMessages[parentMessageId]) {
-        state.threadMessages[parentMessageId] = [];
-      }
-      
-      const existingIndex = state.threadMessages[parentMessageId].findIndex((m) => m.id === message.id);
-      if (existingIndex === -1) {
-        state.threadMessages[parentMessageId].push(message);
-      }
-    },
 
-    updateChannelLastMessage: (state, action: PayloadAction<{ channelId: number; message: Message }>) => {
+    // ✅ Channel Updates
+    updateChannelLastMessage: (state, action: PayloadAction<{
+      channelId: number;
+      message: Message;
+    }>) => {
       const { channelId, message } = action.payload;
       const channelIndex = state.channels.findIndex((c) => c.id === channelId);
       if (channelIndex !== -1) {
@@ -946,7 +1206,11 @@ const chatSlice = createSlice({
       }
     },
 
-    markMentionAsRead: (state, action: PayloadAction<{ messageId: number; channelId: number }>) => {
+    // ✅ Mention Management
+    markMentionAsRead: (state, action: PayloadAction<{
+      messageId: number;
+      channelId: number;
+    }>) => {
       const { messageId, channelId } = action.payload;
       if (state.messages[channelId]) {
         const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
@@ -957,8 +1221,12 @@ const chatSlice = createSlice({
       state.unreadMentionsCount = Math.max(0, state.unreadMentionsCount - 1);
     },
 
-    resetChatState: () => initialState,
-    updateMessageStatus: (state, action: PayloadAction<{ messageId: number; status: 'delivered' | 'read'; timestamp: string }>) => {
+    // ✅ General Message Status Update
+    updateMessageStatus: (state, action: PayloadAction<{
+      messageId: number;
+      status: 'delivered' | 'read';
+      timestamp: string;
+    }>) => {
       const { messageId, status } = action.payload;
       Object.keys(state.messages).forEach((channelId) => {
         const messages = state.messages[+channelId];
@@ -971,8 +1239,14 @@ const chatSlice = createSlice({
         }
       });
     },
+
+    // ✅ Reset State
+    resetChatState: () => initialState,
   },
+
+  // ==================== EXTRA REDUCERS ====================
   extraReducers: (builder) => {
+    // ✅ Channels
     builder
       .addCase(fetchUserChannels.pending, (state) => {
         state.isLoadingChannels = true;
@@ -986,6 +1260,8 @@ const chatSlice = createSlice({
         state.isLoadingChannels = false;
         state.error = action.payload as string;
       })
+      
+      // ✅ Messages
       .addCase(fetchMessages.pending, (state) => {
         state.isLoadingMessages = true;
         state.error = null;
@@ -998,6 +1274,8 @@ const chatSlice = createSlice({
         state.isLoadingMessages = false;
         state.error = action.payload as string;
       })
+      
+      // ✅ Send Message
       .addCase(sendMessage.pending, (state) => {
         state.isSendingMessage = true;
       })
@@ -1013,12 +1291,20 @@ const chatSlice = createSlice({
         state.isSendingMessage = false;
         state.error = action.payload as string;
       })
+      
+      // ✅ Members
       .addCase(fetchChannelMembers.fulfilled, (state, action) => {
         state.channelMembers[action.payload.channelId] = action.payload.members;
       })
       .addCase(fetchTeamMembers.fulfilled, (state, action) => {
         state.teamMembers = action.payload;
       })
+      .addCase(fetchAvailableMembers.fulfilled, (state, action) => {
+        state.availableMembers = action.payload;
+      })
+      
+      
+      // ✅ Threads
       .addCase(fetchThreadMessages.pending, (state) => {
         state.isLoadingThread = true;
       })
@@ -1026,22 +1312,89 @@ const chatSlice = createSlice({
         state.isLoadingThread = false;
         state.threadMessages[action.payload.parentMessageId] = action.payload.messages;
       })
-      .addCase(fetchThreadMessages.rejected, (state) => {
+      .addCase(fetchThreadMessages.rejected, (state, action) => {
         state.isLoadingThread = false;
+        state.error = action.payload as string;
       })
-      .addCase(replyInThread.fulfilled, (state, action) => {
-        const { parentMessageId, message } = action.payload;
-        if (!state.threadMessages[parentMessageId]) {
-          state.threadMessages[parentMessageId] = [];
-        }
-        const existingIndex = state.threadMessages[parentMessageId].findIndex((m) => m.id === message.id);
-        if (existingIndex === -1) {
-          state.threadMessages[parentMessageId].push(message);
-        }
+      .addCase(fetchEnhancedThread.fulfilled, (state, action) => {
+        state.enhancedThreads[action.payload.messageId] = action.payload.data;
+      })
+      
+      // ✅ Activities
+      .addCase(fetchChannelActivities.fulfilled, (state, action) => {
+        state.channelActivities[action.payload.channelId] = action.payload.activities;
+      })
+      .addCase(fetchUnreadActivities.fulfilled, (state, action) => {
+        state.unreadActivities = action.payload;
+      })
+      
+      // ✅ Mentions
+      .addCase(fetchUserMentions.fulfilled, (state, action) => {
+        state.mentions = action.payload;
+      })
+      .addCase(fetchUnreadMentionsCount.fulfilled, (state, action) => {
+        state.unreadMentionsCount = action.payload;
+      })
+      
+      // ✅ Notifications
+      .addCase(fetchUserNotifications.fulfilled, (state, action) => {
+        state.notifications = action.payload;
+      })
+      .addCase(fetchUnreadNotificationsCount.fulfilled, (state, action) => {
+        state.unreadNotificationsCount = action.payload;
+      })
+      .addCase(fetchNotificationPreferences.fulfilled, (state, action) => {
+        state.notificationPreferences = action.payload;
+      })
+      
+      // ✅ Unread Count
+      .addCase(fetchUnreadCount.fulfilled, (state, action) => {
+        state.unreadCount = action.payload;
+      })
+      
+      // ✅ Files
+      .addCase(fetchChannelFiles.fulfilled, (state, action) => {
+        state.channelFiles[action.payload.channelId] = action.payload.files;
+      })
+      
+      // ✅ Message Details
+      .addCase(fetchMessageDetails.fulfilled, (state, action) => {
+        state.messageDetails[action.payload.id] = action.payload;
+      })
+      .addCase(fetchMessageAttachments.fulfilled, (state, action) => {
+        state.messageAttachments[action.payload.messageId] = action.payload.attachments;
+      })
+      .addCase(fetchMessageReactions.fulfilled, (state, action) => {
+        state.messageReactions[action.payload.messageId] = action.payload.reactions;
+      })
+      .addCase(fetchMessageReadStatus.fulfilled, (state, action) => {
+        state.messageReadStatuses[action.payload.messageId] = action.payload.readStatus;
+      })
+      .addCase(fetchDetailedReadStatus.fulfilled, (state, action) => {
+        state.messageReadStatuses[action.payload.messageId] = action.payload.readStatus;
+      })
+      
+      // ✅ Search
+      .addCase(searchChat.pending, (state) => {
+        state.isSearching = true;
+      })
+      .addCase(searchChat.fulfilled, (state, action:any) => {
+        state.isSearching = false;
+        state.searchResults = action.payload?.data;
+      })
+      .addCase(searchChat.rejected, (state, action) => {
+        state.isSearching = false;
+        state.error = action.payload as string;
+      })
+      
+      // ✅ Online Users
+      .addCase(fetchOnlineUsers.fulfilled, (state, action) => {
+        state.onlineUsers = action.payload;
       });
   },
 });
 
+// ==================== EXPORTS ====================
 export const {
   clearError,
   clearSuccessMessage,
@@ -1066,7 +1419,7 @@ export const {
   addMembersToChannel,
   addMessageToThread,
   updateChannelLastMessage,
-  markMentionAsRead
+  markMentionAsRead,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
