@@ -1,4 +1,3 @@
-// components/chat/message-item.tsx - UPDATED WITH READ RECEIPTS
 "use client"
 
 import React, { useState } from "react"
@@ -22,8 +21,8 @@ interface MessageItemProps {
   onReplyInThread?: (content: string, parentId: string) => void
   onForward?: (messageId: string) => void
   onScrollToMessage?: (messageId: string) => void
+  isInThread?: boolean
 }
-
 
 const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean }) => {
   if (!isOwn) return null;
@@ -36,7 +35,6 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
   const isRead = readCount > 0 || readByUserIds.length > 0;
   const isDelivered = deliveredCount > 0 || deliveredToUserIds.length > 0;
 
-  // ✅ NEW: Animated transitions
   if (isRead) {
     return (
       <TooltipProvider>
@@ -101,6 +99,7 @@ export function MessageItem({
   onReplyInThread,
   onForward,
   onScrollToMessage,
+  isInThread = false,
 }: MessageItemProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
@@ -137,7 +136,7 @@ export function MessageItem({
   };
 
   const handleReplyInThread = () => {
-    if (isDirect) {
+    if (isDirect || isInThread) {
       onReply?.(message.id);
     } else {
       onOpenThread?.(message.id);
@@ -186,6 +185,7 @@ export function MessageItem({
 
     return Array.from(reactionMap.values()).sort((a, b) => b.count - a.count);
   }, [message.reactions, currentUserId]);
+
   return (
     <div
       className={cn(
@@ -288,7 +288,7 @@ export function MessageItem({
           </div>
         )}
 
-        {!isDirect && message.threadReplies !== undefined && message.threadReplies >= 0 && (
+        {!isInThread && !isDirect && message.threadReplies !== undefined && message.threadReplies >= 0 && (
           <button
             onClick={() => onOpenThread?.(message.id)}
             className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium pt-1 w-fit"
@@ -347,6 +347,7 @@ export function MessageItem({
           onEdit={onEdit}
           onPin={onPin}
           onForward={onForward}
+          isInThread={isInThread}
         />
       </div>
     </div>

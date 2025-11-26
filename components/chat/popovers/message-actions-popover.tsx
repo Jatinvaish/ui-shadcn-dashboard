@@ -1,4 +1,3 @@
-// components/chat/popovers/message-actions-popover.tsx - COMPLETE
 "use client"
 
 import React, { useState } from "react"
@@ -22,6 +21,7 @@ interface MessageActionsPopoverProps {
   onEdit?: (messageId: string, newContent: string) => void
   onPin?: (messageId: string, isPinned: boolean) => void
   onForward?: (messageId: string) => void
+  isInThread?: boolean
 }
 
 export function MessageActionsPopover({
@@ -36,6 +36,7 @@ export function MessageActionsPopover({
   onEdit,
   onPin,
   onForward,
+  isInThread = false,
 }: MessageActionsPopoverProps) {
   const [open, setOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -43,7 +44,7 @@ export function MessageActionsPopover({
   const [editContent, setEditContent] = useState(messageContent)
 
   const handleReply = () => {
-    if (isDirect) {
+    if (isDirect || isInThread) {
       onReply?.(messageId)
     } else {
       onReplyInThread?.()
@@ -104,43 +105,66 @@ export function MessageActionsPopover({
         </PopoverTrigger>
         <PopoverContent className="w-48 p-1" side="top" align="end">
           <div className="flex flex-col">
-            {/* Reply */}
-            <button onClick={handleReply} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left">
-              {isDirect ? <Reply className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
-              {isDirect ? "Reply" : "Reply in thread"}
+            <button 
+              onClick={handleReply} 
+              className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left"
+            >
+              {isDirect || isInThread ? (
+                <>
+                  <Reply className="h-4 w-4" />
+                  Reply
+                </>
+              ) : (
+                <>
+                  <MessageCircle className="h-4 w-4" />
+                  Reply in thread
+                </>
+              )}
             </button>
 
-            {/* Copy */}
-            <button onClick={handleCopy} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left">
+            <button 
+              onClick={handleCopy} 
+              className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left"
+            >
               <Copy className="h-4 w-4" />
               Copy text
             </button>
 
-            {/* Pin/Unpin */}
-            <button onClick={handlePin} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left">
-              {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-              {isPinned ? "Unpin message" : "Pin message"}
-            </button>
+            {!isInThread && (
+              <button 
+                onClick={handlePin} 
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left"
+              >
+                {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                {isPinned ? "Unpin message" : "Pin message"}
+              </button>
+            )}
 
-            {/* Forward */}
-            <button onClick={handleForward} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left">
+            <button 
+              onClick={handleForward} 
+              className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left"
+            >
               <Forward className="h-4 w-4" />
               Forward
             </button>
 
-            {/* Edit - only for own messages */}
             {isOwn && (
-              <button onClick={handleEdit} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left">
+              <button 
+                onClick={handleEdit} 
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded transition-colors text-left"
+              >
                 <Edit className="h-4 w-4" />
                 Edit message
               </button>
             )}
 
-            {/* Delete - only for own messages */}
             {isOwn && (
               <>
                 <div className="h-px bg-border my-1" />
-                <button onClick={handleDelete} className="flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded transition-colors text-left">
+                <button 
+                  onClick={handleDelete} 
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded transition-colors text-left"
+                >
                   <Trash2 className="h-4 w-4" />
                   Delete message
                 </button>
@@ -150,7 +174,6 @@ export function MessageActionsPopover({
         </PopoverContent>
       </Popover>
 
-      {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -172,7 +195,6 @@ export function MessageActionsPopover({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
