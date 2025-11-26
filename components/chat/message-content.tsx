@@ -1,7 +1,6 @@
 // components/chat/message-content.tsx - SLACK-LIKE MESSAGE FORMATTING
 "use client";
 
-import React from 'react';
 import { cn } from '@/lib/utils';
 
 interface MessageContentProps {

@@ -1,4 +1,4 @@
-// components/chat/message-item.tsx - COMPLETE WITH ALL FEATURES
+// components/chat/message-item.tsx - SIMPLIFIED AND WORKING
 "use client"
 
 import React, { useState } from "react"
@@ -30,19 +30,16 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
 
   const readCount = message.read_count || 0;
   const deliveredCount = message.delivered_count || 0;
-  const readByUserIds = message.read_by_user_ids?.split(',').filter(Boolean) || [];
-  const deliveredToUserIds = message.delivered_to_user_ids?.split(',').filter(Boolean) || [];
-
-  const isRead = readCount > 0 || readByUserIds.length > 0;
-  const isDelivered = deliveredCount > 0 || deliveredToUserIds.length > 0;
+  const isRead = readCount > 0;
+  const isDelivered = deliveredCount > 0;
 
   if (isRead) {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-0.5 cursor-help animate-in fade-in duration-300">
-              <CheckCheck className="h-3.5 w-3.5 text-blue-500 transition-all duration-300" strokeWidth={2.5} />
+            <div className="flex items-center gap-0.5 cursor-help">
+              <CheckCheck className="h-3.5 w-3.5 text-blue-500" strokeWidth={2.5} />
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -58,8 +55,8 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-0.5 cursor-help animate-in fade-in duration-300">
-              <CheckCheck className="h-3.5 w-3.5 text-gray-500 transition-all duration-300" strokeWidth={2.5} />
+            <div className="flex items-center gap-0.5 cursor-help">
+              <CheckCheck className="h-3.5 w-3.5 text-gray-500" strokeWidth={2.5} />
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -74,8 +71,8 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center gap-0.5 cursor-help animate-in fade-in duration-300">
-            <Check className="h-3.5 w-3.5 text-gray-400 transition-all duration-300" strokeWidth={2.5} />
+          <div className="flex items-center gap-0.5 cursor-help">
+            <Check className="h-3.5 w-3.5 text-gray-400" strokeWidth={2.5} />
           </div>
         </TooltipTrigger>
         <TooltipContent>
@@ -149,6 +146,7 @@ export function MessageItem({
     setShowEmojiPicker(false);
   };
 
+  // Group reactions
   const groupedReactions = React.useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
 
@@ -156,29 +154,23 @@ export function MessageItem({
       emoji: string;
       count: number;
       userReacted: boolean;
-      userIds: number[];
       users: string[];
     }>();
 
     message.reactions.forEach((reaction: any) => {
       const existing = reactionMap.get(reaction.emoji);
-      const reactorId = reaction.user_id || 0;
       const reactorName = `${reaction.first_name || ''} ${reaction.last_name || ''}`.trim() || 'Anonymous';
-      const userReacted = reactorId.toString() === currentUserId;
+      const userReacted = reaction.user_id?.toString() === currentUserId;
 
       if (existing) {
         existing.count += 1;
         existing.userReacted = existing.userReacted || userReacted;
-        if (!existing.userIds.includes(reactorId)) {
-          existing.userIds.push(reactorId);
-          existing.users.push(reactorName);
-        }
+        existing.users.push(reactorName);
       } else {
         reactionMap.set(reaction.emoji, {
           emoji: reaction.emoji,
           count: 1,
           userReacted,
-          userIds: [reactorId],
           users: [reactorName]
         });
       }
@@ -217,11 +209,7 @@ export function MessageItem({
           <span className="text-muted-foreground">{formatTime(message.timestamp)}</span>
           <MessageReadStatus message={message} isOwn={isOwn} />
           {message.edited && <span className="text-muted-foreground italic">(edited)</span>}
-          {message.isPinned && (
-            <div className="flex items-center gap-1 text-primary">
-              <span className="text-xs">📌</span>
-            </div>
-          )}
+          {message.isPinned && <div className="flex items-center gap-1 text-primary"><span className="text-xs">📌</span></div>}
         </div>
 
         {/* Reply Preview */}
@@ -250,25 +238,11 @@ export function MessageItem({
           </p>
         </div>
 
-        {/* File Attachments */}
-        {message.files && message.files.length > 0 && (
-          <div className="space-y-1">
-            {message.files.map((file) => (
-              <div
-                key={file.name}
-                className="inline-flex items-center gap-2 rounded border border-border bg-muted px-3 py-1 text-xs hover:bg-muted/80 transition-colors cursor-pointer"
-              >
-                📎 {file.name}
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Reactions */}
         {groupedReactions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
-            {groupedReactions.map((reaction) => (
-              <TooltipProvider key={reaction.emoji}>
+            {groupedReactions.map((reaction, idx) => (
+              <TooltipProvider key={`${reaction.emoji}-${idx}`}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -278,13 +252,11 @@ export function MessageItem({
                         "hover:scale-110 active:scale-95",
                         reaction.userReacted
                           ? "bg-primary/20 border-primary text-primary font-medium shadow-sm"
-                          : "bg-muted border-border hover:bg-muted/80 hover:border-primary/30"
+                          : "bg-muted border-border hover:bg-muted/80"
                       )}
                     >
                       <span className="text-base leading-none">{reaction.emoji}</span>
-                      {reaction.count > 1 && (
-                        <span className="text-xs font-semibold">{reaction.count}</span>
-                      )}
+                      {reaction.count > 1 && <span className="text-xs font-semibold">{reaction.count}</span>}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -297,7 +269,7 @@ export function MessageItem({
         )}
 
         {/* Thread Reply Count */}
-        {!isInThread && !isDirect && message.threadReplies !== undefined && message.threadReplies >= 0 && (
+        {!isInThread && !isDirect && message.threadReplies !== undefined && (
           <button
             onClick={() => onOpenThread?.(message.id)}
             className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium pt-1 w-fit"
