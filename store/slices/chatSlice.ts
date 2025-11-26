@@ -924,6 +924,31 @@ const chatSlice = createSlice({
         delete state.channelMembers[channelId];
       }
     },
+    addMessageToThread: (state, action: PayloadAction<{ parentMessageId: number; message: Message }>) => {
+      const { parentMessageId, message } = action.payload;
+      if (!state.threadMessages[parentMessageId]) {
+        state.threadMessages[parentMessageId] = [];
+      }
+      if (!state.threadMessages[parentMessageId].some((m) => m.id === message.id)) {
+        state.threadMessages[parentMessageId].push(message);
+      }
+      // Also update main messages if in channel
+      if (state.messages[message.channel_id]) {
+        const existingIndex = state.messages[message.channel_id].findIndex((m) => m.id === message.id);
+        if (existingIndex === -1) {
+          state.messages[message.channel_id].push(message);
+        }
+      }
+    },
+
+    updateChannelLastMessage: (state, action: PayloadAction<{ channelId: number; message: Message }>) => {
+      const { channelId, message } = action.payload;
+      const channelIndex = state.channels.findIndex((c) => c.id === channelId);
+      if (channelIndex !== -1) {
+        state.channels[channelIndex].last_message_at = message.sent_at;
+        state.channels[channelIndex].message_count += 1;
+      }
+    },
 
     markMentionAsRead: (state, action: PayloadAction<{ messageId: number; channelId: number }>) => {
       const { messageId, channelId } = action.payload;
@@ -1022,7 +1047,9 @@ export const {
   removeReactionFromMessage,
   pinMessageInChannel,
   updateThreadReplyCount,
-  addMembersToChannel,  
+  addMembersToChannel,
+  addMessageToThread,
+  updateChannelLastMessage,
   markMentionAsRead
 } = chatSlice.actions;
 

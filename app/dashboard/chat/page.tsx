@@ -32,6 +32,15 @@ import {
   clearSuccessMessage,
   resetUnreadCount,
   markAsRead,
+  addMessageToChannel,
+  addMessageToThread,
+  addReactionToMessage,
+  pinMessageInChannel,
+  removeMessageFromChannel,
+  removeReactionFromMessage,
+  updateChannelLastMessage,
+  updateMessageInChannel,
+  updateThreadReplyCount,
 } from "@/store/slices/chatSlice";
 
 // Import service for direct API calls
@@ -205,6 +214,107 @@ const ChatPage = () => {
       window.removeEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
     };
   }, [isConnected, markAsReadWS, dispatch]);
+  useEffect(() => {
+    if (!selectedChannel) return;
+
+    const handleWebSocketMessage = (event: CustomEvent) => {
+      const { type, payload } = event.detail;
+
+      switch (type) {
+        case 'new_message':
+          if (payload.message && payload.message.channel_id === selectedChannel.id) {
+            dispatch(addMessageToChannel(payload.message));
+            dispatch(updateChannelLastMessage({
+              channelId: payload.message.channel_id,
+              message: payload.message
+            }));
+
+            // Auto-mark as read if visible
+            if (document.visibilityState === 'visible' && isConnected) {
+              markAsReadWS(payload.message.id, selectedChannel.id);
+            }
+          }
+          break;
+
+        case 'thread_reply':
+          if (payload.message && payload.parentMessageId) {
+            dispatch(addMessageToThread({
+              parentMessageId: payload.parentMessageId,
+              message: payload.message
+            }));
+            dispatch(updateThreadReplyCount({
+              messageId: payload.parentMessageId,
+              increment: 1
+            }));
+          }
+          break;
+
+        case 'message_edited':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(updateMessageInChannel({
+              channelId: payload.channelId,
+              messageId: payload.messageId,
+              content: payload.content,
+              mentions: payload.mentions,
+              editedAt: payload.editedAt
+            }));
+          }
+          break;
+
+        case 'message_deleted':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(removeMessageFromChannel({
+              channelId: payload.channelId,
+              messageId: payload.messageId
+            }));
+          }
+          break;
+
+        case 'reaction_added':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(addReactionToMessage({
+              messageId: payload.messageId,
+              channelId: payload.channelId,
+              reaction: {
+                emoji: payload.emoji,
+                userId: payload.userId,
+                userName: payload.userName,
+                avatarUrl: payload.avatarUrl,
+                timestamp: payload.timestamp
+              }
+            }));
+          }
+          break;
+
+        case 'reaction_removed':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(removeReactionFromMessage({
+              messageId: payload.messageId,
+              channelId: payload.channelId,
+              emoji: payload.emoji,
+              userId: payload.userId
+            }));
+          }
+          break;
+
+        case 'message_pinned':
+        case 'message_unpinned':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(pinMessageInChannel({
+              channelId: payload.channelId,
+              messageId: payload.messageId,
+              isPinned: type === 'message_pinned',
+              pinnedBy: payload.pinnedBy,
+              pinnedAt: payload.timestamp
+            }));
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('ws_message', handleWebSocketMessage as EventListener);
+    return () => window.removeEventListener('ws_message', handleWebSocketMessage as EventListener);
+  }, [selectedChannel, dispatch, isConnected, markAsReadWS]);
 
   // ==================== HELPER FUNCTIONS ====================
   const getChannelDisplayName = useCallback((channel: any): string => {
@@ -447,14 +557,48 @@ const ChatPage = () => {
   }, [selectedChannel, dispatch]);
 
   // ==================== MESSAGE HANDLERS WITH WEBSOCKET ====================
+
   const handleSendMessage = useCallback(async (
     html: string,
     text: string,
-    mentions?: number[]
+    mentions?: number[],
+    attachments?: Array<{ file: File; preview: string }>
   ): Promise<boolean> => {
-    if (!selectedChannel || !text.trim()) return false;
+    if (!selectedChannel || (!text.trim() && (!attachments || attachments.length === 0))) return false;
 
     try {
+      // Upload attachments first if present
+      let attachmentIds: number[] = [];
+      if (attachments && attachments.length > 0) {
+        toast.loading('Uploading attachments...', { id: 'upload' });
+
+        for (const att of attachments) {
+          const formData = new FormData();
+          formData.append('file', att.file);
+
+          try {
+            // TODO: Replace with your actual upload endpoint
+            const uploadResponse = await fetch('/api/upload', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              },
+              body: formData
+            });
+
+            if (uploadResponse.ok) {
+              const result = await uploadResponse.json();
+              attachmentIds.push(result.attachmentId);
+            }
+          } catch (uploadErr) {
+            console.error('Upload failed:', uploadErr);
+            toast.error(`Failed to upload ${att.file.name}`, { id: 'upload' });
+          }
+        }
+
+        toast.dismiss('upload');
+      }
+
       const payload: SendMessagePayload = {
         channelId: selectedChannel.id,
         content: text.trim(),
@@ -462,9 +606,9 @@ const ChatPage = () => {
         replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         threadId: selectedThreadId || undefined,
         mentions: mentions && mentions.length > 0 ? mentions : undefined,
+        attachments: attachmentIds.length > 0 ? attachmentIds : undefined,
       };
 
-      // Try WebSocket first, fallback to API
       if (isConnected) {
         const success = await sendMessageWS(payload);
         if (!success) {
@@ -483,7 +627,7 @@ const ChatPage = () => {
       toast.error(e?.message || "Failed to send message");
       return false;
     }
-  }, [selectedChannel, replyingTo, selectedThreadId, dispatch, isConnected, sendMessageWS]);
+  }, [selectedChannel, replyingTo, selectedThreadId, dispatch, isConnected, sendMessageWS, token]);
 
   const handleTypingStart = useCallback(() => {
     if (!selectedChannel) return;
