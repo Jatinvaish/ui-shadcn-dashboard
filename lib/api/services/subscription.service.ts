@@ -86,7 +86,6 @@ export interface CancelSubscriptionPayload {
 }
 
 export interface ListPlansQuery {
-  planType?: 'agency' | 'brand' | 'creator' | 'all';
   planTier?: 'free' | 'basic' | 'pro' | 'enterprise' | 'custom';
   includeInactive?: boolean;
 }
