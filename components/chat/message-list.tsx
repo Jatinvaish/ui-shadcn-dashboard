@@ -70,7 +70,39 @@ export function MessageList({
     }
     prevMessagesLengthRef.current = messages.length
   }, [messages])
+  // Intersection Observer for auto-marking messages as read
+  useEffect(() => {
+    if (!scrollRef.current || messages.length === 0) return;
 
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.getAttribute('data-message-id');
+            if (messageId) {
+              // Dispatch custom event for marking as read
+              window.dispatchEvent(new CustomEvent('markMessageAsRead', {
+                detail: {
+                  messageId,
+                  channelId: messages[0]?.authorId // Get channel from message context
+                }
+              }));
+            }
+          }
+        });
+      },
+      {
+        root: scrollRef.current,
+        threshold: 0.5, // 50% of message must be visible
+        rootMargin: '0px'
+      }
+    );
+
+    const messageElements = scrollRef.current.querySelectorAll('[data-message-id]');
+    messageElements.forEach(el => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [messages]);
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId)
     if (element) {
@@ -84,8 +116,8 @@ export function MessageList({
 
   const groupedMessages = React.useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
-    
-    const sortedMessages = [...messages].sort((a, b) => 
+
+    const sortedMessages = [...messages].sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
 
@@ -93,7 +125,7 @@ export function MessageList({
 
     sortedMessages.forEach((message) => {
       const messageDate = new Date(message.timestamp).toDateString()
-      
+
       if (messageDate !== currentDate) {
         currentDate = messageDate
         groups.push({ date: messageDate, messages: [message] })
@@ -130,7 +162,7 @@ export function MessageList({
   };
 
   return (
-    <div ref={scrollRef}   className="flex-1 space-y-0 overflow-y-auto px-0 lg:px-6 py-3 lg:py-4 bg-background">
+    <div ref={scrollRef} className="flex-1 space-y-0 overflow-y-auto px-0 lg:px-6 py-3 lg:py-4 bg-background">
       {messages.length === 0 ? (
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <div className="text-center">
@@ -152,6 +184,7 @@ export function MessageList({
             {group.messages.map((message) => (
               <div
                 key={message.id}
+                data-message-id={message.id}  // Add this line
                 ref={(el) => {
                   if (el) messageRefs.current.set(message.id, el)
                 }}

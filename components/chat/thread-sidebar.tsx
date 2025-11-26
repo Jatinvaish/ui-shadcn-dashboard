@@ -1,4 +1,3 @@
-// components/chat/thread-sidebar.tsx - UPDATED WITH WEBSOCKET
 "use client";
 
 import React, { useRef, useEffect } from "react";
@@ -9,42 +8,84 @@ import { MessageItem } from "./message-item";
 import { RichTextEditor } from "./rich-text-editor";
 import type { Message } from "./message-list";
 import { cn } from "@/lib/utils";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { addMessageToThread } from "@/store/slices/chatSlice";
 
 interface ThreadSidebarProps {
   threadId?: string;
   parentMessageId?: number;
-  messages?: Message[];
   currentUserId?: string;
   onClose?: () => void;
   onReplyInThread?: (content: string, parentId: number) => Promise<boolean>;
-  isLoading?: boolean;
   teamMembers?: Array<{ id: string; name: string; email: string }>;
 }
 
 export function ThreadSidebar({
   threadId,
   parentMessageId,
-  messages = [],
   currentUserId = "",
   onClose,
   onReplyInThread,
-  isLoading = false,
   teamMembers = [],
 }: ThreadSidebarProps) {
+  const dispatch = useAppDispatch();
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const messages = useAppSelector(state => 
+    parentMessageId ? state.chat.threadMessages[parentMessageId] || [] : []
+  );
+  const isLoading = useAppSelector(state => state.chat.isLoadingThread);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && messages.length > 0) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages.length]);
 
-  // Get parent message and replies
-  const parentMessage = messages.length > 0 ? messages[0] : null;
-  const replies = messages.slice(1);
+  // Listen for WebSocket thread updates
+  useEffect(() => {
+    if (!parentMessageId) return;
 
-  // Handle send from RichTextEditor
+    const handleThreadUpdate = (event: CustomEvent) => {
+      const { type, payload } = event.detail;
+      
+      if (type === 'thread_reply' && payload.parentMessageId === parentMessageId) {
+        dispatch(addMessageToThread({
+          parentMessageId: payload.parentMessageId,
+          message: payload.message
+        }));
+      }
+    };
+
+    window.addEventListener('ws_message', handleThreadUpdate as EventListener);
+    return () => window.removeEventListener('ws_message', handleThreadUpdate as EventListener);
+  }, [parentMessageId, dispatch]);
+
+  // Transform messages to match the Message type expected by MessageItem
+  const transformedMessages: Message[] = messages.map((msg: any) => ({
+    id: msg.id?.toString() || String(msg.message_id || Math.random()),
+    authorId: msg.author_id?.toString() || msg.authorId?.toString() || "",
+    authorName: msg.author_name || msg.authorName || "Unknown",
+    authorAvatar: msg.author_avatar || msg.authorAvatar,
+    content: msg.content || "",
+    timestamp: msg.created_at ? new Date(msg.created_at) : (msg.timestamp ? new Date(msg.timestamp) : new Date()),
+    edited: msg.edited || false,
+    isPinned: msg.is_pinned || msg.isPinned || false,
+    reactions: msg.reactions || [],
+    threadReplies: msg.thread_replies_count !== undefined ? msg.thread_replies_count : msg.threadReplies,
+    files: msg.files || [],
+    replyTo: msg.reply_to || msg.replyTo,
+    read_count: msg.read_count,
+    delivered_count: msg.delivered_count,
+    read_by_user_ids: msg.read_by_user_ids,
+    delivered_to_user_ids: msg.delivered_to_user_ids,
+    am_i_mentioned: msg.am_i_mentioned || false,
+  }));
+
+  const parentMessage = transformedMessages.length > 0 ? transformedMessages[0] : null;
+  const replies = transformedMessages.slice(1);
+
   const handleSend = async (html: string, text: string): Promise<boolean> => {
     if (!text.trim() || !parentMessageId) return false;
     
@@ -59,17 +100,16 @@ export function ThreadSidebar({
 
   return (
     <>
-      {/* Overlay for mobile */}
       <div 
         className="fixed inset-0 z-40 bg-black/50 lg:hidden" 
         onClick={onClose} 
       />
       
-      {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col lg:h-screen",
+        "fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col",
         "bg-background border-l border-border overflow-hidden",
-        "w-full sm:w-96 lg:w-96 shadow-2xl lg:shadow-none"
+        "w-full sm:w-96 lg:w-96 shadow-2xl lg:shadow-none",
+        "h-full"
       )}>
         {/* Header */}
         <div className="px-4 py-3 sm:py-4 h-14 sm:h-16 flex items-center justify-between border-b border-border flex-shrink-0 bg-card">
@@ -99,7 +139,7 @@ export function ThreadSidebar({
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : messages.length === 0 ? (
+            ) : transformedMessages.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground py-12">
                 <MessageCircle className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
                 <p className="font-medium mb-1">No replies yet</p>
@@ -107,7 +147,6 @@ export function ThreadSidebar({
               </div>
             ) : (
               <>
-                {/* Parent message - highlighted */}
                 {parentMessage && (
                   <div className="mb-3 pb-3 border-b border-border bg-muted/30 rounded-lg p-2">
                     <div className="text-xs text-muted-foreground mb-2 font-medium">
@@ -125,7 +164,6 @@ export function ThreadSidebar({
                   </div>
                 )}
                 
-                {/* Replies */}
                 <div className="space-y-0">
                   {replies.length > 0 && (
                     <div className="text-xs text-muted-foreground mb-2 font-medium px-2">
@@ -150,7 +188,7 @@ export function ThreadSidebar({
           </div>
         </div>
 
-        {/* Rich Text Editor */}
+        {/* Editor */}
         <div className="border-t border-border flex-shrink-0 bg-card">
           <RichTextEditor 
             onSend={handleSend}
