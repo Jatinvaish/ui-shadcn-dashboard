@@ -1,4 +1,3 @@
-// components/chat/message-list.tsx - UPDATED
 "use client"
 
 import React, { useRef, useEffect } from "react"
@@ -63,14 +62,47 @@ export function MessageList({
   const scrollRef = useRef<HTMLDivElement>(null)
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const prevMessagesLengthRef = useRef(messages.length)
+  const isUserScrollingRef = useRef(false)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      isUserScrollingRef.current = true;
+      
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      
+      scrollTimeoutRef.current = setTimeout(() => {
+        isUserScrollingRef.current = false;
+      }, 1000);
+    };
+
+    const scrollElement = scrollRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', handleScroll);
+      return () => {
+        scrollElement.removeEventListener('scroll', handleScroll);
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+      };
+    }
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current && messages.length > prevMessagesLengthRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      if (!isUserScrollingRef.current) {
+        setTimeout(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }
+        }, 100);
+      }
     }
-    prevMessagesLengthRef.current = messages.length
-  }, [messages])
-  // Intersection Observer for auto-marking messages as read
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length]);
+
   useEffect(() => {
     if (!scrollRef.current || messages.length === 0) return;
 
@@ -80,11 +112,10 @@ export function MessageList({
           if (entry.isIntersecting) {
             const messageId = entry.target.getAttribute('data-message-id');
             if (messageId) {
-              // Dispatch custom event for marking as read
               window.dispatchEvent(new CustomEvent('markMessageAsRead', {
                 detail: {
                   messageId,
-                  channelId: messages[0]?.authorId // Get channel from message context
+                  channelId: messages[0]?.authorId
                 }
               }));
             }
@@ -93,7 +124,7 @@ export function MessageList({
       },
       {
         root: scrollRef.current,
-        threshold: 0.5, // 50% of message must be visible
+        threshold: 0.5,
         rootMargin: '0px'
       }
     );
@@ -103,6 +134,7 @@ export function MessageList({
 
     return () => observer.disconnect();
   }, [messages]);
+
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId)
     if (element) {
@@ -184,7 +216,7 @@ export function MessageList({
             {group.messages.map((message) => (
               <div
                 key={message.id}
-                data-message-id={message.id}  // Add this line
+                data-message-id={message.id}
                 ref={(el) => {
                   if (el) messageRefs.current.set(message.id, el)
                 }}

@@ -758,7 +758,9 @@ const chatSlice = createSlice({
       if (!state.messages[channelId]) {
         state.messages[channelId] = [];
       }
-      if (!state.messages[channelId].some((m) => m.id === action.payload.id)) {
+      
+      const existingIndex = state.messages[channelId].findIndex((m) => m.id === action.payload.id);
+      if (existingIndex === -1) {
         state.messages[channelId].push(action.payload);
       }
     },
@@ -918,26 +920,20 @@ const chatSlice = createSlice({
       if (channelIndex !== -1) {
         state.channels[channelIndex].member_count += userIds.length;
       }
-      // Refresh members list if loaded
       if (state.channelMembers[channelId]) {
-        // Will be refreshed on next fetch
         delete state.channelMembers[channelId];
       }
     },
     addMessageToThread: (state, action: PayloadAction<{ parentMessageId: number; message: Message }>) => {
       const { parentMessageId, message } = action.payload;
+      
       if (!state.threadMessages[parentMessageId]) {
         state.threadMessages[parentMessageId] = [];
       }
-      if (!state.threadMessages[parentMessageId].some((m) => m.id === message.id)) {
+      
+      const existingIndex = state.threadMessages[parentMessageId].findIndex((m) => m.id === message.id);
+      if (existingIndex === -1) {
         state.threadMessages[parentMessageId].push(message);
-      }
-      // Also update main messages if in channel
-      if (state.messages[message.channel_id]) {
-        const existingIndex = state.messages[message.channel_id].findIndex((m) => m.id === message.id);
-        if (existingIndex === -1) {
-          state.messages[message.channel_id].push(message);
-        }
       }
     },
 
@@ -1022,6 +1018,26 @@ const chatSlice = createSlice({
       })
       .addCase(fetchTeamMembers.fulfilled, (state, action) => {
         state.teamMembers = action.payload;
+      })
+      .addCase(fetchThreadMessages.pending, (state) => {
+        state.isLoadingThread = true;
+      })
+      .addCase(fetchThreadMessages.fulfilled, (state, action) => {
+        state.isLoadingThread = false;
+        state.threadMessages[action.payload.parentMessageId] = action.payload.messages;
+      })
+      .addCase(fetchThreadMessages.rejected, (state) => {
+        state.isLoadingThread = false;
+      })
+      .addCase(replyInThread.fulfilled, (state, action) => {
+        const { parentMessageId, message } = action.payload;
+        if (!state.threadMessages[parentMessageId]) {
+          state.threadMessages[parentMessageId] = [];
+        }
+        const existingIndex = state.threadMessages[parentMessageId].findIndex((m) => m.id === message.id);
+        if (existingIndex === -1) {
+          state.threadMessages[parentMessageId].push(message);
+        }
       });
   },
 });
