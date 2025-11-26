@@ -163,7 +163,7 @@ export function MessageItem({
     message.reactions.forEach((reaction: any) => {
       const existing = reactionMap.get(reaction.emoji);
       const reactorId = reaction.user_id || 0;
-      const reactorName = `${reaction.first_name || ''} ${reaction.last_name || ''}`.trim();
+      const reactorName = `${reaction.first_name || ''} ${reaction.last_name || ''}`.trim() || 'Anonymous';
       const userReacted = reactorId.toString() === currentUserId;
 
       if (existing) {
@@ -186,7 +186,6 @@ export function MessageItem({
 
     return Array.from(reactionMap.values()).sort((a, b) => b.count - a.count);
   }, [message.reactions, currentUserId]);
-
   return (
     <div
       className={cn(
@@ -289,13 +288,18 @@ export function MessageItem({
           </div>
         )}
 
-        {!isDirect && message.threadReplies && message.threadReplies > 0 && (
+        {!isDirect && message.threadReplies !== undefined && message.threadReplies >= 0 && (
           <button
             onClick={() => onOpenThread?.(message.id)}
             className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium pt-1 w-fit"
           >
             <MessageCircle className="h-3 w-3" />
-            <span>{message.threadReplies} {message.threadReplies === 1 ? "reply" : "replies"}</span>
+            <span>
+              {message.threadReplies === 0
+                ? "Reply in thread"
+                : `${message.threadReplies} ${message.threadReplies === 1 ? "reply" : "replies"}`
+              }
+            </span>
           </button>
         )}
       </div>
