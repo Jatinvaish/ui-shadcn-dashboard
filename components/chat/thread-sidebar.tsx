@@ -1,3 +1,4 @@
+// components/chat/thread-sidebar.tsx
 "use client";
 
 import React, { useRef, useEffect } from "react";
@@ -182,19 +183,24 @@ export function ThreadSidebar({
                       Replies
                     </div>
                   )}
-                  {replies.map((message) => (
-                    <MessageItem
-                      key={message.id}
-                      message={message}
-                      isOwn={message.authorId === currentUserId}
-                      isDirect={false}
-                      currentUserId={currentUserId}
-                      onReply={() => {}}
-                      onReact={() => {}}
-                      onOpenThread={() => {}}
-                      isInThread={true}
-                    />
-                  ))}
+                  {replies.map((reply, index) => {
+                    const prevReply = index > 0 ? replies[index - 1] : null;
+                    const showAvatar = !prevReply || prevReply.authorId !== reply.authorId;
+                    
+                    return (
+                      <MessageItem
+                        key={reply.id}
+                        message={reply}
+                        isOwn={reply.authorId === currentUserId}
+                        isDirect={false}
+                        currentUserId={currentUserId}
+                        onReply={() => {}}
+                        onReact={() => {}}
+                        onOpenThread={() => {}}
+                        isInThread={true}
+                      />
+                    );
+                  })}
                 </div>
               </>
             )}

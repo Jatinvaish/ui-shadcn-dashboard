@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx
+// app/(dashboard)/chat/page.tsx
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -30,16 +30,6 @@ import {
   clearError,
   clearSuccessMessage,
   resetUnreadCount,
-  markAsRead,
-  addMessageToChannel,
-  addMessageToThread,
-  addReactionToMessage,
-  pinMessageInChannel,
-  removeMessageFromChannel,
-  removeReactionFromMessage,
-  updateChannelLastMessage,
-  updateMessageInChannel,
-  updateThreadReplyCount,
   fetchThreadMessages,
   replyInThread,
 } from "@/store/slices/chatSlice";
@@ -71,6 +61,13 @@ const ChatPage = () => {
     startTyping,
     stopTyping,
     markAsRead: markAsReadWS,
+    bulkMarkAsRead: bulkMarkAsReadWS,
+    addReaction: addReactionWS,
+    removeReaction: removeReactionWS,
+    editMessage: editMessageWS,
+    deleteMessage: deleteMessageWS,
+    pinMessage: pinMessageWS,
+    replyInThread: replyInThreadWS,
     inviteMembers: inviteMembersWS,
     isConnected
   } = useWebSocket(token, currentUser?.id || null);
@@ -120,36 +117,22 @@ const ChatPage = () => {
           if (result?.messages && result.messages.length > 0) {
             const lastMessage = result.messages[result.messages.length - 1];
             if (isConnected) {
-              markAsReadWS(lastMessage.id, selectedChannel.id);
-            } else {
-              dispatch(markAsRead({
-                channelId: selectedChannel.id,
-                messageId: lastMessage.id
-              }));
+              bulkMarkAsReadWS(selectedChannel.id, lastMessage.id);
             }
           }
 
           dispatch(resetUnreadCount(selectedChannel.id));
         } catch (e: any) {
           console.error('Load channel data error:', e);
-          toast.error("Failed to load channel data");
         }
       };
       loadChannelData();
     }
-  }, [selectedChannel?.id, dispatch, isConnected, markAsReadWS]);
+  }, [selectedChannel?.id, dispatch, isConnected, bulkMarkAsReadWS]);
 
   useEffect(() => {
     if (selectedThreadId) {
-      const loadThread = async () => {
-        try {
-          await dispatch(fetchThreadMessages({ parentMessageId: selectedThreadId, limit: 50 })).unwrap();
-        } catch (e: any) {
-          console.error('Load thread error:', e);
-          toast.error("Failed to load thread");
-        }
-      };
-      loadThread();
+      dispatch(fetchThreadMessages({ parentMessageId: selectedThreadId, limit: 50 }));
     }
   }, [selectedThreadId, dispatch]);
 
@@ -177,128 +160,6 @@ const ChatPage = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  useEffect(() => {
-    const handleMarkAsRead = (event: CustomEvent) => {
-      const { messageId, channelId } = event.detail;
-
-      if (isConnected) {
-        markAsReadWS(parseInt(messageId), channelId);
-      } else {
-        dispatch(markAsRead({
-          channelId,
-          messageId: parseInt(messageId)
-        }));
-      }
-    };
-
-    window.addEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
-
-    return () => {
-      window.removeEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
-    };
-  }, [isConnected, markAsReadWS, dispatch]);
-
-  useEffect(() => {
-    if (!selectedChannel) return;
-
-    const handleWebSocketMessage = (event: CustomEvent) => {
-      const { type, payload } = event.detail;
-
-      switch (type) {
-        case 'new_message':
-          if (payload.message && payload.message.channel_id === selectedChannel.id) {
-            dispatch(addMessageToChannel(payload.message));
-            dispatch(updateChannelLastMessage({
-              channelId: payload.message.channel_id,
-              message: payload.message
-            }));
-
-            if (document.visibilityState === 'visible' && isConnected) {
-              markAsReadWS(payload.message.id, selectedChannel.id);
-            }
-          }
-          break;
-
-        case 'thread_reply':
-          if (payload.message && payload.parentMessageId) {
-            dispatch(addMessageToThread({
-              parentMessageId: payload.parentMessageId,
-              message: payload.message
-            }));
-            dispatch(updateThreadReplyCount({
-              messageId: payload.parentMessageId,
-              increment: 1
-            }));
-          }
-          break;
-
-        case 'message_edited':
-          if (payload.channelId === selectedChannel.id) {
-            dispatch(updateMessageInChannel({
-              channelId: payload.channelId,
-              messageId: payload.messageId,
-              content: payload.content,
-              mentions: payload.mentions,
-              editedAt: payload.editedAt
-            }));
-          }
-          break;
-
-        case 'message_deleted':
-          if (payload.channelId === selectedChannel.id) {
-            dispatch(removeMessageFromChannel({
-              channelId: payload.channelId,
-              messageId: payload.messageId
-            }));
-          }
-          break;
-
-        case 'reaction_added':
-          if (payload.channelId === selectedChannel.id) {
-            dispatch(addReactionToMessage({
-              messageId: payload.messageId,
-              channelId: payload.channelId,
-              reaction: {
-                emoji: payload.emoji,
-                userId: payload.userId,
-                userName: payload.userName,
-                avatarUrl: payload.avatarUrl,
-                timestamp: payload.timestamp
-              }
-            }));
-          }
-          break;
-
-        case 'reaction_removed':
-          if (payload.channelId === selectedChannel.id) {
-            dispatch(removeReactionFromMessage({
-              messageId: payload.messageId,
-              channelId: payload.channelId,
-              emoji: payload.emoji,
-              userId: payload.userId
-            }));
-          }
-          break;
-
-        case 'message_pinned':
-        case 'message_unpinned':
-          if (payload.channelId === selectedChannel.id) {
-            dispatch(pinMessageInChannel({
-              channelId: payload.channelId,
-              messageId: payload.messageId,
-              isPinned: type === 'message_pinned',
-              pinnedBy: payload.pinnedBy,
-              pinnedAt: payload.timestamp
-            }));
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('ws_message', handleWebSocketMessage as EventListener);
-    return () => window.removeEventListener('ws_message', handleWebSocketMessage as EventListener);
-  }, [selectedChannel, dispatch, isConnected, markAsReadWS]);
 
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
@@ -589,35 +450,47 @@ const ChatPage = () => {
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!selectedChannel) return;
     try {
-      await ChatService.deleteMessage(parseInt(messageId));
-      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      if (isConnected) {
+        deleteMessageWS(parseInt(messageId), selectedChannel.id);
+      } else {
+        await ChatService.deleteMessage(parseInt(messageId));
+        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      }
       toast.success("Message deleted");
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete message");
     }
-  }, [selectedChannel, dispatch]);
+  }, [selectedChannel, dispatch, isConnected, deleteMessageWS]);
 
   const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
     if (!selectedChannel) return;
     try {
-      await ChatService.editMessage(parseInt(messageId), newContent);
-      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      if (isConnected) {
+        editMessageWS(parseInt(messageId), newContent, selectedChannel.id);
+      } else {
+        await ChatService.editMessage(parseInt(messageId), newContent);
+        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      }
       toast.success("Message updated");
     } catch (e: any) {
       toast.error(e?.message || "Failed to edit message");
     }
-  }, [selectedChannel, dispatch]);
+  }, [selectedChannel, dispatch, isConnected, editMessageWS]);
 
   const handlePinMessage = useCallback(async (messageId: string, isPinned: boolean) => {
     if (!selectedChannel) return;
     try {
-      await ChatService.pinMessage(parseInt(messageId), isPinned);
-      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      if (isConnected) {
+        pinMessageWS(parseInt(messageId), selectedChannel.id, isPinned);
+      } else {
+        await ChatService.pinMessage(parseInt(messageId), isPinned);
+        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
+      }
       toast.success(isPinned ? "Message pinned" : "Message unpinned");
     } catch (e: any) {
       toast.error(e?.message || "Failed to pin message");
     }
-  }, [selectedChannel, dispatch]);
+  }, [selectedChannel, dispatch, isConnected, pinMessageWS]);
 
   const handleReplyToMessage = useCallback((messageId: string) => {
     const message = currentMessages.find((m) => m.id === messageId);
@@ -638,17 +511,24 @@ const ChatPage = () => {
         (r: any) => r.emoji === emoji && r.user_id?.toString() === currentUser?.id?.toString()
       );
 
-      if (existingReaction) {
-        await ChatService.removeReaction(parseInt(messageId), emoji);
+      if (isConnected) {
+        if (existingReaction) {
+          removeReactionWS(parseInt(messageId), emoji, selectedChannel.id);
+        } else {
+          addReactionWS(parseInt(messageId), emoji, selectedChannel.id);
+        }
       } else {
-        await ChatService.addReaction(parseInt(messageId), emoji);
+        if (existingReaction) {
+          await ChatService.removeReaction(parseInt(messageId), emoji);
+        } else {
+          await ChatService.addReaction(parseInt(messageId), emoji);
+        }
+        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       }
-
-      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
     } catch (e: any) {
       toast.error(e?.message || "Failed to update reaction");
     }
-  }, [currentMessages, currentUser, selectedChannel, dispatch]);
+  }, [currentMessages, currentUser, selectedChannel, dispatch, isConnected, addReactionWS, removeReactionWS]);
 
   const handleOpenThread = useCallback((messageId: string) => {
     if (isDirect) {
@@ -661,17 +541,23 @@ const ChatPage = () => {
   }, [isDirect, handleReplyToMessage]);
 
   const handleReplyInThread = useCallback(async (content: string, parentId: number): Promise<boolean> => {
-    if (!content.trim()) return false;
+    if (!content.trim() || !selectedChannel) return false;
     try {
-      await dispatch(replyInThread({ parentMessageId: parentId, content: content.trim() })).unwrap();
-
-      toast.success("Reply sent");
-      return true;
+      if (isConnected) {
+        replyInThreadWS(parentId, content.trim(), selectedChannel.id);
+        toast.success("Reply sent");
+        return true;
+      } else {
+        await dispatch(replyInThread({ parentMessageId: parentId, content: content.trim() })).unwrap();
+        toast.success("Reply sent");
+        return true;
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to send reply");
       return false;
     }
-  }, [dispatch]);
+  }, [dispatch, selectedChannel, isConnected, replyInThreadWS]);
+
   const handleForwardMessage = useCallback((messageId: string) => {
     const msg = currentMessages.find(m => m.id === messageId);
     if (msg) {
