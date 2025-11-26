@@ -397,7 +397,7 @@ export const sendInvite = createAsyncThunk(
     payload: {
       inviteeEmail: string;
       inviteeName: string;
-      inviteeType: string;
+      inviteeType: "staff" | "brand" | "creator" | "manager";
       roleId: number;
       invitationMessage?: string;
     },
