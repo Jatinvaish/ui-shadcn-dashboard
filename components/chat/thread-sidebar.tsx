@@ -1,4 +1,4 @@
-// components/chat/thread-sidebar.tsx
+// components/chat/thread-sidebar.tsx - COMPLETE WITH FULL FUNCTIONALITY
 "use client";
 
 import React, { useRef, useEffect } from "react";
@@ -38,6 +38,7 @@ export function ThreadSidebar({
   const isLoadingThread = useAppSelector(state => state.chat.isLoadingThread);
   const selectedChannel = useAppSelector(state => state.chat.selectedChannel);
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollRef.current && threadMessages.length > 0) {
       setTimeout(() => {
@@ -48,6 +49,7 @@ export function ThreadSidebar({
     }
   }, [threadMessages.length]);
 
+  // Load thread messages on mount
   useEffect(() => {
     if (parentMessageId) {
       dispatch(fetchThreadMessages({ parentMessageId, limit: 50 }));
@@ -87,7 +89,6 @@ export function ThreadSidebar({
   };
 
   const transformedMessages = threadMessages.map(convertToFrontendMessage);
-
   const parentMessage = transformedMessages.length > 0 ? transformedMessages[0] : null;
   const replies = transformedMessages.slice(1);
 
@@ -98,6 +99,7 @@ export function ThreadSidebar({
       const result = await onReplyInThread?.(text.trim(), parentMessageId);
       
       if (result) {
+        // Auto-scroll to bottom after sending
         setTimeout(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -114,17 +116,20 @@ export function ThreadSidebar({
 
   return (
     <>
+      {/* Mobile Overlay */}
       <div 
         className="fixed inset-0 z-40 bg-black/50 lg:hidden" 
         onClick={onClose} 
       />
       
+      {/* Thread Sidebar Container */}
       <div className={cn(
         "fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col",
         "bg-background border-l border-border overflow-hidden",
         "w-full sm:w-96 lg:w-96 shadow-2xl lg:shadow-none",
         "h-full"
       )}>
+        {/* Header */}
         <div className="px-4 py-3 sm:py-4 h-14 sm:h-16 flex items-center justify-between border-b border-border flex-shrink-0 bg-card">
           <div>
             <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2 text-foreground">
@@ -145,6 +150,7 @@ export function ThreadSidebar({
           </Button>
         </div>
 
+        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto bg-background" ref={scrollRef}>
           <div className="p-2 sm:p-3 space-y-0">
             {isLoadingThread ? (
@@ -159,6 +165,7 @@ export function ThreadSidebar({
               </div>
             ) : (
               <>
+                {/* Parent Message */}
                 {parentMessage && (
                   <div className="mb-3 pb-3 border-b border-border bg-muted/30 rounded-lg p-2">
                     <div className="text-xs text-muted-foreground mb-2 font-medium px-2">
@@ -177,36 +184,33 @@ export function ThreadSidebar({
                   </div>
                 )}
                 
+                {/* Thread Replies */}
                 <div className="space-y-0">
                   {replies.length > 0 && (
                     <div className="text-xs text-muted-foreground mb-2 font-medium px-2">
                       Replies
                     </div>
                   )}
-                  {replies.map((reply, index) => {
-                    const prevReply = index > 0 ? replies[index - 1] : null;
-                    const showAvatar = !prevReply || prevReply.authorId !== reply.authorId;
-                    
-                    return (
-                      <MessageItem
-                        key={reply.id}
-                        message={reply}
-                        isOwn={reply.authorId === currentUserId}
-                        isDirect={false}
-                        currentUserId={currentUserId}
-                        onReply={() => {}}
-                        onReact={() => {}}
-                        onOpenThread={() => {}}
-                        isInThread={true}
-                      />
-                    );
-                  })}
+                  {replies.map((message) => (
+                    <MessageItem
+                      key={message.id}
+                      message={message}
+                      isOwn={message.authorId === currentUserId}
+                      isDirect={false}
+                      currentUserId={currentUserId}
+                      onReply={() => {}}
+                      onReact={() => {}}
+                      onOpenThread={() => {}}
+                      isInThread={true}
+                    />
+                  ))}
                 </div>
               </>
             )}
           </div>
         </div>
 
+        {/* Reply Editor */}
         <div className="border-t border-border flex-shrink-0 bg-card">
           <RichTextEditor 
             onSend={handleSend}

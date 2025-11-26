@@ -147,12 +147,12 @@ export const useWebSocket = (
               if (data.message.sender_user_id !== userId) {
                 dispatch(incrementUnreadCount(data.message.channel_id));
 
-                if (visibilityStateRef.current === 'visible') {
+                // if (visibilityStateRef.current === 'visible') {
                   socket.emit('mark_as_delivered', {
                     messageId: data.message.id,
                     channelId: data.message.channel_id,
                   });
-                }
+                // }
               }
             }
             break;
@@ -258,16 +258,16 @@ export const useWebSocket = (
           case 'thread_reply':
             if (data.message && data.parentMessageId) {
               console.log('🧵 Thread reply:', data.message.id, 'to parent', data.parentMessageId);
-              
+
               // Add to main channel messages
               dispatch(addMessageToChannel(data.message));
-              
+
               // Add to thread messages
               dispatch(addMessageToThread({
                 parentMessageId: data.parentMessageId,
                 message: data.message,
               }));
-              
+
               // Update parent message reply count
               dispatch(updateThreadReplyCount({
                 messageId: data.parentMessageId,

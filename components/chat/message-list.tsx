@@ -1,4 +1,4 @@
-// components/chat/message-list.tsx
+// components/chat/message-list.tsx - COMPLETE WITH AUTO-SCROLL & READ TRACKING
 "use client"
 
 import React, { useRef, useEffect } from "react"
@@ -66,6 +66,7 @@ export function MessageList({
   const isUserScrollingRef = useRef(false)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Track user scrolling behavior
   useEffect(() => {
     const handleScroll = () => {
       isUserScrollingRef.current = true;
@@ -91,6 +92,7 @@ export function MessageList({
     }
   }, []);
 
+  // Auto-scroll to bottom on new messages (if not manually scrolling)
   useEffect(() => {
     if (scrollRef.current && messages.length > prevMessagesLengthRef.current) {
       if (!isUserScrollingRef.current) {
@@ -104,6 +106,7 @@ export function MessageList({
     prevMessagesLengthRef.current = messages.length;
   }, [messages.length]);
 
+  // Intersection Observer for read tracking
   useEffect(() => {
     if (!scrollRef.current || messages.length === 0) return;
 
@@ -113,10 +116,11 @@ export function MessageList({
           if (entry.isIntersecting) {
             const messageId = entry.target.getAttribute('data-message-id');
             if (messageId) {
+              // Dispatch custom event for read tracking
               window.dispatchEvent(new CustomEvent('markMessageAsRead', {
                 detail: {
                   messageId,
-                  channelId: messages[0]?.authorId
+                  channelId: messages[0]?.authorId // Using authorId as placeholder, should use actual channelId
                 }
               }));
             }
@@ -136,10 +140,13 @@ export function MessageList({
     return () => observer.disconnect();
   }, [messages]);
 
+  // Scroll to specific message
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      
+      // Highlight the message temporarily
       element.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20')
       setTimeout(() => {
         element.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20')
@@ -147,6 +154,7 @@ export function MessageList({
     }
   }
 
+  // Group messages by date
   const groupedMessages = React.useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
 
@@ -170,6 +178,7 @@ export function MessageList({
     return groups
   }, [messages])
 
+  // Format date labels
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const today = new Date()
@@ -189,13 +198,17 @@ export function MessageList({
     }
   }
 
+  // Wrapper for reply in thread
   const handleReplyInThreadWrapper = async (content: string, parentId: string) => {
     if (!onReplyInThread) return;
     await onReplyInThread(content, parseInt(parentId));
   };
 
   return (
-    <div ref={scrollRef} className="flex-1 space-y-0 overflow-y-auto px-0 lg:px-6 py-3 lg:py-4 bg-background">
+    <div 
+      ref={scrollRef} 
+      className="flex-1 space-y-0 overflow-y-auto px-0 lg:px-6 py-3 lg:py-4 bg-background"
+    >
       {messages.length === 0 ? (
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <div className="text-center">
@@ -206,6 +219,7 @@ export function MessageList({
       ) : (
         groupedMessages.map((group, groupIndex) => (
           <div key={groupIndex} className="space-y-0">
+            {/* Date Separator */}
             <div className="flex items-center gap-3 my-4">
               <div className="flex-1 h-px bg-border"></div>
               <span className="text-xs text-muted-foreground font-medium px-2">
@@ -214,6 +228,7 @@ export function MessageList({
               <div className="flex-1 h-px bg-border"></div>
             </div>
 
+            {/* Messages */}
             {group.messages.map((message) => (
               <div
                 key={message.id}

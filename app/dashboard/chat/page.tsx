@@ -1,4 +1,4 @@
-// app/(dashboard)/chat/page.tsx
+// app/dashboard/chat/page.tsx - PART 1
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -30,6 +30,16 @@ import {
   clearError,
   clearSuccessMessage,
   resetUnreadCount,
+  markAsRead,
+  addMessageToChannel,
+  addMessageToThread,
+  addReactionToMessage,
+  pinMessageInChannel,
+  removeMessageFromChannel,
+  removeReactionFromMessage,
+  updateChannelLastMessage,
+  updateMessageInChannel,
+  updateThreadReplyCount,
   fetchThreadMessages,
   replyInThread,
 } from "@/store/slices/chatSlice";
@@ -58,10 +68,9 @@ const ChatPage = () => {
 
   const {
     sendMessage: sendMessageWS,
-    startTyping,
-    stopTyping,
+    startTyping: startTypingWS,
+    stopTyping: stopTypingWS,
     markAsRead: markAsReadWS,
-    bulkMarkAsRead: bulkMarkAsReadWS,
     addReaction: addReactionWS,
     removeReaction: removeReactionWS,
     editMessage: editMessageWS,
@@ -87,6 +96,7 @@ const ChatPage = () => {
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ==================== INITIALIZATION ====================
   useEffect(() => {
     const init = async () => {
       try {
@@ -103,6 +113,7 @@ const ChatPage = () => {
     init();
   }, [dispatch]);
 
+  // ==================== LOAD CHANNEL DATA ====================
   useEffect(() => {
     if (selectedChannel) {
       const loadChannelData = async () => {
@@ -117,25 +128,44 @@ const ChatPage = () => {
           if (result?.messages && result.messages.length > 0) {
             const lastMessage = result.messages[result.messages.length - 1];
             if (isConnected) {
-              bulkMarkAsReadWS(selectedChannel.id, lastMessage.id);
+              markAsReadWS(lastMessage.id, selectedChannel.id);
+            } else {
+              dispatch(markAsRead({
+                channelId: selectedChannel.id,
+                messageId: lastMessage.id
+              }));
             }
           }
 
           dispatch(resetUnreadCount(selectedChannel.id));
         } catch (e: any) {
           console.error('Load channel data error:', e);
+          toast.error("Failed to load channel data");
         }
       };
       loadChannelData();
     }
-  }, [selectedChannel?.id, dispatch, isConnected, bulkMarkAsReadWS]);
+  }, [selectedChannel?.id, dispatch, isConnected, markAsReadWS]);
 
+  // ==================== LOAD THREAD ====================
   useEffect(() => {
     if (selectedThreadId) {
-      dispatch(fetchThreadMessages({ parentMessageId: selectedThreadId, limit: 50 }));
+      const loadThread = async () => {
+        try {
+          await dispatch(fetchThreadMessages({
+            parentMessageId: selectedThreadId,
+            limit: 50
+          })).unwrap();
+        } catch (e: any) {
+          console.error('Load thread error:', e);
+          toast.error("Failed to load thread");
+        }
+      };
+      loadThread();
     }
   }, [selectedThreadId, dispatch]);
 
+  // ==================== TOAST NOTIFICATIONS ====================
   useEffect(() => {
     if (successMessage) {
       toast.success(successMessage);
@@ -150,6 +180,7 @@ const ChatPage = () => {
     }
   }, [error, dispatch]);
 
+  // ==================== KEYBOARD SHORTCUTS ====================
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -160,20 +191,6 @@ const ChatPage = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  const getChannelDisplayName = useCallback((channel: any): string => {
-    if (channel.channel_type === ChannelType.DIRECT) {
-      const members = channelMembers[channel.id] || [];
-      const otherMember = members.find(m => m.user_id !== currentUser?.id);
-      if (otherMember) {
-        const firstName = otherMember.first_name || '';
-        const lastName = otherMember.last_name || '';
-        return `${firstName} ${lastName}`.trim() || otherMember.email || 'Unknown User';
-      }
-    }
-    return channel.name || "New Channel";
-  }, [channelMembers, currentUser]);
-
   const convertToFrontendMessage = useCallback((msg: any): Message => {
     const senderFirstName = msg.sender_first_name || msg.first_name || '';
     const senderLastName = msg.sender_last_name || msg.last_name || '';
@@ -211,6 +228,19 @@ const ChatPage = () => {
     } as Message;
   }, []);
 
+  const getChannelDisplayName = useCallback((channel: any): string => {
+    if (channel.channel_type === ChannelType.DIRECT) {
+      const members = channelMembers[channel.id] || [];
+      const otherMember = members.find(m => m.user_id !== currentUser?.id);
+      if (otherMember) {
+        const firstName = otherMember.first_name || '';
+        const lastName = otherMember.last_name || '';
+        return `${firstName} ${lastName}`.trim() || otherMember.email || 'Unknown User';
+      }
+    }
+    return channel.name || "New Channel";
+  }, [channelMembers, currentUser]);
+  // ==================== COMPUTED VALUES ====================
   const currentMessages: Message[] = React.useMemo(() => {
     if (!selectedChannel) return [];
     const channelMessages = messages[selectedChannel.id] || [];
@@ -285,6 +315,134 @@ const ChatPage = () => {
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
 
+  // ==================== MARK AS READ LISTENER ====================
+  useEffect(() => {
+    const handleMarkAsRead = (event: CustomEvent) => {
+      const { messageId, channelId } = event.detail;
+
+      if (isConnected) {
+        markAsReadWS(parseInt(messageId), channelId);
+      } else {
+        dispatch(markAsRead({
+          channelId,
+          messageId: parseInt(messageId)
+        }));
+      }
+    };
+
+    window.addEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+
+    return () => {
+      window.removeEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+    };
+  }, [isConnected, markAsReadWS, dispatch]);
+
+  // ==================== WEBSOCKET MESSAGE HANDLER ====================
+  useEffect(() => {
+    if (!selectedChannel) return;
+
+    const handleWebSocketMessage = (event: CustomEvent) => {
+      const { type, payload } = event.detail;
+
+      switch (type) {
+        case 'new_message':
+          if (payload.message && payload.message.channel_id === selectedChannel.id) {
+            dispatch(addMessageToChannel(payload.message));
+            dispatch(updateChannelLastMessage({
+              channelId: payload.message.channel_id,
+              message: payload.message
+            }));
+
+            if (document.visibilityState === 'visible' && isConnected) {
+              markAsReadWS(payload.message.id, selectedChannel.id);
+            }
+          }
+          break;
+
+        case 'thread_reply':
+          if (payload.message && payload.parentMessageId) {
+            dispatch(addMessageToThread({
+              parentMessageId: payload.parentMessageId,
+              message: payload.message
+            }));
+            dispatch(updateThreadReplyCount({
+              messageId: payload.parentMessageId,
+              increment: 1
+            }));
+          }
+          break;
+
+        case 'message_edited':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(updateMessageInChannel({
+              channelId: payload.channelId,
+              messageId: payload.messageId,
+              content: payload.content,
+              mentions: payload.mentions,
+              editedAt: payload.editedAt
+            }));
+          }
+          break;
+
+        case 'message_deleted':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(removeMessageFromChannel({
+              channelId: payload.channelId,
+              messageId: payload.messageId
+            }));
+          }
+          break;
+
+        case 'reaction_added':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(addReactionToMessage({
+              messageId: payload.messageId,
+              channelId: payload.channelId,
+              reaction: {
+                emoji: payload.emoji,
+                userId: payload.userId,
+                userName: payload.userName,
+                avatarUrl: payload.avatarUrl,
+                timestamp: payload.timestamp
+              }
+            }));
+          }
+          break;
+
+        case 'reaction_removed':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(removeReactionFromMessage({
+              messageId: payload.messageId,
+              channelId: payload.channelId,
+              emoji: payload.emoji,
+              userId: payload.userId
+            }));
+          }
+          break;
+
+        case 'message_pinned':
+        case 'message_unpinned':
+          if (payload.channelId === selectedChannel.id) {
+            dispatch(pinMessageInChannel({
+              channelId: payload.channelId,
+              messageId: payload.messageId,
+              isPinned: type === 'message_pinned',
+              pinnedBy: payload.pinnedBy,
+              pinnedAt: payload.timestamp
+            }));
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('ws_message', handleWebSocketMessage as EventListener);
+    return () => window.removeEventListener('ws_message', handleWebSocketMessage as EventListener);
+  }, [selectedChannel, dispatch, isConnected, markAsReadWS]);
+
+  // ==================== HELPER FUNCTIONS ====================
+
+
+  // ==================== CHANNEL HANDLERS ====================
   const handleChannelClick = useCallback((channelId: string) => {
     const channel = channels?.find((c) => c.id.toString() === channelId || c.channel_id === channelId);
     if (channel) {
@@ -334,7 +492,7 @@ const ChatPage = () => {
         return;
       }
 
-      await ChatService.startTeamChat({ memberIds: [parseInt(userId)] });
+      await ChatService.startTeamChat([parseInt(userId)]);
       await dispatch(fetchUserChannels(100)).unwrap();
       toast.success("Chat started");
     } catch (e: any) {
@@ -397,6 +555,7 @@ const ChatPage = () => {
     }
   }, [selectedChannel, dispatch]);
 
+  // ==================== MESSAGE HANDLERS ====================
   const handleSendMessage = useCallback(async (
     html: string,
     text: string,
@@ -434,19 +593,29 @@ const ChatPage = () => {
     }
   }, [selectedChannel, replyingTo, selectedThreadId, dispatch, isConnected, sendMessageWS]);
 
+  // ==================== TYPING HANDLERS ====================
   const handleTypingStart = useCallback(() => {
     if (!selectedChannel) return;
-    startTyping(selectedChannel.id);
+    if (isConnected) {
+      startTypingWS(selectedChannel.id);
+    }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => stopTyping(selectedChannel.id), 3000);
-  }, [selectedChannel, startTyping, stopTyping]);
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isConnected && selectedChannel) {
+        stopTypingWS(selectedChannel.id);
+      }
+    }, 3000);
+  }, [selectedChannel, isConnected, startTypingWS, stopTypingWS]);
 
   const handleTypingStop = useCallback(() => {
     if (!selectedChannel) return;
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    stopTyping(selectedChannel.id);
-  }, [selectedChannel, stopTyping]);
+    if (isConnected) {
+      stopTypingWS(selectedChannel.id);
+    }
+  }, [selectedChannel, isConnected, stopTypingWS]);
 
+  // ==================== MESSAGE ACTION HANDLERS ====================
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!selectedChannel) return;
     try {
@@ -454,8 +623,8 @@ const ChatPage = () => {
         deleteMessageWS(parseInt(messageId), selectedChannel.id);
       } else {
         await ChatService.deleteMessage(parseInt(messageId));
-        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       }
+      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       toast.success("Message deleted");
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete message");
@@ -469,8 +638,8 @@ const ChatPage = () => {
         editMessageWS(parseInt(messageId), newContent, selectedChannel.id);
       } else {
         await ChatService.editMessage(parseInt(messageId), newContent);
-        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       }
+      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       toast.success("Message updated");
     } catch (e: any) {
       toast.error(e?.message || "Failed to edit message");
@@ -484,8 +653,8 @@ const ChatPage = () => {
         pinMessageWS(parseInt(messageId), selectedChannel.id, isPinned);
       } else {
         await ChatService.pinMessage(parseInt(messageId), isPinned);
-        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       }
+      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       toast.success(isPinned ? "Message pinned" : "Message unpinned");
     } catch (e: any) {
       toast.error(e?.message || "Failed to pin message");
@@ -501,6 +670,7 @@ const ChatPage = () => {
     }
   }, [currentMessages]);
 
+  // ==================== REACTION HANDLER ====================
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
     if (!selectedChannel) return;
     try {
@@ -523,13 +693,15 @@ const ChatPage = () => {
         } else {
           await ChatService.addReaction(parseInt(messageId), emoji);
         }
-        await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
       }
+
+      await dispatch(fetchMessages({ channelId: selectedChannel.id, limit: 50 })).unwrap();
     } catch (e: any) {
       toast.error(e?.message || "Failed to update reaction");
     }
   }, [currentMessages, currentUser, selectedChannel, dispatch, isConnected, addReactionWS, removeReactionWS]);
 
+  // ==================== THREAD HANDLERS ====================
   const handleOpenThread = useCallback((messageId: string) => {
     if (isDirect) {
       handleReplyToMessage(messageId);
@@ -541,22 +713,21 @@ const ChatPage = () => {
   }, [isDirect, handleReplyToMessage]);
 
   const handleReplyInThread = useCallback(async (content: string, parentId: number): Promise<boolean> => {
-    if (!content.trim() || !selectedChannel) return false;
+    if (!content.trim()) return false;
     try {
-      if (isConnected) {
+      if (isConnected && selectedChannel) {
         replyInThreadWS(parentId, content.trim(), selectedChannel.id);
-        toast.success("Reply sent");
-        return true;
       } else {
         await dispatch(replyInThread({ parentMessageId: parentId, content: content.trim() })).unwrap();
-        toast.success("Reply sent");
-        return true;
       }
+
+      toast.success("Reply sent");
+      return true;
     } catch (e: any) {
       toast.error(e?.message || "Failed to send reply");
       return false;
     }
-  }, [dispatch, selectedChannel, isConnected, replyInThreadWS]);
+  }, [dispatch, isConnected, selectedChannel, replyInThreadWS]);
 
   const handleForwardMessage = useCallback((messageId: string) => {
     const msg = currentMessages.find(m => m.id === messageId);
@@ -577,15 +748,17 @@ const ChatPage = () => {
       dispatch(fetchChannelMembers(selectedChannel.id));
     }
   }, [selectedChannel, dispatch, isConnected, inviteMembersWS]);
-
+  // ==================== RENDER ====================
   return (
     <div className="flex w-full overflow-hidden bg-background h-[calc(100vh-var(--header-height))]">
+      {/* Connection Status Banner */}
       {!isConnected && (
         <div className="fixed top-[var(--header-height)] left-0 right-0 z-50 bg-yellow-500 text-white text-center py-1 text-xs lg:left-[var(--sidebar-collapsed-width)]">
           ⚠️ Reconnecting...
         </div>
       )}
 
+      {/* Primary Sidebar */}
       <PrimarySidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -594,6 +767,7 @@ const ChatPage = () => {
         onClose={() => setIsPrimarySidebarOpen(false)}
       />
 
+      {/* Secondary Sidebar */}
       <div className={`${showSidebarOnMobile ? "flex" : "hidden"} md:flex`}>
         <Sidebar
           channels={sidebarChannels}
@@ -611,7 +785,9 @@ const ChatPage = () => {
         />
       </div>
 
+      {/* Main Chat Area */}
       <div className={`flex w-full flex-1 flex-col overflow-hidden bg-background ${showChatOnMobile ? "flex" : "hidden"} md:flex`}>
+        {/* Mobile Header */}
         <div className="flex h-14 items-center border-b border-border md:hidden bg-card">
           {selectedChannel && (
             <>
@@ -628,6 +804,7 @@ const ChatPage = () => {
           )}
         </div>
 
+        {/* Desktop Header */}
         {selectedChannel && (
           <div className="hidden md:flex">
             <ChatHeader
@@ -650,6 +827,7 @@ const ChatPage = () => {
           </div>
         )}
 
+        {/* Messages or Empty State */}
         {selectedChannel ? (
           <>
             <MessageList
@@ -666,6 +844,7 @@ const ChatPage = () => {
               onForward={handleForwardMessage}
             />
 
+            {/* Typing Indicator */}
             {currentTypingUsers.length > 0 && (
               <div className="px-4 py-2 text-xs text-muted-foreground">
                 {currentTypingUsers.length === 1
@@ -674,6 +853,7 @@ const ChatPage = () => {
               </div>
             )}
 
+            {/* Rich Text Editor */}
             <RichTextEditor
               onSend={handleSendMessage}
               replyingTo={replyingTo}
@@ -697,6 +877,7 @@ const ChatPage = () => {
         )}
       </div>
 
+      {/* Thread Sidebar */}
       {showThreadSidebar && selectedThreadId && (
         <ThreadSidebar
           threadId={selectedThreadId.toString()}
@@ -708,6 +889,7 @@ const ChatPage = () => {
         />
       )}
 
+      {/* Dialogs */}
       {selectedChannel && isChannelAdmin && !isDirect && (
         <InviteMembersDialog
           open={inviteDialogOpen}

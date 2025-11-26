@@ -1,4 +1,4 @@
-// components/chat/dialogs/search-dialog.tsx - COMPLETE WITH DM SUPPORT
+// components/chat/dialogs/search-dialog.tsx - INTEGRATED WITH EXISTING CHAT
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { Search, MessageSquare, Hash, Users, Loader2, MessageCircle } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Search, MessageSquare, Hash, Users, Loader2, MessageCircle, ArrowUpRight } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
-import { searchChat, clearSearchResults, setSelectedChannel } from "@/store/slices/chatSlice"
+import { searchChat, clearSearchResults, setSelectedChannel, fetchMessages } from "@/store/slices/chatSlice"
 import useDebounce from "@/hooks/useDebounce"
+import { cn } from "@/lib/utils"
 
 interface SearchDialogProps {
   open: boolean
@@ -20,7 +22,13 @@ interface SearchDialogProps {
   onStartDM?: (userId: string) => void
 }
 
-export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSelect, onStartDM }: SearchDialogProps) {
+export function SearchDialog({ 
+  open, 
+  onOpenChange, 
+  onChannelSelect, 
+  onMessageSelect, 
+  onStartDM 
+}: SearchDialogProps) {
   const dispatch = useAppDispatch()
   const { searchResults, isSearching, channels } = useAppSelector((state) => state.chat)
   
@@ -30,7 +38,10 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
 
   useEffect(() => {
     if (debouncedQuery.length >= 2) {
-      dispatch(searchChat({ query: debouncedQuery, opts: { type: activeTab, limit: 20 } }))
+      dispatch(searchChat({ 
+        query: debouncedQuery, 
+        opts: { type: activeTab, limit: 20 } 
+      }))
     } else {
       dispatch(clearSearchResults())
     }
@@ -43,19 +54,47 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
     }
   }, [open, dispatch])
 
-  const handleChannelClick = (channelId: number) => {
+  const handleChannelClick = async (channelId: number) => {
     const channel = channels.find(c => c.id === channelId)
     if (channel) {
       dispatch(setSelectedChannel(channel))
+      
+      // Load messages for the channel
+      await dispatch(fetchMessages({ channelId, limit: 50 }))
+      
       onChannelSelect?.(channelId)
       onOpenChange(false)
     }
   }
 
-  const handleMessageClick = (channelId: number, messageId: number) => {
-    handleChannelClick(channelId)
-    onMessageSelect?.(channelId, messageId)
-    onOpenChange(false)
+  const handleMessageClick = async (channelId: number, messageId: number) => {
+    const channel = channels.find(c => c.id === channelId)
+    if (channel) {
+      // Set the channel first
+      dispatch(setSelectedChannel(channel))
+      
+      // Load messages for the channel
+      await dispatch(fetchMessages({ channelId, limit: 50 }))
+      
+      // Close dialog
+      onOpenChange(false)
+      
+      // Scroll to message after a brief delay to ensure DOM is ready
+      setTimeout(() => {
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          
+          // Add highlight flash effect
+          messageElement.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20')
+          setTimeout(() => {
+            messageElement.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20')
+          }, 2000)
+        }
+      }, 500)
+      
+      onMessageSelect?.(channelId, messageId)
+    }
   }
 
   const handleMemberClick = (memberId: number) => {
@@ -76,11 +115,11 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
   }
 
   const highlightMatch = (text: string, q: string) => {
-    if (!q) return text
+    if (!q || !text) return text
     const parts = text.split(new RegExp(`(${q})`, 'gi'))
     return parts.map((part, i) => 
       part.toLowerCase() === q.toLowerCase() 
-        ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">{part}</mark> 
+        ? <mark key={i} className="bg-yellow-200/70 dark:bg-yellow-900/50 text-yellow-900 dark:text-yellow-100 rounded px-0.5 font-medium">{part}</mark> 
         : part
     )
   }
@@ -93,76 +132,115 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] p-0">
-        <DialogHeader className="p-4 pb-0">
+      <DialogContent className="sm:max-w-[650px] p-0 gap-0 max-h-[85vh]">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="sr-only">Search</DialogTitle>
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search messages, channels, or people..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="pl-10 h-11 text-base"
+              className="pl-10 pr-10 h-11 text-base border-0 shadow-none focus-visible:ring-0 bg-muted/50"
               autoFocus
             />
-            {isSearching && <Loader2 className="absolute right-3 top-3 h-5 w-5 animate-spin text-muted-foreground" />}
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+            )}
           </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4 h-auto py-0">
-            <TabsTrigger value="all" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary py-3">All</TabsTrigger>
-            <TabsTrigger value="messages" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary py-3 gap-1.5">
-              <MessageSquare className="h-4 w-4" /> Messages
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex-1 flex flex-col">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-auto py-0 gap-6">
+            <TabsTrigger 
+              value="all" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 data-[state=active]:shadow-none"
+            >
+              All Results
             </TabsTrigger>
-            <TabsTrigger value="channels" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary py-3 gap-1.5">
-              <Hash className="h-4 w-4" /> Channels
+            <TabsTrigger 
+              value="messages" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none"
+            >
+              <MessageSquare className="h-4 w-4" /> 
+              Messages
             </TabsTrigger>
-            <TabsTrigger value="members" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary py-3 gap-1.5">
-              <Users className="h-4 w-4" /> People
+            <TabsTrigger 
+              value="channels" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none"
+            >
+              <Hash className="h-4 w-4" /> 
+              Channels
+            </TabsTrigger>
+            <TabsTrigger 
+              value="members" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none"
+            >
+              <Users className="h-4 w-4" /> 
+              People
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="h-[400px]">
+          <ScrollArea className="flex-1" style={{ maxHeight: 'calc(85vh - 180px)' }}>
             {!query ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <Search className="h-12 w-12 mb-3 opacity-20" />
-                <p className="text-sm">Start typing to search</p>
-                <p className="text-xs mt-1">Press ⌘K anytime to open search</p>
+              <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <Search className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <h3 className="font-semibold text-base mb-1">Search Everything</h3>
+                <p className="text-sm text-muted-foreground mb-2">Find messages, channels, and people instantly</p>
+                <p className="text-xs text-muted-foreground">Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">⌘K</kbd> anytime to search</p>
               </div>
             ) : query.length < 2 ? (
-              <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+              <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
                 Type at least 2 characters to search
               </div>
             ) : isSearching ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <div className="flex flex-col items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                <p className="text-sm text-muted-foreground">Searching...</p>
               </div>
             ) : !hasResults ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <p className="text-sm">No results found for "{query}"</p>
+              <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <Search className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <h3 className="font-semibold text-base mb-1">No results found</h3>
+                <p className="text-sm text-muted-foreground">Try different keywords for "{query}"</p>
               </div>
             ) : (
-              <div className="p-4 space-y-6">
+              <div className="px-6 py-4 space-y-6">
                 {/* Messages */}
-                {(activeTab === "all" || activeTab === "messages") && searchResults?.messages && searchResults.messages.length > 0 && (
-                  <div>
-                    {activeTab === "all" && <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Messages</h3>}
+                {(activeTab === "all" || activeTab === "messages") && 
+                 searchResults?.messages && 
+                 searchResults.messages.length > 0 && (
+                  <div className="space-y-2">
+                    {activeTab === "all" && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Messages ({searchResults.messages.length})
+                        </h3>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       {searchResults.messages.map((msg) => (
                         <button
                           key={msg.id}
                           onClick={() => handleMessageClick(msg.channel_id, msg.id)}
-                          className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors"
+                          className="w-full text-left p-3 rounded-lg hover:bg-muted/70 transition-all cursor-pointer group border border-transparent hover:border-border"
                         >
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
                             <Hash className="h-3 w-3" />
-                            <span>{msg.channel_name}</span>
-                            <span>•</span>
+                            <span className="font-medium">{msg.channel_name}</span>
+                            <span className="text-muted-foreground/50">•</span>
                             <span>{msg.sender_first_name} {msg.sender_last_name}</span>
-                            <span className="ml-auto">{formatDate(msg.sent_at)}</span>
+                            <span className="ml-auto text-muted-foreground/70">{formatDate(msg.sent_at)}</span>
+                            <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
-                          <p className="text-sm line-clamp-2">{highlightMatch(msg.content, query)}</p>
+                          <p className="text-sm line-clamp-2 leading-relaxed">
+                            {highlightMatch(msg.content, query)}
+                          </p>
                         </button>
                       ))}
                     </div>
@@ -170,60 +248,86 @@ export function SearchDialog({ open, onOpenChange, onChannelSelect, onMessageSel
                 )}
 
                 {/* Channels */}
-                {(activeTab === "all" || activeTab === "channels") && searchResults?.channels && searchResults.channels.length > 0 && (
-                  <div>
-                    {activeTab === "all" && <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Channels</h3>}
+                {(activeTab === "all" || activeTab === "channels") && 
+                 searchResults?.channels && 
+                 searchResults.channels.length > 0 && (
+                  <div className="space-y-2">
+                    {activeTab === "all" && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <Hash className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Channels ({searchResults.channels.length})
+                        </h3>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       {searchResults.channels.map((ch) => (
                         <button
                           key={ch.id}
                           onClick={() => handleChannelClick(ch.id)}
-                          className="w-full text-left flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
+                          className="w-full text-left flex items-center gap-3 p-3 rounded-lg hover:bg-muted/70 transition-all cursor-pointer group border border-transparent hover:border-border"
                         >
-                          <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                             <Hash className="h-5 w-5 text-primary" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium">{highlightMatch(ch.name, query)}</p>
-                            {ch.description && <p className="text-xs text-muted-foreground line-clamp-1">{ch.description}</p>}
+                            <p className="font-medium text-sm mb-0.5">{highlightMatch(ch.name, query)}</p>
+                            {ch.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {ch.description}
+                              </p>
+                            )}
                           </div>
-                          <span className="text-xs text-muted-foreground">{ch.member_count} members</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {ch.member_count} {ch.member_count === 1 ? 'member' : 'members'}
+                            </span>
+                            <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                          </div>
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Members - with DM action */}
-                {(activeTab === "all" || activeTab === "members") && searchResults?.members && searchResults.members.length > 0 && (
-                  <div>
-                    {activeTab === "all" && <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2">People</h3>}
+                {/* Members */}
+                {(activeTab === "all" || activeTab === "members") && 
+                 searchResults?.members && 
+                 searchResults.members.length > 0 && (
+                  <div className="space-y-2">
+                    {activeTab === "all" && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          People ({searchResults.members.length})
+                        </h3>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       {searchResults.members.map((member) => (
                         <div 
                           key={member.id} 
-                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors group"
+                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/70 transition-all cursor-pointer group border border-transparent hover:border-border"
                         >
-                          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
-                            {member.avatar_url ? (
-                              <img src={member.avatar_url} alt="" className="h-full w-full rounded-full object-cover" />
-                            ) : (
-                              member.first_name?.charAt(0).toUpperCase()
-                            )}
-                          </div>
+                          <Avatar className="h-10 w-10 flex-shrink-0">
+                            <AvatarImage src={member.avatar_url} alt={`${member.first_name} ${member.last_name}`} />
+                            <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                              {member.first_name?.charAt(0).toUpperCase()}{member.last_name?.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium">{highlightMatch(`${member.first_name} ${member.last_name}`, query)}</p>
-                            <p className="text-xs text-muted-foreground">{member.email}</p>
+                            <p className="font-medium text-sm mb-0.5">
+                              {highlightMatch(`${member.first_name} ${member.last_name}`, query)}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                           </div>
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            //todo
-                            //@ts-ignore
+                            className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 h-8"
                             onClick={() => handleMemberClick(member.id)}
                           >
-                            <MessageCircle className="h-4 w-4 mr-1" />
+                            <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                             Message
                           </Button>
                         </div>

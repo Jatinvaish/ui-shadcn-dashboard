@@ -125,8 +125,6 @@ export const API_ENDPOINTS = {
 
     // ✅ Collaboration - Aligned with collaboration.controller.ts
     COLLABORATION: {
-      TEAM_MEMBERS: "/collaboration/team/members",
-      START_CHAT: "/collaboration/team/start-chat",
       SEARCH_MEMBERS: "/collaboration/team/search"
     },
 

@@ -399,6 +399,7 @@ export const markAsRead = createAsyncThunk<
   async ({ channelId, messageId }, { rejectWithValue }) => {
     try {
       await ChatService.markAsRead(channelId, messageId);
+      console.log("🚀 ~ channelId, messageId:", channelId, messageId)
       return { channelId };
     } catch (e: any) {
       return rejectWithValue(e?.message || 'Failed to mark as read');
@@ -637,34 +638,7 @@ export const startTeamChat = createAsyncThunk<
     }
   }
 );
-
-export const fetchCollaborationMembers = createAsyncThunk<
-  Member[],
-  boolean | undefined
->(
-  'chat/fetchCollaborationMembers',
-  async (includeOffline, { rejectWithValue }) => {
-    try {
-      return await ChatService.getCollaborationTeamMembers(includeOffline);
-    } catch (e: any) {
-      return rejectWithValue(e?.message || 'Failed to fetch collaboration members');
-    }
-  }
-);
-
-export const startCollaborationChat = createAsyncThunk<
-  Channel,
-  { memberIds: number[]; name?: string; isPrivate?: boolean }
->(
-  'chat/startCollaborationChat',
-  async ({ memberIds, name, isPrivate }, { rejectWithValue }) => {
-    try {
-      return normalizeChannel(await ChatService.startCollaborationChat(memberIds, name, isPrivate));
-    } catch (e: any) {
-      return rejectWithValue(e?.message || 'Failed to start collaboration');
-    }
-  }
-);
+  
 
 export const searchCollaborationMembers = createAsyncThunk<Member[], string>(
   'chat/searchCollaborationMembers',
@@ -1328,9 +1302,7 @@ const chatSlice = createSlice({
       .addCase(fetchAvailableMembers.fulfilled, (state, action) => {
         state.availableMembers = action.payload;
       })
-      .addCase(fetchCollaborationMembers.fulfilled, (state, action) => {
-        state.collaborationMembers = action.payload;
-      })
+      
       
       // ✅ Threads
       .addCase(fetchThreadMessages.pending, (state) => {
@@ -1406,9 +1378,9 @@ const chatSlice = createSlice({
       .addCase(searchChat.pending, (state) => {
         state.isSearching = true;
       })
-      .addCase(searchChat.fulfilled, (state, action) => {
+      .addCase(searchChat.fulfilled, (state, action:any) => {
         state.isSearching = false;
-        state.searchResults = action.payload;
+        state.searchResults = action.payload?.data;
       })
       .addCase(searchChat.rejected, (state, action) => {
         state.isSearching = false;

@@ -133,7 +133,7 @@ export function Sidebar({
         <div className="space-y-4 px-3 py-2">
           {activeTab === "chat" && (
             <div>
-              <div className="mb-2 mr-[22px] flex items-center justify-between px-2">
+              <div className="mb-2  flex items-center justify-between px-2">
                 <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Recent
                 </h3>
@@ -202,7 +202,7 @@ export function Sidebar({
                       key={channel.id}
                       onClick={() => onChannelClick?.(channel.id)}
                       className={cn(
-                        "hover:bg-sidebar-accent flex mr-[22px] w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                        "hover:bg-sidebar-accent flex  w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                         activeId === channel.id
                           ? "bg-sidebar-accent text-sidebar-accent-foreground"
                           : "text-sidebar-foreground"
