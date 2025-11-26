@@ -17,10 +17,13 @@ import {
   removeReactionFromMessage,
   pinMessageInChannel,
   updateThreadReplyCount,
+  fetchUserChannels,
+  addMembersToChannel,
 } from '@/store/slices/chatSlice';
 import type { SendMessagePayload } from '@/lib/api/services/chat-service';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3060';
+
 
 interface UseWebSocketReturn {
   socket: Socket | null;
@@ -36,13 +39,13 @@ interface UseWebSocketReturn {
   deleteMessage: (messageId: number, channelId: number) => void;
   pinMessage: (messageId: number, channelId: number, isPinned: boolean) => void;
   replyInThread: (parentMessageId: number, content: string, channelId: number, mentions?: number[]) => void;
+  inviteMembers: (channelId: number, userIds: number[]) => void; // ✅ ADD THIS
   reconnect: () => void;
   disconnect: () => void;
   isConnected: boolean;
 }
-
 export const useWebSocket = (
-  token: string | null, 
+  token: string | null,
   userId: number | null
 ): UseWebSocketReturn => {
   const dispatch = useAppDispatch();
@@ -84,46 +87,6 @@ export const useWebSocket = (
     });
 
     // ==================== CONNECTION EVENTS ====================
-    socket.on('connect', () => {
-      console.log('✅ WebSocket: Connected - ID:', socket.id);
-      setIsConnected(true);
-      reconnectAttemptsRef.current = 0;
-    });
-
-    socket.on('connected', (data: { userId: number; tenantId: number; timestamp: string }) => {
-      console.log('✅ WebSocket: Server acknowledged -', data);
-    });
-
-    socket.on('disconnect', (reason: string) => {
-      console.log('❌ WebSocket: Disconnected -', reason);
-      setIsConnected(false);
-
-      if (reason === 'io server disconnect') {
-        console.log('🔄 WebSocket: Server disconnected, reconnecting...');
-        setTimeout(() => socket.connect(), 1000);
-      }
-    });
-
-    socket.on('connect_error', (error: Error) => {
-      console.error('❌ WebSocket: Connection error -', error.message);
-      setIsConnected(false);
-      reconnectAttemptsRef.current++;
-
-      if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-        console.log('⚠️ WebSocket: Max reconnect attempts reached');
-      }
-    });
-
-    socket.on('error', (error: { message: string }) => {
-      console.error('❌ WebSocket: Error -', error.message);
-      
-      if (error.message?.includes('Authentication') || error.message?.includes('token')) {
-        console.log('🔒 WebSocket: Auth error, disconnecting');
-        socket.disconnect();
-      }
-    });
-
-    // ==================== MESSAGE EVENTS ====================
     socket.on('message', (data: any) => {
       console.log('📨 WebSocket: Message received -', data.event, data);
 
@@ -131,12 +94,12 @@ export const useWebSocket = (
         switch (data.event) {
           case 'new_message':
             if (data.message) {
+              // ✅ FIX: Dispatch complete message to Redux
               dispatch(addMessageToChannel(data.message));
-              
+
               if (data.message.sender_user_id !== userId) {
                 dispatch(incrementUnreadCount(data.message.channel_id));
-                
-                // Auto-send delivery confirmation
+
                 if (visibilityStateRef.current === 'visible') {
                   socket.emit('mark_as_delivered', {
                     messageId: data.message.id,
@@ -148,7 +111,7 @@ export const useWebSocket = (
             break;
 
           case 'message_edited':
-            if (data.messageId) {
+            if (data.messageId && data.channelId) {
               dispatch(updateMessageInChannel({
                 channelId: data.channelId,
                 messageId: data.messageId,
@@ -183,7 +146,7 @@ export const useWebSocket = (
 
           // ==================== REACTIONS ====================
           case 'reaction_added':
-            if (data.messageId && data.emoji) {
+            if (data.messageId && data.emoji && data.channelId) {
               dispatch(addReactionToMessage({
                 messageId: data.messageId,
                 channelId: data.channelId,
@@ -199,7 +162,7 @@ export const useWebSocket = (
             break;
 
           case 'reaction_removed':
-            if (data.messageId && data.emoji) {
+            if (data.messageId && data.emoji && data.channelId) {
               dispatch(removeReactionFromMessage({
                 messageId: data.messageId,
                 channelId: data.channelId,
@@ -235,7 +198,6 @@ export const useWebSocket = (
 
           case 'bulk_read_update':
             if (data.channelId && data.upToMessageId) {
-              // Handle bulk read update in Redux if needed
               console.log('📖 Bulk read update:', data);
             }
             break;
@@ -243,10 +205,44 @@ export const useWebSocket = (
           // ==================== THREADS ====================
           case 'thread_reply':
             if (data.message && data.parentMessageId) {
+              // ✅ Add thread reply to messages
               dispatch(addMessageToChannel(data.message));
+
+              // ✅ Update parent message reply count
               dispatch(updateThreadReplyCount({
                 messageId: data.parentMessageId,
                 increment: 1,
+              }));
+            }
+            break;
+
+          // ==================== MENTIONS ====================
+          case 'user_mentioned':
+            if (data.messageId) {
+              dispatch(incrementUnreadCount(data.channelId));
+              console.log('📢 You were mentioned:', data);
+            }
+            break;
+
+          case 'mentioned_in_thread':
+            if (data.messageId) {
+              console.log('📢 Mentioned in thread:', data);
+              dispatch(incrementUnreadCount(data.channelId));
+            }
+            break;
+
+          // ==================== MEMBER INVITATIONS ====================
+          case 'member_invited':
+            console.log('👥 Invited to channel:', data);
+            dispatch(fetchUserChannels(50));
+            break;
+
+          case 'members_added':
+            if (data.channelId && data.userIds) {
+              console.log('👥 Members added to channel:', data);
+              dispatch(addMembersToChannel({
+                channelId: data.channelId,
+                userIds: data.userIds,
               }));
             }
             break;
@@ -258,38 +254,17 @@ export const useWebSocket = (
         console.error('WebSocket: Error processing message -', error);
       }
     });
-
-    // Alternative message format (direct events)
-    socket.on('new_message', (message: any) => {
-      console.log('📨 WebSocket: new_message event');
-      if (message) {
-        dispatch(addMessageToChannel(message));
-        
-        if (message.sender_user_id !== userId) {
-          dispatch(incrementUnreadCount(message.channel_id));
-          
-          if (visibilityStateRef.current === 'visible') {
-            socket.emit('mark_as_delivered', {
-              messageId: message.id,
-              channelId: message.channel_id,
-            });
-          }
-        }
-      }
-    });
-
-    // ==================== TYPING INDICATORS ====================
-    socket.on('user_typing', (data: { 
-      channelId: number; 
-      userId: number; 
+    socket.on('user_typing', (data: {
+      channelId: number;
+      userId: number;
       userName?: string;
-      isTyping: boolean 
+      isTyping: boolean
     }) => {
       if (data.userId === userId) return;
 
       if (data.isTyping) {
-        dispatch(addTypingUser({ 
-          channelId: data.channelId, 
+        dispatch(addTypingUser({
+          channelId: data.channelId,
           userId: data.userId,
           userName: data.userName,
         }));
@@ -298,17 +273,17 @@ export const useWebSocket = (
         if (existingTimeout) clearTimeout(existingTimeout);
 
         const timeout = setTimeout(() => {
-          dispatch(removeTypingUser({ 
-            channelId: data.channelId, 
-            userId: data.userId 
+          dispatch(removeTypingUser({
+            channelId: data.channelId,
+            userId: data.userId
           }));
           typingTimeoutsRef.current.delete(data.userId);
         }, 5000);
         typingTimeoutsRef.current.set(data.userId, timeout);
       } else {
-        dispatch(removeTypingUser({ 
-          channelId: data.channelId, 
-          userId: data.userId 
+        dispatch(removeTypingUser({
+          channelId: data.channelId,
+          userId: data.userId
         }));
         const existingTimeout = typingTimeoutsRef.current.get(data.userId);
         if (existingTimeout) {
@@ -316,16 +291,6 @@ export const useWebSocket = (
           typingTimeoutsRef.current.delete(data.userId);
         }
       }
-    });
-
-    // ==================== PRESENCE ====================
-    socket.on('online_users', (data: { userIds: number[] }) => {
-      console.log('👥 WebSocket: Online users -', data.userIds?.length || 0);
-      dispatch(setOnlineUsers(data.userIds || []));
-    });
-
-    socket.on('user_status', (data: { userId: number; status: 'online' | 'offline' }) => {
-      console.log('🟢 WebSocket: User status -', data);
     });
 
     socketRef.current = socket;
@@ -348,10 +313,10 @@ export const useWebSocket = (
 
     return () => {
       console.log('🔌 WebSocket: Cleaning up...');
-      
+
       typingTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
       typingTimeoutsRef.current.clear();
-      
+
       if (socketRef.current) {
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
@@ -371,9 +336,9 @@ export const useWebSocket = (
     return new Promise((resolve) => {
       try {
         console.log('📤 WebSocket: Sending message to channel', data.channelId);
-        socketRef.current!.emit('send_message', data, (response: { 
-          success: boolean; 
-          messageId?: number; 
+        socketRef.current!.emit('send_message', data, (response: {
+          success: boolean;
+          messageId?: number;
           latency?: number;
           error?: string;
         }) => {
@@ -476,19 +441,19 @@ export const useWebSocket = (
 
   // ==================== MESSAGE EDITING ====================
   const editMessage = useCallback((
-    messageId: number, 
-    content: string, 
+    messageId: number,
+    content: string,
     channelId: number,
     mentions?: number[]
   ) => {
     if (!socketRef.current?.connected) return;
 
     try {
-      socketRef.current.emit('edit_message', { 
-        messageId, 
-        content, 
+      socketRef.current.emit('edit_message', {
+        messageId,
+        content,
         channelId,
-        mentions 
+        mentions
       }, (response: any) => {
         if (response?.success) {
           console.log('✅ WebSocket: Message edited');
@@ -529,19 +494,19 @@ export const useWebSocket = (
 
   // ==================== THREAD REPLIES ====================
   const replyInThread = useCallback((
-    parentMessageId: number, 
-    content: string, 
+    parentMessageId: number,
+    content: string,
     channelId: number,
     mentions?: number[]
   ) => {
     if (!socketRef.current?.connected) return;
 
     try {
-      socketRef.current.emit('thread_reply', { 
-        parentMessageId, 
-        content, 
+      socketRef.current.emit('thread_reply', {
+        parentMessageId,
+        content,
         channelId,
-        mentions 
+        mentions
       }, (response: any) => {
         if (response?.success) {
           console.log('✅ WebSocket: Thread reply sent -', response.messageId);
@@ -551,6 +516,24 @@ export const useWebSocket = (
       console.error('WebSocket: Error replying in thread -', error);
     }
   }, []);
+  const inviteMembers = useCallback((channelId: number, userIds: number[]) => {
+    if (!socketRef.current?.connected) {
+      console.warn('⚠️ WebSocket: Not connected');
+      return;
+    }
+
+    try {
+      socketRef.current.emit('invite_members', { channelId, userIds }, (response: any) => {
+        if (response?.success) {
+          console.log('✅ WebSocket: Members invited');
+        } else {
+          console.error('❌ WebSocket: Invite failed -', response?.error);
+        }
+      });
+    } catch (error) {
+      console.error('WebSocket: Error inviting members -', error);
+    }
+  }, []);
 
   // ==================== MANUAL RECONNECT ====================
   const reconnect = useCallback(() => {
@@ -558,10 +541,10 @@ export const useWebSocket = (
       console.log('WebSocket: Already connected');
       return;
     }
-    
+
     console.log('🔄 WebSocket: Manual reconnect');
     reconnectAttemptsRef.current = 0;
-    
+
     if (socketRef.current) {
       socketRef.current.connect();
     } else {
@@ -592,6 +575,7 @@ export const useWebSocket = (
     deleteMessage,
     pinMessage,
     replyInThread,
+    inviteMembers, // ✅ ADD THIS LINE
     reconnect,
     disconnect,
     isConnected,

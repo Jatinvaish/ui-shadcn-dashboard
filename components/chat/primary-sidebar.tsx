@@ -13,9 +13,9 @@ interface PrimarySidebarProps {
   onClose?: () => void;
 }
 
-export function PrimarySidebar({ 
-  activeTab, 
-  onTabChange, 
+export function PrimarySidebar({
+  activeTab,
+  onTabChange,
   unreadCount = 0,
   isOpen = false,
   onClose
@@ -34,7 +34,7 @@ export function PrimarySidebar({
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="bg-sidebar hidden md:flex h-screen w-16 flex-col items-center py-2 gap-1 border-r border-border">
+      <div className="bg-sidebar hidden md:flex h-full w-16 flex-col items-center py-2 gap-1 border border-border">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -56,14 +56,6 @@ export function PrimarySidebar({
           </button>
         ))}
 
-        <div className="mt-auto">
-          <button
-            className="flex h-12 w-12 flex-col items-center justify-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-            title="Settings">
-            <Settings className="h-5 w-5" />
-            <span className="mt-0.5 text-[10px] font-medium">More</span>
-          </button>
-        </div>
       </div>
 
       {/* Mobile Overlay */}
