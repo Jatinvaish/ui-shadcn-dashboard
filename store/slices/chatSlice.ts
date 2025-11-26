@@ -912,6 +912,30 @@ const chatSlice = createSlice({
       state.unreadCount = Math.max(0, state.unreadCount - count);
       state.channelUnreadCounts[channelId] = 0;
     },
+    addMembersToChannel: (state, action: PayloadAction<{ channelId: number; userIds: number[] }>) => {
+      const { channelId, userIds } = action.payload;
+      const channelIndex = state.channels.findIndex((c) => c.id === channelId);
+      if (channelIndex !== -1) {
+        state.channels[channelIndex].member_count += userIds.length;
+      }
+      // Refresh members list if loaded
+      if (state.channelMembers[channelId]) {
+        // Will be refreshed on next fetch
+        delete state.channelMembers[channelId];
+      }
+    },
+
+    markMentionAsRead: (state, action: PayloadAction<{ messageId: number; channelId: number }>) => {
+      const { messageId, channelId } = action.payload;
+      if (state.messages[channelId]) {
+        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
+        if (messageIndex !== -1) {
+          state.messages[channelId][messageIndex].is_read_by_me = true;
+        }
+      }
+      state.unreadMentionsCount = Math.max(0, state.unreadMentionsCount - 1);
+    },
+
     resetChatState: () => initialState,
     updateMessageStatus: (state, action: PayloadAction<{ messageId: number; status: 'delivered' | 'read'; timestamp: string }>) => {
       const { messageId, status } = action.payload;
@@ -998,6 +1022,8 @@ export const {
   removeReactionFromMessage,
   pinMessageInChannel,
   updateThreadReplyCount,
+  addMembersToChannel,  
+  markMentionAsRead
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
