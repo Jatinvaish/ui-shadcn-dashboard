@@ -41,7 +41,7 @@ export function PlanCard({ plan, billingCycle }: PlanCardProps) {
       }`}
     >
       {plan.badge && (
-        <Badge variant="default" className="absolute -top-3 left-1/2 -translate-x-1/2">
+        <Badge variant="primary" className="absolute -top-3 left-1/2 -translate-x-1/2">
           {plan.badge}
         </Badge>
       )}
@@ -78,7 +78,7 @@ export function PlanCard({ plan, billingCycle }: PlanCardProps) {
         </ul>
 
         {/* CTA Button */}
-        <Button variant={plan.highlighted ? "default" : "outline"} className="w-full" size="lg">
+        <Button variant={"outline"} className="w-full" size="lg">
           {plan.cta}
         </Button>
       </CardContent>

@@ -14,14 +14,14 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks"
 import { fetchTeamMembers, addMembers, fetchChannelMembers } from "@/store/slices/chatSlice"
 import toast from "react-hot-toast"
 
+// Update interface at the top
 interface InviteMembersDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   channelId: number
   channelName: string
-  onMembersAdded?: () => void
+  onMembersAdded?: (channelId: number, userIds: number[]) => void  
 }
-
 export function InviteMembersDialog({
   open,
   onOpenChange,
@@ -42,7 +42,7 @@ export function InviteMembersDialog({
       setIsLoading(true)
       setSelectedIds([])
       setSearchQuery("")
-      
+
       Promise.all([
         dispatch(fetchTeamMembers()).unwrap(),
         dispatch(fetchChannelMembers(channelId)).unwrap()
@@ -58,14 +58,14 @@ export function InviteMembersDialog({
   const existingMemberIds = React.useMemo(() => {
     const members = channelMembers[channelId] || []
     const ids = new Set<number>()
-    
+
     members.forEach((m: any) => {
       const userId = m.user_id || m.id
       if (userId) {
         ids.add(Number(userId))
       }
     })
-    
+
     return ids
   }, [channelMembers, channelId])
 
@@ -102,27 +102,30 @@ export function InviteMembersDialog({
   }
 
   const handleInvite = async () => {
-    if (selectedIds.length === 0) return
+    if (selectedIds.length === 0) return;
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
       await dispatch(addMembers({
         channelId,
         userIds: selectedIds
-      })).unwrap()
+      })).unwrap();
 
-      await dispatch(fetchChannelMembers(channelId)).unwrap()
-      
-      toast.success(`Added ${selectedIds.length} member(s)`)
-      onMembersAdded?.()
-      onOpenChange(false)
+      await dispatch(fetchChannelMembers(channelId)).unwrap();
+
+      // ✅ Call callback with channelId and userIds
+      onMembersAdded?.(channelId, selectedIds);
+
+      toast.success(`Added ${selectedIds.length} member(s)`);
+      onOpenChange(false);
     } catch (error: any) {
-      console.error('Add members error:', error)
-      toast.error(error || "Failed to add members")
+      console.error('Add members error:', error);
+      toast.error(error || "Failed to add members");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
+
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -216,9 +219,8 @@ export function InviteMembersDialog({
                     <div
                       key={userId}
                       onClick={() => toggleSelect(userId)}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                        isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                        }`}
                     >
                       <Checkbox
                         checked={isSelected}

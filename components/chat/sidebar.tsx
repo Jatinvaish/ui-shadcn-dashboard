@@ -98,7 +98,7 @@ export function Sidebar({
   };
 
   return (
-    <div className="bg-sidebar text-sidebar-foreground flex h-screen w-full md:w-72 flex-col overflow-hidden border-r border-border">
+    <div className="bg-sidebar text-sidebar-foreground flex w-full md:w-72 flex-col overflow-hidden border-r border-border">
       {/* Header */}
       <div className="border-border flex h-14 flex-shrink-0 items-center border-b px-4 gap-3">
         <button
@@ -113,7 +113,6 @@ export function Sidebar({
           {activeTab === "chat" ? "Chat" : activeTab === "channels" ? "Teams" : "Activity"}
         </h2>
 
-        <ChevronDown className="text-muted-foreground h-4 w-4 flex-shrink-0" />
       </div>
 
       {/* Search */}
@@ -134,7 +133,7 @@ export function Sidebar({
         <div className="space-y-4 px-3 py-2">
           {activeTab === "chat" && (
             <div>
-              <div className="mb-2 flex items-center justify-between px-2">
+              <div className="mb-2  flex items-center justify-between px-2">
                 <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Recent
                 </h3>
@@ -155,18 +154,20 @@ export function Sidebar({
                       onClick={() => onDirectMessageClick?.(dm.id)}
                       className={cn(
                         "hover:bg-sidebar-accent flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                        activeId === dm.id && "bg-sidebar-accent text-sidebar-primary"
+                        activeId === dm.id
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-sidebar-foreground"
                       )}>
                       <div className="relative h-8 w-8 flex-shrink-0 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-semibold">
                         {dm.name.charAt(0).toUpperCase()}
-                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-sidebar" />
+                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-success border-2 border-sidebar" />
                       </div>
                       <div className="flex-1 min-w-0 text-left">
                         <p className="font-medium truncate">{dm.name}</p>
                         <p className="text-xs text-muted-foreground truncate">Active now</p>
                       </div>
                       {dm.unread && dm.unread > 0 && (
-                        <span className="bg-primary text-primary-foreground inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
+                        <span className="bg-destructive text-destructive-foreground inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
                           {dm.unread}
                         </span>
                       )}
@@ -201,8 +202,10 @@ export function Sidebar({
                       key={channel.id}
                       onClick={() => onChannelClick?.(channel.id)}
                       className={cn(
-                        "hover:bg-sidebar-accent flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                        activeId === channel.id && "bg-sidebar-accent text-sidebar-primary"
+                        "hover:bg-sidebar-accent flex  w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                        activeId === channel.id
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-sidebar-foreground"
                       )}>
                       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-primary/10">
                         {channel.isPrivate ? (
@@ -214,7 +217,7 @@ export function Sidebar({
                       <span className="flex-1 truncate text-left font-medium">{channel.name}</span>
                       {channel.isPinned && <span className="flex-shrink-0 text-sm">📌</span>}
                       {channel.unread && channel.unread > 0 && (
-                        <span className="bg-primary text-primary-foreground inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
+                        <span className="bg-destructive text-destructive-foreground inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
                           {channel.unread}
                         </span>
                       )}
@@ -247,13 +250,12 @@ export function Sidebar({
               <div className="bg-primary text-primary-foreground relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                 {currentUser?.name?.charAt(0).toUpperCase() || "U"}
                 <span
-                  className={`border-sidebar absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 ${
-                    currentUser?.status === "active"
-                      ? "bg-green-500"
-                      : currentUser?.status === "away"
-                        ? "bg-yellow-500"
-                        : "bg-gray-400"
-                  }`}
+                  className={cn(
+                    "border-sidebar absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2",
+                    currentUser?.status === "active" && "bg-success",
+                    currentUser?.status === "away" && "bg-warning",
+                    (!currentUser?.status || currentUser?.status === "offline") && "bg-muted-foreground"
+                  )}
                 />
               </div>
               <div className="min-w-0 flex-1 text-left">

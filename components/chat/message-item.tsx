@@ -1,4 +1,4 @@
-// components/chat/message-item.tsx - UPDATED WITH READ RECEIPTS
+// components/chat/message-item.tsx - COMPLETE WITH ALL FEATURES
 "use client"
 
 import React, { useState } from "react"
@@ -22,8 +22,8 @@ interface MessageItemProps {
   onReplyInThread?: (content: string, parentId: string) => void
   onForward?: (messageId: string) => void
   onScrollToMessage?: (messageId: string) => void
+  isInThread?: boolean
 }
-
 
 const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean }) => {
   if (!isOwn) return null;
@@ -36,7 +36,6 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
   const isRead = readCount > 0 || readByUserIds.length > 0;
   const isDelivered = deliveredCount > 0 || deliveredToUserIds.length > 0;
 
-  // ✅ NEW: Animated transitions
   if (isRead) {
     return (
       <TooltipProvider>
@@ -101,6 +100,7 @@ export function MessageItem({
   onReplyInThread,
   onForward,
   onScrollToMessage,
+  isInThread = false,
 }: MessageItemProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
@@ -137,7 +137,7 @@ export function MessageItem({
   };
 
   const handleReplyInThread = () => {
-    if (isDirect) {
+    if (isDirect || isInThread) {
       onReply?.(message.id);
     } else {
       onOpenThread?.(message.id);
@@ -163,7 +163,7 @@ export function MessageItem({
     message.reactions.forEach((reaction: any) => {
       const existing = reactionMap.get(reaction.emoji);
       const reactorId = reaction.user_id || 0;
-      const reactorName = `${reaction.first_name || ''} ${reaction.last_name || ''}`.trim();
+      const reactorName = `${reaction.first_name || ''} ${reaction.last_name || ''}`.trim() || 'Anonymous';
       const userReacted = reactorId.toString() === currentUserId;
 
       if (existing) {
@@ -194,6 +194,7 @@ export function MessageItem({
         isOwn ? "flex-row-reverse" : "flex-row"
       )}
     >
+      {/* Avatar */}
       <div className="h-8 w-8 flex-shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold overflow-hidden">
         {message.authorAvatar ? (
           <img src={message.authorAvatar} alt="" className="h-full w-full object-cover" />
@@ -202,10 +203,12 @@ export function MessageItem({
         )}
       </div>
 
+      {/* Message Content */}
       <div className={cn(
         "flex-1 min-w-0 flex flex-col gap-1",
         isOwn && "items-end"
       )}>
+        {/* Message Header */}
         <div className={cn(
           "flex items-center gap-2 flex-wrap text-xs",
           isOwn && "flex-row-reverse"
@@ -221,6 +224,7 @@ export function MessageItem({
           )}
         </div>
 
+        {/* Reply Preview */}
         {message.replyTo && (
           <div
             className={cn(
@@ -234,6 +238,7 @@ export function MessageItem({
           </div>
         )}
 
+        {/* Message Body */}
         <div className={cn(
           "inline-block max-w-md rounded-lg px-3 py-2 shadow-sm",
           isOwn
@@ -245,6 +250,7 @@ export function MessageItem({
           </p>
         </div>
 
+        {/* File Attachments */}
         {message.files && message.files.length > 0 && (
           <div className="space-y-1">
             {message.files.map((file) => (
@@ -258,6 +264,7 @@ export function MessageItem({
           </div>
         )}
 
+        {/* Reactions */}
         {groupedReactions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
             {groupedReactions.map((reaction) => (
@@ -289,22 +296,30 @@ export function MessageItem({
           </div>
         )}
 
-        {!isDirect && message.threadReplies && message.threadReplies > 0 && (
+        {/* Thread Reply Count */}
+        {!isInThread && !isDirect && message.threadReplies !== undefined && message.threadReplies >= 0 && (
           <button
             onClick={() => onOpenThread?.(message.id)}
             className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium pt-1 w-fit"
           >
             <MessageCircle className="h-3 w-3" />
-            <span>{message.threadReplies} {message.threadReplies === 1 ? "reply" : "replies"}</span>
+            <span>
+              {message.threadReplies === 0
+                ? "Reply in thread"
+                : `${message.threadReplies} ${message.threadReplies === 1 ? "reply" : "replies"}`
+              }
+            </span>
           </button>
         )}
       </div>
 
+      {/* Message Actions */}
       <div className={cn(
         "absolute top-0 flex items-center gap-1 bg-popover/95 backdrop-blur-sm rounded shadow-md p-1 border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-10",
         isOwn ? "right-12" : "left-12",
         "-translate-y-1/2"
       )}>
+        {/* Quick Emoji Picker */}
         <div className="relative">
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -331,6 +346,7 @@ export function MessageItem({
           )}
         </div>
 
+        {/* More Actions */}
         <MessageActionsPopover
           isDirect={isDirect}
           isOwn={isOwn}
@@ -343,6 +359,7 @@ export function MessageItem({
           onEdit={onEdit}
           onPin={onPin}
           onForward={onForward}
+          isInThread={isInThread}
         />
       </div>
     </div>
