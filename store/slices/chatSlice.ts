@@ -24,60 +24,60 @@ interface ChatState {
   channels: Channel[];
   selectedChannel: Channel | null;
   isLoadingChannels: boolean;
-  
+
   // Messages
   messages: Record<number, Message[]>;
   isLoadingMessages: boolean;
   isSendingMessage: boolean;
-  
+
   // Members
   channelMembers: Record<number, Member[]>;
   isLoadingMembers: boolean;
   teamMembers: Member[];
   availableMembers: Member[];
   collaborationMembers: Member[];
-  
+
   // Threads
   threadMessages: Record<number, Message[]>;
   isLoadingThread: boolean;
   enhancedThreads: Record<number, any>;
-  
+
   // Pinned Messages
   pinnedMessages: Record<number, Message[]>;
-  
+
   // Search
   searchResults: SearchResults | null;
   isSearching: boolean;
-  
+
   // Real-time features
   typingUsers: Record<number, Array<{ userId: number; userName?: string }>>;
   onlineUsers: number[];
-  
+
   // Unread tracking
   unreadCount: number;
   channelUnreadCounts: Record<number, number>;
   unreadMentionsCount: number;
   unreadNotificationsCount: number;
-  
+
   // Activities & Notifications
   activities: Activity[];
   unreadActivities: Activity[];
   channelActivities: Record<number, Activity[]>;
   notifications: Notification[];
   notificationPreferences: any[];
-  
+
   // Mentions
   mentions: any[];
-  
+
   // Files
   channelFiles: Record<number, Attachment[]>;
-  
+
   // Message details
   messageDetails: Record<number, Message>;
   messageAttachments: Record<number, Attachment[]>;
   messageReactions: Record<number, Reaction[]>;
   messageReadStatuses: Record<number, MessageReadStatus>;
-  
+
   // UI state
   error: string | null;
   successMessage: string | null;
@@ -638,7 +638,7 @@ export const startTeamChat = createAsyncThunk<
     }
   }
 );
-  
+
 
 export const searchCollaborationMembers = createAsyncThunk<Member[], string>(
   'chat/searchCollaborationMembers',
@@ -917,55 +917,27 @@ const chatSlice = createSlice({
     setSelectedChannel: (state, action: PayloadAction<Channel | null>) => {
       state.selectedChannel = action.payload;
     },
-    clearSearchResults: (state) => {
-      state.searchResults = null;
-    },
 
-    // ✅ Real-time Message Updates (WebSocket)
+    // ✅ FIXED: Real-time Message Updates (WebSocket)
     addMessageToChannel: (state, action: PayloadAction<Message>) => {
       const channelId = action.payload.channel_id;
       if (!state.messages[channelId]) {
         state.messages[channelId] = [];
       }
-      if (!state.messages[channelId].some((m) => m.id === action.payload.id)) {
+
+      // Check if message already exists
+      const exists = state.messages[channelId].some((m) => m.id === action.payload.id);
+      if (!exists) {
         state.messages[channelId].push(action.payload);
+        console.log('✅ Message added to state:', action.payload.id);
+      } else {
+        console.log('⚠️ Message already exists:', action.payload.id);
       }
     },
 
-    updateMessageInChannel: (state, action: PayloadAction<{
-      channelId: number;
-      messageId: number;
-      content: string;
-      mentions?: number[];
-      editedAt: string;
-    }>) => {
-      const { channelId, messageId, content, mentions, editedAt } = action.payload;
-      if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1) {
-          const message = state.messages[channelId][messageIndex];
-          message.content = content;
-          message.is_edited = true;
-          message.edited_at = editedAt;
-          if (mentions && mentions.length > 0) {
-            message.mentioned_user_ids = mentions.join(',');
-            message.has_mentions = true;
-          }
-        }
-      }
-    },
 
-    removeMessageFromChannel: (state, action: PayloadAction<{
-      channelId: number;
-      messageId: number;
-    }>) => {
-      const { channelId, messageId } = action.payload;
-      if (state.messages[channelId]) {
-        state.messages[channelId] = state.messages[channelId].filter((m) => m.id !== messageId);
-      }
-    },
 
-    // ✅ Delivery & Read Status Updates (WebSocket)
+    // ✅ FIXED: Delivery Status Updates
     updateMessageDeliveryStatus: (state, action: PayloadAction<{
       messageId: number;
       deliveredBy: number;
@@ -973,21 +945,30 @@ const chatSlice = createSlice({
       timestamp: string;
     }>) => {
       const { messageId, deliveredBy, deliveredCount } = action.payload;
+
+      console.log('📬 Updating delivery status:', messageId);
+
+      let found = false;
       Object.keys(state.messages).forEach((channelId) => {
-        const messages = state.messages[+channelId];
-        const messageIndex = messages?.findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1 && messages) {
-          const message = messages[messageIndex];
+        const message = state.messages[+channelId]?.find((m) => m.id === messageId);
+        if (message) {
+          found = true;
           const deliveredIds = message.delivered_to_user_ids?.split(',').filter(Boolean) || [];
           if (!deliveredIds.includes(deliveredBy.toString())) {
             deliveredIds.push(deliveredBy.toString());
             message.delivered_to_user_ids = deliveredIds.join(',');
           }
           message.delivered_count = deliveredCount;
+          console.log('✅ Delivery status updated');
         }
       });
+
+      if (!found) {
+        console.warn('⚠️ Message not found for delivery update:', messageId);
+      }
     },
 
+    // ✅ FIXED: Read Status Updates
     updateMessageReadStatus: (state, action: PayloadAction<{
       messageId: number;
       readBy: number;
@@ -996,11 +977,14 @@ const chatSlice = createSlice({
       timestamp: string;
     }>) => {
       const { messageId, readBy, readCount } = action.payload;
+
+      console.log('📖 Updating read status:', messageId);
+
+      let found = false;
       Object.keys(state.messages).forEach((channelId) => {
-        const messages = state.messages[+channelId];
-        const messageIndex = messages?.findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1 && messages) {
-          const message = messages[messageIndex];
+        const message = state.messages[+channelId]?.find((m) => m.id === messageId);
+        if (message) {
+          found = true;
           const readIds = message.read_by_user_ids?.split(',').filter(Boolean) || [];
           if (!readIds.includes(readBy.toString())) {
             readIds.push(readBy.toString());
@@ -1013,88 +997,17 @@ const chatSlice = createSlice({
           }
           message.read_count = readCount;
           message.is_read_by_me = true;
+          console.log('✅ Read status updated');
         }
       });
-    },
 
-    // ✅ Reaction Updates (WebSocket)
-    addReactionToMessage: (state, action: PayloadAction<{
-      messageId: number;
-      channelId: number;
-      reaction: {
-        emoji: string;
-        userId: number;
-        userName?: string;
-        avatarUrl?: string;
-        timestamp: string;
-      };
-    }>) => {
-      const { messageId, channelId, reaction } = action.payload;
-      if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1) {
-          const message = state.messages[channelId][messageIndex];
-          if (!message.reactions) message.reactions = [];
-          const existingReaction = message.reactions.find(
-            (r) => r.user_id === reaction.userId && r.emoji === reaction.emoji
-          );
-          if (!existingReaction) {
-            message.reactions.push({
-              id: Date.now(),
-              message_id: messageId,
-              emoji: reaction.emoji,
-              user_id: reaction.userId,
-              created_at: reaction.timestamp,
-              first_name: reaction.userName?.split(' ')[0] || '',
-              last_name: reaction.userName?.split(' ').slice(1).join(' ') || '',
-              avatar_url: reaction.avatarUrl || '',
-            });
-            message.reaction_count = (message.reaction_count || 0) + 1;
-          }
-        }
+      if (!found) {
+        console.warn('⚠️ Message not found for read update:', messageId);
       }
     },
 
-    removeReactionFromMessage: (state, action: PayloadAction<{
-      messageId: number;
-      channelId: number;
-      emoji: string;
-      userId: number;
-    }>) => {
-      const { messageId, channelId, emoji, userId } = action.payload;
-      if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1) {
-          const message = state.messages[channelId][messageIndex];
-          if (message.reactions) {
-            message.reactions = message.reactions.filter(
-              (r) => !(r.user_id === userId && r.emoji === emoji)
-            );
-            message.reaction_count = Math.max(0, (message.reaction_count || 0) - 1);
-          }
-        }
-      }
-    },
 
-    // ✅ Pin Updates (WebSocket)
-    pinMessageInChannel: (state, action: PayloadAction<{
-      channelId: number;
-      messageId: number;
-      isPinned: boolean;
-      pinnedBy?: number;
-      pinnedAt?: string;
-    }>) => {
-      const { channelId, messageId, isPinned, pinnedBy, pinnedAt } = action.payload;
-      if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1) {
-          const message = state.messages[channelId][messageIndex];
-          message.is_pinned = isPinned;
-          message.pinned_at = isPinned ? pinnedAt : undefined;
-          message.pinned_by = isPinned ? pinnedBy : undefined;
-        }
-      }
-    },
+
 
     // ✅ Thread Updates (WebSocket)
     updateThreadReplyCount: (state, action: PayloadAction<{
@@ -1102,14 +1015,22 @@ const chatSlice = createSlice({
       increment: number;
     }>) => {
       const { messageId, increment } = action.payload;
+
+      console.log('🧵 Updating thread reply count:', messageId, increment);
+
+      let found = false;
       Object.keys(state.messages).forEach((channelId) => {
-        const messages = state.messages[+channelId];
-        const messageIndex = messages?.findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1 && messages) {
-          const message = messages[messageIndex];
+        const message = state.messages[+channelId]?.find((m) => m.id === messageId);
+        if (message) {
+          found = true;
           message.reply_count = (message.reply_count || 0) + increment;
+          console.log('✅ Thread count updated:', message.reply_count);
         }
       });
+
+      if (!found) {
+        console.warn('⚠️ Parent message not found:', messageId);
+      }
     },
 
     addMessageToThread: (state, action: PayloadAction<{
@@ -1117,51 +1038,34 @@ const chatSlice = createSlice({
       message: Message;
     }>) => {
       const { parentMessageId, message } = action.payload;
+
+      console.log('🧵 Adding message to thread:', message.id, 'parent:', parentMessageId);
+
+      // Add to thread messages
       if (!state.threadMessages[parentMessageId]) {
         state.threadMessages[parentMessageId] = [];
       }
-      if (!state.threadMessages[parentMessageId].some((m) => m.id === message.id)) {
+
+      const exists = state.threadMessages[parentMessageId].some((m) => m.id === message.id);
+      if (!exists) {
         state.threadMessages[parentMessageId].push(message);
+        console.log('✅ Thread message added');
       }
+
+      // Also add to main channel messages if not exists
       if (state.messages[message.channel_id]) {
-        const existingIndex = state.messages[message.channel_id].findIndex((m) => m.id === message.id);
-        if (existingIndex === -1) {
+        const existsInChannel = state.messages[message.channel_id].some((m) => m.id === message.id);
+        if (!existsInChannel) {
           state.messages[message.channel_id].push(message);
         }
       }
     },
 
-    // ✅ Typing Indicators (WebSocket)
-    addTypingUser: (state, action: PayloadAction<{
-      channelId: number;
-      userId: number;
-      userName?: string;
-    }>) => {
-      const { channelId, userId, userName } = action.payload;
-      if (!state.typingUsers[channelId]) {
-        state.typingUsers[channelId] = [];
-      }
-      const existingIndex = state.typingUsers[channelId].findIndex((u) => u.userId === userId);
-      if (existingIndex === -1) {
-        state.typingUsers[channelId].push({ userId, userName });
-      }
-    },
 
-    removeTypingUser: (state, action: PayloadAction<{
-      channelId: number;
-      userId: number;
-    }>) => {
-      const { channelId, userId } = action.payload;
-      if (state.typingUsers[channelId]) {
-        state.typingUsers[channelId] = state.typingUsers[channelId].filter(
-          (u) => u.userId !== userId
-        );
-      }
-    },
-
-    // ✅ Online Users (WebSocket)
+    // ✅ Online Users
     setOnlineUsers: (state, action: PayloadAction<number[]>) => {
       state.onlineUsers = action.payload;
+      console.log('✅ Online users updated:', action.payload.length);
     },
 
     // ✅ Unread Count Management
@@ -1169,6 +1073,7 @@ const chatSlice = createSlice({
       const channelId = action.payload;
       state.unreadCount += 1;
       state.channelUnreadCounts[channelId] = (state.channelUnreadCounts[channelId] || 0) + 1;
+      console.log('✅ Unread count incremented:', state.unreadCount);
     },
 
     resetUnreadCount: (state, action: PayloadAction<number>) => {
@@ -1176,18 +1081,21 @@ const chatSlice = createSlice({
       const count = state.channelUnreadCounts[channelId] || 0;
       state.unreadCount = Math.max(0, state.unreadCount - count);
       state.channelUnreadCounts[channelId] = 0;
+      console.log('✅ Unread count reset for channel:', channelId);
     },
 
-    // ✅ Member Updates (WebSocket)
+    // ✅ Member Updates
     addMembersToChannel: (state, action: PayloadAction<{
       channelId: number;
       userIds: number[];
     }>) => {
       const { channelId, userIds } = action.payload;
-      const channelIndex = state.channels.findIndex((c) => c.id === channelId);
-      if (channelIndex !== -1) {
-        state.channels[channelIndex].member_count += userIds.length;
+      const channel = state.channels.find((c) => c.id === channelId);
+      if (channel) {
+        channel.member_count += userIds.length;
+        console.log('✅ Members added, new count:', channel.member_count);
       }
+      // Clear cached members to force refetch
       if (state.channelMembers[channelId]) {
         delete state.channelMembers[channelId];
       }
@@ -1199,10 +1107,11 @@ const chatSlice = createSlice({
       message: Message;
     }>) => {
       const { channelId, message } = action.payload;
-      const channelIndex = state.channels.findIndex((c) => c.id === channelId);
-      if (channelIndex !== -1) {
-        state.channels[channelIndex].last_message_at = message.sent_at;
-        state.channels[channelIndex].message_count += 1;
+      const channel = state.channels.find((c) => c.id === channelId);
+      if (channel) {
+        channel.last_message_at = message.sent_at;
+        channel.message_count += 1;
+        console.log('✅ Channel last message updated');
       }
     },
 
@@ -1213,9 +1122,9 @@ const chatSlice = createSlice({
     }>) => {
       const { messageId, channelId } = action.payload;
       if (state.messages[channelId]) {
-        const messageIndex = state.messages[channelId].findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1) {
-          state.messages[channelId][messageIndex].is_read_by_me = true;
+        const message = state.messages[channelId].find((m) => m.id === messageId);
+        if (message) {
+          message.is_read_by_me = true;
         }
       }
       state.unreadMentionsCount = Math.max(0, state.unreadMentionsCount - 1);
@@ -1229,15 +1138,235 @@ const chatSlice = createSlice({
     }>) => {
       const { messageId, status } = action.payload;
       Object.keys(state.messages).forEach((channelId) => {
-        const messages = state.messages[+channelId];
-        const messageIndex = messages?.findIndex((m) => m.id === messageId);
-        if (messageIndex !== -1 && messages) {
-          const message = messages[messageIndex];
-          if (status === 'read') {
-            message.is_read_by_me = true;
-          }
+        const message = state.messages[+channelId]?.find((m) => m.id === messageId);
+        if (message && status === 'read') {
+          message.is_read_by_me = true;
         }
       });
+    },
+
+    // ✅ FIXED: Typing Users - Force new array reference
+    addTypingUser: (state, action: PayloadAction<{
+      channelId: number;
+      userId: number;
+      userName?: string;
+    }>) => {
+      const { channelId, userId, userName } = action.payload;
+
+      console.log('⌨️ REDUCER: Adding typing user', userId, channelId);
+
+      if (!state.typingUsers[channelId]) {
+        state.typingUsers[channelId] = [];
+      }
+
+      const exists = state.typingUsers[channelId].find((u) => u.userId === userId);
+      if (!exists) {
+        // ✅ CRITICAL: Create new array to trigger re-render
+        state.typingUsers = {
+          ...state.typingUsers,
+          [channelId]: [...state.typingUsers[channelId], { userId, userName }]
+        };
+        console.log('✅ REDUCER: Typing user added, count:', state.typingUsers[channelId].length);
+      }
+    },
+
+    removeTypingUser: (state, action: PayloadAction<{
+      channelId: number;
+      userId: number;
+    }>) => {
+      const { channelId, userId } = action.payload;
+
+      console.log('⌨️ REDUCER: Removing typing user', userId, channelId);
+
+      if (state.typingUsers[channelId]) {
+        // ✅ CRITICAL: Create new array to trigger re-render
+        state.typingUsers = {
+          ...state.typingUsers,
+          [channelId]: state.typingUsers[channelId].filter((u) => u.userId !== userId)
+        };
+        console.log('✅ REDUCER: Typing user removed, count:', state.typingUsers[channelId].length);
+      }
+    },
+
+    // ✅ FIXED: Reactions - Force new array reference
+    addReactionToMessage: (state, action: PayloadAction<{
+      messageId: number;
+      channelId: number;
+      reaction: {
+        emoji: string;
+        userId: number;
+        userName?: string;
+        avatarUrl?: string;
+        timestamp: string;
+      };
+    }>) => {
+      const { messageId, channelId, reaction } = action.payload;
+
+      console.log('👍 REDUCER: Adding reaction', reaction.emoji, messageId);
+
+      if (!state.messages[channelId]) {
+        console.warn('⚠️ Channel messages not found:', channelId);
+        return;
+      }
+
+      // ✅ CRITICAL: Create new messages array
+      state.messages = {
+        ...state.messages,
+        [channelId]: state.messages[channelId].map(msg => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const exists = reactions.find(r => r.user_id === reaction.userId && r.emoji === reaction.emoji);
+
+          if (exists) {
+            console.log('⚠️ Reaction already exists');
+            return msg;
+          }
+
+          console.log('✅ REDUCER: Reaction added');
+          return {
+            ...msg,
+            reactions: [...reactions, {
+              id: Date.now(),
+              message_id: messageId,
+              emoji: reaction.emoji,
+              user_id: reaction.userId,
+              created_at: reaction.timestamp,
+              first_name: reaction.userName?.split(' ')[0] || '',
+              last_name: reaction.userName?.split(' ').slice(1).join(' ') || '',
+              avatar_url: reaction.avatarUrl || '',
+            }],
+            reaction_count: (msg.reaction_count || 0) + 1,
+          };
+        })
+      };
+    },
+
+    removeReactionFromMessage: (state, action: PayloadAction<{
+      messageId: number;
+      channelId: number;
+      emoji: string;
+      userId: number;
+    }>) => {
+      const { messageId, channelId, emoji, userId } = action.payload;
+
+      console.log('👎 REDUCER: Removing reaction', emoji, messageId);
+
+      if (!state.messages[channelId]) return;
+
+      // ✅ CRITICAL: Create new messages array
+      state.messages = {
+        ...state.messages,
+        [channelId]: state.messages[channelId].map(msg => {
+          if (msg.id !== messageId) return msg;
+          if (!msg.reactions) return msg;
+
+          const newReactions = msg.reactions.filter(
+            r => !(r.user_id === userId && r.emoji === emoji)
+          );
+
+          console.log('✅ REDUCER: Reaction removed');
+          return {
+            ...msg,
+            reactions: newReactions,
+            reaction_count: Math.max(0, (msg.reaction_count || 0) - 1),
+          };
+        })
+      };
+    },
+
+    // ✅ FIXED: Edit Message - Force new array reference
+    updateMessageInChannel: (state, action: PayloadAction<{
+      channelId: number;
+      messageId: number;
+      content: string;
+      mentions?: number[];
+      editedAt: string;
+    }>) => {
+      const { channelId, messageId, content, mentions, editedAt } = action.payload;
+
+      console.log('✏️ REDUCER: Updating message', messageId);
+
+      if (!state.messages[channelId]) {
+        console.warn('⚠️ Channel not found:', channelId);
+        return;
+      }
+
+      // ✅ CRITICAL: Create new messages array
+      state.messages = {
+        ...state.messages,
+        [channelId]: state.messages[channelId].map(msg => {
+          if (msg.id !== messageId) return msg;
+
+          console.log('✅ REDUCER: Message updated');
+          return {
+            ...msg,
+            content,
+            is_edited: true,
+            edited_at: editedAt,
+            mentioned_user_ids: mentions?.join(','),
+            has_mentions: mentions && mentions.length > 0,
+          };
+        })
+      };
+    },
+
+    // ✅ FIXED: Delete Message - Force new array reference
+    removeMessageFromChannel: (state, action: PayloadAction<{
+      channelId: number;
+      messageId: number;
+    }>) => {
+      const { channelId, messageId } = action.payload;
+
+      console.log('🗑️ REDUCER: Removing message', messageId);
+
+      if (!state.messages[channelId]) return;
+
+      // ✅ CRITICAL: Create new messages array
+      const before = state.messages[channelId].length;
+      state.messages = {
+        ...state.messages,
+        [channelId]: state.messages[channelId].filter(m => m.id !== messageId)
+      };
+      const after = state.messages[channelId].length;
+
+      console.log('✅ REDUCER: Message removed, count:', before, '->', after);
+    },
+
+    // ✅ FIXED: Pin Message - Force new array reference
+    pinMessageInChannel: (state, action: PayloadAction<{
+      channelId: number;
+      messageId: number;
+      isPinned: boolean;
+      pinnedBy?: number;
+      pinnedAt?: string;
+    }>) => {
+      const { channelId, messageId, isPinned, pinnedBy, pinnedAt } = action.payload;
+
+      console.log('📌 REDUCER: Updating pin status', messageId, isPinned);
+
+      if (!state.messages[channelId]) return;
+
+      // ✅ CRITICAL: Create new messages array
+      state.messages = {
+        ...state.messages,
+        [channelId]: state.messages[channelId].map(msg => {
+          if (msg.id !== messageId) return msg;
+
+          console.log('✅ REDUCER: Pin status updated');
+          return {
+            ...msg,
+            is_pinned: isPinned,
+            pinned_at: isPinned ? pinnedAt : undefined,
+            pinned_by: isPinned ? pinnedBy : undefined,
+          };
+        })
+      };
+    },
+
+    // ✅ Clear Search Results
+    clearSearchResults: (state) => {
+      state.searchResults = null;
     },
 
     // ✅ Reset State
@@ -1245,8 +1374,9 @@ const chatSlice = createSlice({
   },
 
   // ==================== EXTRA REDUCERS ====================
+  // Keep all your existing extraReducers exactly as they are
   extraReducers: (builder) => {
-    // ✅ Channels
+    // Channels
     builder
       .addCase(fetchUserChannels.pending, (state) => {
         state.isLoadingChannels = true;
@@ -1260,8 +1390,8 @@ const chatSlice = createSlice({
         state.isLoadingChannels = false;
         state.error = action.payload as string;
       })
-      
-      // ✅ Messages
+
+      // Messages
       .addCase(fetchMessages.pending, (state) => {
         state.isLoadingMessages = true;
         state.error = null;
@@ -1274,8 +1404,8 @@ const chatSlice = createSlice({
         state.isLoadingMessages = false;
         state.error = action.payload as string;
       })
-      
-      // ✅ Send Message
+
+      // Send Message
       .addCase(sendMessage.pending, (state) => {
         state.isSendingMessage = true;
       })
@@ -1285,14 +1415,17 @@ const chatSlice = createSlice({
         if (!state.messages[channelId]) {
           state.messages[channelId] = [];
         }
-        state.messages[channelId].push(action.payload);
+        const exists = state.messages[channelId].some((m) => m.id === action.payload.id);
+        if (!exists) {
+          state.messages[channelId].push(action.payload);
+        }
       })
       .addCase(sendMessage.rejected, (state, action) => {
         state.isSendingMessage = false;
         state.error = action.payload as string;
       })
-      
-      // ✅ Members
+
+      // Members
       .addCase(fetchChannelMembers.fulfilled, (state, action) => {
         state.channelMembers[action.payload.channelId] = action.payload.members;
       })
@@ -1302,9 +1435,8 @@ const chatSlice = createSlice({
       .addCase(fetchAvailableMembers.fulfilled, (state, action) => {
         state.availableMembers = action.payload;
       })
-      
-      
-      // ✅ Threads
+
+      // Threads
       .addCase(fetchThreadMessages.pending, (state) => {
         state.isLoadingThread = true;
       })
@@ -1316,10 +1448,7 @@ const chatSlice = createSlice({
         state.isLoadingThread = false;
         state.error = action.payload as string;
       })
-      .addCase(fetchEnhancedThread.fulfilled, (state, action) => {
-        state.enhancedThreads[action.payload.messageId] = action.payload.data;
-      })
-      
+
       // ✅ Activities
       .addCase(fetchChannelActivities.fulfilled, (state, action) => {
         state.channelActivities[action.payload.channelId] = action.payload.activities;
@@ -1327,7 +1456,7 @@ const chatSlice = createSlice({
       .addCase(fetchUnreadActivities.fulfilled, (state, action) => {
         state.unreadActivities = action.payload;
       })
-      
+
       // ✅ Mentions
       .addCase(fetchUserMentions.fulfilled, (state, action) => {
         state.mentions = action.payload;
@@ -1335,7 +1464,7 @@ const chatSlice = createSlice({
       .addCase(fetchUnreadMentionsCount.fulfilled, (state, action) => {
         state.unreadMentionsCount = action.payload;
       })
-      
+
       // ✅ Notifications
       .addCase(fetchUserNotifications.fulfilled, (state, action) => {
         state.notifications = action.payload;
@@ -1346,17 +1475,17 @@ const chatSlice = createSlice({
       .addCase(fetchNotificationPreferences.fulfilled, (state, action) => {
         state.notificationPreferences = action.payload;
       })
-      
+
       // ✅ Unread Count
       .addCase(fetchUnreadCount.fulfilled, (state, action) => {
         state.unreadCount = action.payload;
       })
-      
+
       // ✅ Files
       .addCase(fetchChannelFiles.fulfilled, (state, action) => {
         state.channelFiles[action.payload.channelId] = action.payload.files;
       })
-      
+
       // ✅ Message Details
       .addCase(fetchMessageDetails.fulfilled, (state, action) => {
         state.messageDetails[action.payload.id] = action.payload;
@@ -1373,12 +1502,12 @@ const chatSlice = createSlice({
       .addCase(fetchDetailedReadStatus.fulfilled, (state, action) => {
         state.messageReadStatuses[action.payload.messageId] = action.payload.readStatus;
       })
-      
+
       // ✅ Search
       .addCase(searchChat.pending, (state) => {
         state.isSearching = true;
       })
-      .addCase(searchChat.fulfilled, (state, action:any) => {
+      .addCase(searchChat.fulfilled, (state, action: any) => {
         state.isSearching = false;
         state.searchResults = action.payload?.data;
       })
@@ -1386,7 +1515,7 @@ const chatSlice = createSlice({
         state.isSearching = false;
         state.error = action.payload as string;
       })
-      
+
       // ✅ Online Users
       .addCase(fetchOnlineUsers.fulfilled, (state, action) => {
         state.onlineUsers = action.payload;
@@ -1402,24 +1531,24 @@ export const {
   clearSearchResults,
   addMessageToChannel,
   updateMessageStatus,
-  updateMessageInChannel,
-  removeMessageFromChannel,
-  addTypingUser,
-  removeTypingUser,
   setOnlineUsers,
   incrementUnreadCount,
   resetUnreadCount,
   resetChatState,
   updateMessageDeliveryStatus,
   updateMessageReadStatus,
-  addReactionToMessage,
-  removeReactionFromMessage,
-  pinMessageInChannel,
   updateThreadReplyCount,
   addMembersToChannel,
   addMessageToThread,
   updateChannelLastMessage,
   markMentionAsRead,
+  addTypingUser,
+  removeTypingUser,
+  addReactionToMessage,
+  removeReactionFromMessage,
+  updateMessageInChannel,
+  removeMessageFromChannel,
+  pinMessageInChannel,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
