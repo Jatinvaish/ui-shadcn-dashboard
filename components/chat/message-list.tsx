@@ -1,7 +1,7 @@
-// components/chat/message-list.tsx - AUTO SCROLL TO BOTTOM FIX
+// components/chat/message-list.tsx - FIXED FOR REAL-TIME UPDATES
 "use client"
 
-import React, { useRef, useEffect } from "react"
+import React, { useRef, useEffect, useMemo } from "react"
 import { MessageItem } from "./message-item"
 
 export interface Message {
@@ -62,33 +62,101 @@ export function MessageList({
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const lastMessageCountRef = useRef(messages.length)
-  const isInitialLoadRef = useRef(true)
+  const prevMessagesLengthRef = useRef(messages.length)
+  const isUserScrollingRef = useRef(false)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastMessageIdRef = useRef<string | null>(null)
 
-  // ✅ ALWAYS SCROLL TO BOTTOM ON NEW MESSAGES
+  // Track user scrolling behavior
   useEffect(() => {
-    if (!scrollRef.current) return;
+    const handleScroll = () => {
+      isUserScrollingRef.current = true;
+      
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      
+      scrollTimeoutRef.current = setTimeout(() => {
+        isUserScrollingRef.current = false;
+      }, 1000);
+    };
 
-    // Always scroll to bottom for new messages
-    if (messages.length > lastMessageCountRef.current || isInitialLoadRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      lastMessageCountRef.current = messages.length;
-      isInitialLoadRef.current = false;
+    const scrollElement = scrollRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', handleScroll);
+      return () => {
+        scrollElement.removeEventListener('scroll', handleScroll);
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+      };
     }
-  }, [messages.length]); // Only trigger on message count change
+  }, []);
 
-  // ✅ SCROLL TO BOTTOM ON INITIAL LOAD
+  // ✅ FIX: Auto-scroll to bottom on new messages with proper detection
   useEffect(() => {
-    if (scrollRef.current && messages.length > 0) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (!scrollRef.current || messages.length === 0) return;
+
+    const isNewMessage = messages.length > prevMessagesLengthRef.current;
+    const lastMessage = messages[messages.length - 1];
+    const isOwnMessage = lastMessage?.authorId === currentUserId;
+    const isAtBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 100;
+
+    // Auto-scroll if: new message AND (it's your own message OR you're already at bottom)
+    if (isNewMessage && (isOwnMessage || isAtBottom || !isUserScrollingRef.current)) {
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: isOwnMessage ? 'auto' : 'smooth'
+          });
+        }
+      }, 50);
     }
-  }, [messages.length > 0]); // Trigger on first message
+
+    prevMessagesLengthRef.current = messages.length;
+    lastMessageIdRef.current = lastMessage?.id || null;
+  }, [messages, currentUserId]);
+
+  // Intersection Observer for read tracking
+  useEffect(() => {
+    if (!scrollRef.current || messages.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.getAttribute('data-message-id');
+            if (messageId) {
+              window.dispatchEvent(new CustomEvent('markMessageAsRead', {
+                detail: {
+                  messageId,
+                  channelId: messages[0]?.authorId
+                }
+              }));
+            }
+          }
+        });
+      },
+      {
+        root: scrollRef.current,
+        threshold: 0.5,
+        rootMargin: '0px'
+      }
+    );
+
+    const messageElements = scrollRef.current.querySelectorAll('[data-message-id]');
+    messageElements.forEach(el => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [messages]);
 
   // Scroll to specific message
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      
       element.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20')
       setTimeout(() => {
         element.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20')
@@ -96,16 +164,19 @@ export function MessageList({
     }
   }
 
-  // Group messages by date
-  const groupedMessages = React.useMemo(() => {
+  // ✅ FIX: Properly memoized grouped messages with stable references
+  const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
+
     const sortedMessages = [...messages].sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
 
     let currentDate = ""
+
     sortedMessages.forEach((message) => {
       const messageDate = new Date(message.timestamp).toDateString()
+
       if (messageDate !== currentDate) {
         currentDate = messageDate
         groups.push({ date: messageDate, messages: [message] })
