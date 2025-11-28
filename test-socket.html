@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.IO Chat Test</h1>
+    <div id="status">Disconnected</div>
+    <button onclick="connect()">Connect</button>
+    <button onclick="sendTestMessage()">Send Message</button>
+    <button onclick="testTyping()">Test Typing</button>
+    <div id="log"></div>
+
+    <script>
+        let socket;
+        const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiZW1haWwiOiJkZWNlbWJldDMxN0BnbWFpbC5jb20iLCJ1c2VyVHlwZSI6ImFnZW5jeV9hZG1pbiIsInRlbmFudElkIjoiMiIsIm9uYm9hcmRpbmdSZXF1aXJlZCI6ZmFsc2UsImlhdCI6MTc2NDE2MjQzMCwiZXhwIjoxNzY0MTYzMzMwLCJhdWQiOiJmbHVlcmEtYXBpIiwiaXNzIjoiZmx1ZXJhLXBsYXRmb3JtIn0.AF06GUO9K6tBl6mULJt14eMElKium8w2ior0wHemaQU'; // Replace with your token
+
+        function log(msg) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += `<div>${new Date().toISOString()} - ${msg}</div>`;
+        }
+
+        function connect() {
+            socket = io('http://localhost:3060', {
+                auth: { token: TOKEN },
+                query: { token: TOKEN },
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('status').textContent = 'Connected: ' + socket.id;
+                log('✅ Connected');
+            });
+
+            socket.on('connected', (data) => {
+                log('✅ Server acknowledged: ' + JSON.stringify(data));
+            });
+
+            socket.on('message', (data) => {
+                log('📨 Event: ' + data.event);
+                log('Data: ' + JSON.stringify(data, null, 2));
+            });
+
+            socket.on('user_typing', (data) => {
+                log('⌨️ Typing: ' + JSON.stringify(data));
+            });
+
+            socket.on('error', (error) => {
+                log('❌ Error: ' + JSON.stringify(error));
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('status').textContent = 'Disconnected';
+                log('🔌 Disconnected');
+            });
+        }
+
+        function sendTestMessage() {
+            if (!socket || !socket.connected) {
+                alert('Not connected!');
+                return;
+            }
+
+            socket.emit('send_message', {
+                channelId: 1,
+                content: 'Test message from HTML client',
+                messageType: 'text'
+            }, (response) => {
+                log('📤 Send response: ' + JSON.stringify(response));
+            });
+        }
+
+        function testTyping() {
+            if (!socket || !socket.connected) {
+                alert('Not connected!');
+                return;
+            }
+
+            socket.emit('typing_start', { channelId: 1 });
+            log('⌨️ Sent typing_start');
+
+            setTimeout(() => {
+                socket.emit('typing_stop', { channelId: 1 });
+                log('⌨️ Sent typing_stop');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

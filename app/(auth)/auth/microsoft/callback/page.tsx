@@ -1,42 +1,43 @@
+// app/auth/microsoft/callback/page.tsx - NEW FILE
+'use client';
 
-
-// app/(auth)/auth/microsoft/callback/page.tsx
-"use client";
-//TODO
-import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import Cookies from "js-cookie";
-import { toast } from "react-hot-toast";
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAppDispatch } from '@/store/hooks';
+import { setCredentials } from '@/store/slices/authSlice';
+import { toast } from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
+import Cookies from 'js-cookie';
 
 export default function MicrosoftCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
     const handleCallback = async () => {
-      const accessToken = searchParams.get("accessToken");
-      const refreshToken = searchParams.get("refreshToken");
-      const userParam = searchParams.get("user");
-      const error = searchParams.get("error");
-
-      if (error) {
-        toast.error("Microsoft authentication failed");
-        router.push("/sign-in?error=microsoft_auth_failed");
-        return;
-      }
-
-      if (!accessToken || !refreshToken || !userParam) {
-        toast.error("Missing authentication data");
-        router.push("/sign-in?error=microsoft_auth_failed");
-        return;
-      }
-
       try {
+        const accessToken = searchParams.get('accessToken');
+        const refreshToken = searchParams.get('refreshToken');
+        const userParam = searchParams.get('user');
+
+        if (!accessToken || !refreshToken || !userParam) {
+          toast.error('Authentication failed - missing credentials');
+          router.push('/sign-in');
+          return;
+        }
+
         // Parse user data
         const user = JSON.parse(decodeURIComponent(userParam));
 
-        // Store tokens and user data
+        // Store credentials in Redux and cookies
+        dispatch(setCredentials({
+          user,
+          accessToken,
+          refreshToken,
+        }));
+
+        // Store in cookies as well (for persistence)
         const cookieOptions = {
           expires: 7,
           secure: process.env.NODE_ENV === 'production',
@@ -48,29 +49,32 @@ export default function MicrosoftCallbackPage() {
         Cookies.set('refreshToken', refreshToken, cookieOptions);
         Cookies.set('user', JSON.stringify(user), cookieOptions);
 
-        toast.success("Successfully signed in with Microsoft!");
+        toast.success('Successfully signed in with Microsoft!');
 
         // Redirect based on onboarding status
         if (user.onboardingRequired) {
-          router.push("/onboarding");
+          router.push('/onboarding');
         } else {
-          router.push("/dashboard");
+          router.push('/dashboard');
         }
-      } catch (err) {
-        console.error("Failed to process callback:", err);
-        toast.error("Authentication processing failed");
-        router.push("/sign-in?error=microsoft_auth_failed");
+      } catch (error) {
+        console.error('Error processing Microsoft callback:', error);
+        toast.error('Authentication failed - please try again');
+        router.push('/sign-in');
       }
     };
 
     handleCallback();
-  }, [searchParams, router]);
+  }, [searchParams, router, dispatch]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="text-center space-y-4">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto text-sky-600" />
-        <div className="text-gray-600">Completing sign in with Microsoft...</div>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center">
+        <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+        <h2 className="mt-4 text-xl font-semibold">Completing Microsoft sign-in...</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Please wait while we redirect you
+        </p>
       </div>
     </div>
   );
