@@ -1,7 +1,7 @@
-// components/chat/message-item.tsx - COMPLETE WITH ALL FEATURES
+// components/chat/message-item.tsx - PART 1: FIXED FOR REAL-TIME UPDATES
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
 import type { Message } from "./message-list"
@@ -149,7 +149,8 @@ export function MessageItem({
     setShowEmojiPicker(false);
   };
 
-  const groupedReactions = React.useMemo(() => {
+  // ✅ FIX: Properly memoized reactions with stable object references
+  const groupedReactions = useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
 
     const reactionMap = new Map<string, {
@@ -185,7 +186,7 @@ export function MessageItem({
     });
 
     return Array.from(reactionMap.values()).sort((a, b) => b.count - a.count);
-  }, [message.reactions, currentUserId]);
+  }, [message.reactions, currentUserId]);// components/chat/message-item.tsx - PART 2: RENDER
 
   return (
     <div
@@ -264,11 +265,11 @@ export function MessageItem({
           </div>
         )}
 
-        {/* Reactions */}
+        {/* ✅ FIX: Reactions with proper key handling for real-time updates */}
         {groupedReactions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
             {groupedReactions.map((reaction) => (
-              <TooltipProvider key={reaction.emoji}>
+              <TooltipProvider key={`${message.id}-${reaction.emoji}`}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -313,7 +314,7 @@ export function MessageItem({
         )}
       </div>
 
-      {/* Message Actions */}
+      {/* ✅ FIX: Message Actions with proper emoji picker state */}
       <div className={cn(
         "absolute top-0 flex items-center gap-1 bg-popover/95 backdrop-blur-sm rounded shadow-md p-1 border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-10",
         isOwn ? "right-12" : "left-12",

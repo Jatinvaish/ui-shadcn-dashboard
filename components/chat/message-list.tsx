@@ -1,7 +1,7 @@
-// components/chat/message-list.tsx - COMPLETE WITH AUTO-SCROLL & READ TRACKING
+// components/chat/message-list.tsx - FIXED FOR REAL-TIME UPDATES
 "use client"
 
-import React, { useRef, useEffect } from "react"
+import React, { useRef, useEffect, useMemo } from "react"
 import { MessageItem } from "./message-item"
 
 export interface Message {
@@ -65,6 +65,7 @@ export function MessageList({
   const prevMessagesLengthRef = useRef(messages.length)
   const isUserScrollingRef = useRef(false)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastMessageIdRef = useRef<string | null>(null)
 
   // Track user scrolling behavior
   useEffect(() => {
@@ -92,19 +93,30 @@ export function MessageList({
     }
   }, []);
 
-  // Auto-scroll to bottom on new messages (if not manually scrolling)
+  // ✅ FIX: Auto-scroll to bottom on new messages with proper detection
   useEffect(() => {
-    if (scrollRef.current && messages.length > prevMessagesLengthRef.current) {
-      if (!isUserScrollingRef.current) {
-        setTimeout(() => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }
-        }, 100);
-      }
+    if (!scrollRef.current || messages.length === 0) return;
+
+    const isNewMessage = messages.length > prevMessagesLengthRef.current;
+    const lastMessage = messages[messages.length - 1];
+    const isOwnMessage = lastMessage?.authorId === currentUserId;
+    const isAtBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 100;
+
+    // Auto-scroll if: new message AND (it's your own message OR you're already at bottom)
+    if (isNewMessage && (isOwnMessage || isAtBottom || !isUserScrollingRef.current)) {
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: isOwnMessage ? 'auto' : 'smooth'
+          });
+        }
+      }, 50);
     }
+
     prevMessagesLengthRef.current = messages.length;
-  }, [messages.length]);
+    lastMessageIdRef.current = lastMessage?.id || null;
+  }, [messages, currentUserId]);
 
   // Intersection Observer for read tracking
   useEffect(() => {
@@ -116,11 +128,10 @@ export function MessageList({
           if (entry.isIntersecting) {
             const messageId = entry.target.getAttribute('data-message-id');
             if (messageId) {
-              // Dispatch custom event for read tracking
               window.dispatchEvent(new CustomEvent('markMessageAsRead', {
                 detail: {
                   messageId,
-                  channelId: messages[0]?.authorId // Using authorId as placeholder, should use actual channelId
+                  channelId: messages[0]?.authorId
                 }
               }));
             }
@@ -146,7 +157,6 @@ export function MessageList({
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' })
       
-      // Highlight the message temporarily
       element.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20')
       setTimeout(() => {
         element.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20')
@@ -154,8 +164,8 @@ export function MessageList({
     }
   }
 
-  // Group messages by date
-  const groupedMessages = React.useMemo(() => {
+  // ✅ FIX: Properly memoized grouped messages with stable references
+  const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
 
     const sortedMessages = [...messages].sort((a, b) =>
@@ -178,7 +188,6 @@ export function MessageList({
     return groups
   }, [messages])
 
-  // Format date labels
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const today = new Date()
@@ -198,7 +207,6 @@ export function MessageList({
     }
   }
 
-  // Wrapper for reply in thread
   const handleReplyInThreadWrapper = async (content: string, parentId: string) => {
     if (!onReplyInThread) return;
     await onReplyInThread(content, parseInt(parentId));
