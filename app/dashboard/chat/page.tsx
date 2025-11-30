@@ -418,6 +418,7 @@ const ChatPage = () => {
   }, [selectedChannel, dispatch]);
 
   // Message Handlers
+
   const handleSendMessage = useCallback(async (
     html: string,
     text: string,
@@ -427,12 +428,19 @@ const ChatPage = () => {
     try {
       const payload: SendMessagePayload = {
         channelId: selectedChannel.id,
-        content: text.trim(),
+        content: html,  // ✅ CRITICAL FIX: Send HTML instead of plain text
         messageType: MessageType.TEXT,
         replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         threadId: selectedThreadId || undefined,
         mentions: mentions && mentions.length > 0 ? mentions : undefined,
       };
+
+      console.log('✅ Sending message with HTML:', {
+        content: html,
+        mentions,
+        payload
+      });
+
       if (isConnected) {
         await sendMessageWS(payload);
       } else {
@@ -648,16 +656,7 @@ const ChatPage = () => {
               const currentTypingUsers = typingInChannel
                 .filter((t) => Number(t.userId) !== Number(currentUser?.id))
                 .map(t => t.userName || 'Someone');
-
-              console.log('👁️ Typing UI Check:', {
-                channelId: selectedChannel.id,
-                typingInChannel,
-                currentTypingUsers,
-                allTypingUsers: typingUsers
-              });
-
               if (currentTypingUsers.length === 0) return null;
-
               return (
                 <div className="px-4 py-2 text-xs text-muted-foreground animate-pulse border-t border-border bg-muted/30">
                   {currentTypingUsers.length === 1

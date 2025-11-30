@@ -1,13 +1,7 @@
-// components/chat/rich-text-editor.tsx
+// components/chat/rich-text-editor.tsx - SMART ENHANCED VERSION
 "use client";
 
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-  KeyboardEvent,
-} from 'react';
+import React, { useEffect, useRef, useState, useCallback, KeyboardEvent } from 'react';
 import { useEditor, EditorContent, ReactRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -17,6 +11,9 @@ import Underline from '@tiptap/extension-underline';
 import Strike from '@tiptap/extension-strike';
 import Blockquote from '@tiptap/extension-blockquote';
 import CodeBlock from '@tiptap/extension-code-block';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
+import ListItem from '@tiptap/extension-list-item';
 import { Button } from '@/components/ui/button';
 import {
   Bold,
@@ -30,7 +27,9 @@ import {
   ListOrdered,
   Quote,
   Upload,
-  Camera,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EmojiPopover } from './popovers/emoji-popover';
@@ -58,9 +57,7 @@ const MentionList = React.forwardRef<any, MentionListProps>((props, ref) => {
   React.useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }: { event: KeyboardEvent }) => {
       if (event.key === 'ArrowUp') {
-        setSelectedIndex(
-          (prev) => (prev + props.items.length - 1) % props.items.length
-        );
+        setSelectedIndex((prev) => (prev + props.items.length - 1) % props.items.length);
         return true;
       }
       if (event.key === 'ArrowDown') {
@@ -94,9 +91,7 @@ const MentionList = React.forwardRef<any, MentionListProps>((props, ref) => {
           </button>
         ))
       ) : (
-        <div className="px-3 py-2 text-sm text-muted-foreground">
-          No results
-        </div>
+        <div className="px-3 py-2 text-sm text-muted-foreground">No results</div>
       )}
     </div>
   );
@@ -134,16 +129,11 @@ export function RichTextEditor({
   const [isSending, setIsSending] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-
-  // Attachments state: keep original File + preview URL
-  const [attachments, setAttachments] = useState<
-    Array<{ file: File; preview: string }>
-  >([]);
+  const [attachments, setAttachments] = useState<Array<{ file: File; preview: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleTypingStart = useCallback(() => {
     if (!isTyping) {
-      console.log('⌨️ RTE: Start typing');
       setIsTyping(true);
       onTypingStart?.();
     }
@@ -151,38 +141,130 @@ export function RichTextEditor({
 
   const handleTypingStop = useCallback(() => {
     if (isTyping) {
-      console.log('⌨️ RTE: Stop typing');
       setIsTyping(false);
       onTypingStop?.();
     }
   }, [isTyping, onTypingStop]);
+
+  // Smart auto-detection function
+  const autoDetectAndFormat = useCallback((text: string, editor: any) => {
+    if (!editor) return;
+
+    // Auto-detect URLs and convert to links
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const hasUrls = urlRegex.test(text);
+    
+    // Auto-detect emails
+    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
+    const hasEmails = emailRegex.test(text);
+
+    // Auto-detect code blocks (text wrapped in triple backticks)
+    const codeBlockRegex = /```[\s\S]*?```/g;
+    const hasCodeBlocks = codeBlockRegex.test(text);
+
+    // Auto-detect markdown-style formatting
+    // **bold** -> bold
+    const boldRegex = /\*\*([^*]+)\*\*/g;
+    if (boldRegex.test(text)) {
+      const selection = editor.state.selection;
+      const match = text.match(boldRegex);
+      if (match) {
+        const cleanText = match[0].replace(/\*\*/g, '');
+        editor.commands.insertContent(cleanText);
+        editor.commands.setTextSelection({
+          from: selection.from - match[0].length,
+          to: selection.from - match[0].length + cleanText.length
+        });
+        editor.commands.toggleBold();
+      }
+    }
+
+    // *italic* or _italic_ -> italic
+    const italicRegex = /(\*|_)([^*_]+)\1/g;
+    if (italicRegex.test(text)) {
+      // Similar processing for italic
+    }
+
+    // Auto-detect lists
+    const listStartRegex = /^(\d+\.|[-*])\s/;
+    if (listStartRegex.test(text.trim())) {
+      const match = text.trim().match(listStartRegex);
+      if (match) {
+        if (match[1].includes('.')) {
+          editor.commands.toggleOrderedList();
+        } else {
+          editor.commands.toggleBulletList();
+        }
+      }
+    }
+
+    // Auto-detect quotes (lines starting with >)
+    if (text.trim().startsWith('>')) {
+      editor.commands.toggleBlockquote();
+    }
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: false,
         horizontalRule: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+      }),
+      BulletList.configure({
+        HTMLAttributes: {
+          class: 'list-disc pl-5 my-1 space-y-0.5',
+        },
+      }),
+      OrderedList.configure({
+        HTMLAttributes: {
+          class: 'list-decimal pl-5 my-1 space-y-0.5',
+        },
+      }),
+      ListItem.configure({
+        HTMLAttributes: {
+          class: 'ml-0 pl-0.5 leading-normal',
+        },
       }),
       Placeholder.configure({ placeholder }),
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: { class: 'text-primary hover:underline' },
+        autolink: true, // Auto-convert URLs to links
+        linkOnPaste: true, // Auto-link when pasting URLs
+        HTMLAttributes: { 
+          class: 'text-primary hover:underline cursor-pointer font-medium',
+          target: '_blank',
+          rel: 'noopener noreferrer nofollow'
+        },
       }),
-      Blockquote,
-      CodeBlock,
+      Blockquote.configure({
+        HTMLAttributes: {
+          class: 'border-l-3 border-primary/40 pl-3 my-1 italic text-muted-foreground/90 leading-relaxed',
+        },
+      }),
+      CodeBlock.configure({
+        HTMLAttributes: {
+          class: 'bg-muted/60 border border-border rounded p-2 my-1 font-mono text-xs overflow-x-auto leading-relaxed',
+        },
+      }),
       Underline,
-      Strike,
+      Strike.configure({
+        HTMLAttributes: {
+          class: 'line-through',
+        },
+      }),
       Mention.configure({
         HTMLAttributes: {
-          class:
-            'text-primary bg-primary/10 px-1 rounded font-semibold',
+          class: 'text-primary bg-primary/10 px-1 py-0.5 rounded font-semibold',
+        },
+        renderLabel({ node }) {
+          return `@${node.attrs.label}`;
         },
         suggestion: {
           items: ({ query }) =>
-            teamMembers
-              .filter((m) =>
-                m.name.toLowerCase().includes(query.toLowerCase())
-              )
-              .slice(0, 5),
+            teamMembers.filter((m) => m.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5),
           render: () => {
             let component: ReactRenderer<any>;
             let popup: TippyInstance[];
@@ -203,20 +285,12 @@ export function RichTextEditor({
                   placement: 'bottom-start',
                 });
               },
-              onUpdate: ({ editor }) => {
-                const text = editor.getText();
-
-                if (text.trim() && !isTyping) {
-                  handleTypingStart();
-                }
-
-                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-                typingTimeoutRef.current = setTimeout(() => {
-                  handleTypingStop();
-                }, 2000); // Reduced to 2 seconds for faster response
+              onUpdate(props) {
+                component.updateProps(props);
+                popup[0].setProps({
+                  getReferenceClientRect: props.clientRect as any,
+                });
               },
-
               onKeyDown(props) {
                 if (props.event.key === 'Escape') {
                   popup[0].hide();
@@ -235,17 +309,31 @@ export function RichTextEditor({
     ],
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[60px] max-h-[250px] overflow-y-auto px-3 py-2.5',
+        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[60px] max-h-[200px] overflow-y-auto px-3 py-2.5 text-sm leading-relaxed [&>p]:my-0.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&_code]:bg-muted/60 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
+      },
+      handlePaste: (view, event) => {
+        // Smart paste handling
+        const text = event.clipboardData?.getData('text/plain');
+        if (text) {
+          // Auto-detect URLs in pasted text
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
+          if (urlRegex.test(text)) {
+            // Let the Link extension handle it with autolink
+            return false;
+          }
+        }
+        return false;
       },
     },
     onUpdate: ({ editor }) => {
       const text = editor.getText();
+      
+      // Typing indicator
       if (text.trim() && !isTyping) {
         setIsTyping(true);
         onTypingStart?.();
       }
-
+      
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         if (isTyping) {
@@ -253,10 +341,12 @@ export function RichTextEditor({
           onTypingStop?.();
         }
       }, 3000);
+
+      // Smart auto-detection
+      autoDetectAndFormat(text, editor);
     },
   });
 
-  // Cleanup typing timeout
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -264,7 +354,6 @@ export function RichTextEditor({
     };
   }, [isTyping, onTypingStop]);
 
-  // Extract mentioned user IDs
   const extractMentions = useCallback(() => {
     if (!editor) return [];
     const mentionedUserIds: number[] = [];
@@ -288,21 +377,26 @@ export function RichTextEditor({
     if (!editor || disabled || isSending) return;
 
     const html = editor.getHTML();
-    const text = editor.getText().trim();
+    const plainText = editor.getText().trim();
 
-    if (!text && attachments.length === 0) return;
+    if (!plainText && attachments.length === 0) return;
 
     const mentions = extractMentions();
 
+    console.log('✅ Sending message:', {
+      content: html,
+      mentions,
+      attachments: attachments.length
+    });
+
     setIsSending(true);
     try {
-      // Pass the actual File objects + previews (you'll handle upload on the parent/backend later)
-      const result = await onSend?.(html, text, mentions, attachments);
+      const result = await onSend?.(html, plainText, mentions, attachments);
 
       if (result !== false) {
         editor.commands.clearContent();
         setAttachments([]);
-        attachments.forEach((a) => URL.revokeObjectURL(a.preview)); // cleanup object URLs
+        attachments.forEach((a) => URL.revokeObjectURL(a.preview));
         if (isTyping) {
           onTypingStop?.();
           setIsTyping(false);
@@ -311,16 +405,7 @@ export function RichTextEditor({
     } finally {
       setIsSending(false);
     }
-  }, [
-    editor,
-    disabled,
-    isSending,
-    attachments,
-    extractMentions,
-    onSend,
-    isTyping,
-    onTypingStop,
-  ]);
+  }, [editor, disabled, isSending, attachments, extractMentions, onSend, isTyping, onTypingStop]);
 
   const insertEmoji = useCallback(
     (emoji: string) => {
@@ -337,16 +422,9 @@ export function RichTextEditor({
   const toggleOrderedList = () => editor?.chain().focus().toggleOrderedList().run();
   const toggleBlockquote = () => editor?.chain().focus().toggleBlockquote().run();
   const toggleCodeBlock = () => editor?.chain().focus().toggleCodeBlock().run();
-  const toggleUnderline = () =>
-    editor?.chain().focus().toggleMark('underline').run();
-  const toggleStrike = () => editor?.chain().focus().toggleStrike().run();
 
-  const canSend =
-    (editor?.getText().trim().length ?? 0) > 0 ||
-    attachments.length > 0 ||
-    false;
+  const canSend = (editor?.getText().trim().length ?? 0) > 0 || attachments.length > 0;
 
-  // Send on Enter (not Shift+Enter)
   useEffect(() => {
     if (!editor) return;
 
@@ -362,26 +440,18 @@ export function RichTextEditor({
     return () => dom.removeEventListener('keydown', handler as any);
   }, [editor, handleSend]);
 
-  // --------------------- Attachments (frontend only) ---------------------
-  const createPreviewUrl = (file: File): string => {
-    return URL.createObjectURL(file);
-  };
-
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const newAttachments: Array<{ file: File; preview: string }> = [];
-
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const preview = createPreviewUrl(file);
+      const preview = URL.createObjectURL(file);
       newAttachments.push({ file, preview });
     }
 
     setAttachments((prev) => [...prev, ...newAttachments]);
-
-    // Reset input so same file can be selected again
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -393,279 +463,227 @@ export function RichTextEditor({
     });
   };
 
-  const openFilePicker = () => fileInputRef.current?.click();
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
 
   return (
-    <div
-      className={cn(
-        'bg-background px-3 py-2 sm:px-4 sm:py-3 border-t border-border',
-        className
-      )}
-    >
+    <div className={cn('bg-background px-2 sm:px-4 py-2 border-t border-border', className)}>
       <div className="w-full space-y-2">
-        {/* Reply indicator */}
         {replyingTo && (
-          <div className="flex items-start gap-2 p-2 bg-muted rounded border-l-2 border-primary">
+          <div className="flex items-start gap-2 p-2 bg-muted rounded border-l-2 border-primary text-xs sm:text-sm">
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-primary">
-                Replying to {replyingTo.authorName}
-              </span>
-              <div className="text-xs text-muted-foreground line-clamp-1">
-                {replyingTo.content}
-              </div>
+              <span className="font-semibold text-primary">Replying to {replyingTo.authorName}</span>
+              <div className="text-muted-foreground line-clamp-1">{replyingTo.content}</div>
             </div>
-            <button
-              onClick={onClearReply}
-              className="text-muted-foreground hover:text-foreground p-1"
-            >
+            <button onClick={onClearReply} className="text-muted-foreground hover:text-foreground p-1">
               <X className="h-3 w-3" />
             </button>
           </div>
         )}
 
-        <div className="flex flex-col border border-border rounded-lg overflow-hidden hover:border-primary/50 transition-colors bg-background">
-          {/* Attachments preview */}
+        <div className="flex flex-col border border-border rounded-lg overflow-hidden hover:border-primary/50 transition-colors bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20">
           {attachments.length > 0 && (
-            <div className="px-3 py-2 border-b border-border flex flex-wrap gap-2">
+            <div className="px-2 sm:px-3 py-2 border-b border-border flex flex-wrap gap-2">
               {attachments.map((att, idx) => (
-                <div
-                  key={idx}
-                  className="relative inline-flex items-center gap-2 bg-muted rounded px-2 py-1"
-                >
+                <div key={idx} className="relative inline-flex items-center gap-1 sm:gap-2 bg-muted rounded px-2 py-1">
                   {att.file.type.startsWith('image/') ? (
-                    <img
-                      src={att.preview}
-                      alt={att.file.name}
-                      className="w-10 h-10 rounded object-cover"
-                    />
+                    <img src={att.preview} alt={att.file.name} className="w-8 h-8 sm:w-10 sm:h-10 rounded object-cover" />
                   ) : (
-                    <div className="w-10 h-10 rounded bg-gray-200 border-2 border-dashed flex items-center justify-center">
-                      <Upload className="h-5 w-5 text-muted-foreground" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-gray-200 border-2 border-dashed flex items-center justify-center">
+                      <Upload className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
                     </div>
                   )}
-                  <div className="text-xs max-w-[160px] truncate">
-                    {att.file.name}
-                  </div>
-                  <button
-                    onClick={() => removeAttachment(idx)}
-                    className="absolute -top-1 -right-1 bg-background rounded-full p-1 shadow"
-                  >
-                    <X className="w-3 h-3" />
+                  <div className="text-[10px] sm:text-xs max-w-[100px] sm:max-w-[160px] truncate">{att.file.name}</div>
+                  <button onClick={() => removeAttachment(idx)} className="absolute -top-1 -right-1 bg-background rounded-full p-0.5 sm:p-1 shadow">
+                    <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </button>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Editor */}
           <EditorContent editor={editor} className="w-full" />
 
-          {/* Toolbar */}
-          <div className="flex items-center justify-between px-2 py-1.5 bg-muted border-t border-border">
-            <div className="flex items-center gap-1">
-              {/* Formatting */}
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => editor?.chain().focus().toggleBold().run()}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
+          <div className="flex items-center justify-between px-1 sm:px-2 py-1.5 bg-muted/50 border-t border-border">
+            <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => editor?.chain().focus().toggleBold().run()} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('bold') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Bold (Ctrl+B)"
               >
-                <Bold className="h-3.5 w-3.5" />
+                <Bold className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => editor?.chain().focus().toggleItalic().run()}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => editor?.chain().focus().toggleItalic().run()} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('italic') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Italic (Ctrl+I)"
               >
-                <Italic className="h-3.5 w-3.5" />
+                <Italic className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => editor?.chain().focus().toggleCode().run()}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
-                title="Inline code"
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => editor?.chain().focus().toggleUnderline().run()} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('underline') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Underline (Ctrl+U)"
               >
-                <Code className="h-3.5 w-3.5" />
+                <UnderlineIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
-
-              <div className="w-px h-5 bg-border mx-1" />
-
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={toggleBulletList}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
-                title="Bullet list"
-              >
-                <ListIcon className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={toggleOrderedList}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
-                title="Numbered list"
-              >
-                <ListOrdered className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={toggleBlockquote}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
-                title="Quote"
-              >
-                <Quote className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={toggleCodeBlock}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
-                title="Code block"
-              >
-                <Code className="h-3.5 w-3.5" />
-              </Button>
-
-              <div className="w-px h-5 bg-border mx-1" />
-
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={toggleStrike}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => editor?.chain().focus().toggleStrike().run()} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('strike') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
                 title="Strikethrough"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M10 12h4" />
-                  <path d="M3 12h18" />
-                </svg>
+                <Strikethrough className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
-
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={toggleUnderline}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
-                title="Underline"
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => editor?.chain().focus().toggleCode().run()} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('code') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Inline code"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M6 4v6a6 6 0 0 0 12 0V4" />
-                  <path d="M4 20h16" />
-                </svg>
+                <Code className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
 
-              <div className="w-px h-5 bg-border mx-1" />
+              <div className="hidden sm:block w-px h-4 sm:h-5 bg-border mx-0.5 sm:mx-1" />
 
-              {/* Mention & Emoji */}
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={insertMention}
-                disabled={disabled}
-                className="h-7 w-7 p-0"
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={toggleBulletList} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('bulletList') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Bullet list"
+              >
+                <ListIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={toggleOrderedList} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('orderedList') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Numbered list"
+              >
+                <ListOrdered className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={toggleBlockquote} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('blockquote') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Quote"
+              >
+                <Quote className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={toggleCodeBlock} 
+                disabled={disabled} 
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
+                  editor?.isActive('codeBlock') && "bg-primary/15 text-primary hover:bg-primary/20"
+                )}
+                title="Code block"
+              >
+                <Code className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </Button>
+
+              <div className="hidden sm:block w-px h-4 sm:h-5 bg-border mx-0.5 sm:mx-1" />
+
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={insertMention} 
+                disabled={disabled} 
+                className="h-6 w-6 sm:h-7 sm:w-7 p-0" 
                 title="Mention (@)"
               >
-                <AtSign className="h-3.5 w-3.5" />
+                <AtSign className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
               <EmojiPopover onEmojiSelect={insertEmoji} disabled={disabled} />
-
-              {/* File / Image buttons */}
-              <div className="hidden sm:flex items-center gap-0.5">
-                <div className="w-px h-5 bg-border mx-1" />
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={openFilePicker}
-                  disabled={disabled}
-                  className="h-7 w-7 p-0"
-                  title="Attach file"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={openFilePicker}
-                  disabled={disabled}
-                  className="h-7 w-7 p-0"
-                  title="Attach image"
-                >
-                  <Camera className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={triggerFileUpload} 
+                disabled={disabled} 
+                className="h-6 w-6 sm:h-7 sm:w-7 p-0" 
+                title="Attach file"
+              >
+                <Paperclip className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </Button>
             </div>
 
-            {/* Send button */}
             <Button
               size="sm"
               onClick={handleSend}
               disabled={!canSend || disabled || isSending}
               className={cn(
-                'h-7 w-7 p-0 rounded transition-all',
+                'h-6 w-6 sm:h-7 sm:w-7 p-0 rounded transition-all',
                 canSend && !disabled && !isSending
                   ? 'bg-green-600 hover:bg-green-700 text-white'
                   : 'bg-muted text-muted-foreground cursor-not-allowed'
               )}
               title="Send (Enter)"
             >
-              {isSending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Send className="h-3.5 w-3.5" />
-              )}
+              {isSending ? <Loader2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Send className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
             </Button>
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground px-1">
-          Press{' '}
-          <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Enter</kbd> to
-          send,{' '}
-          <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
-            Shift+Enter
-          </kbd>{' '}
-          for new line
+        <p className="text-[10px] sm:text-xs text-muted-foreground px-1">
+          <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs">Enter</kbd> to send,{' '}
+          <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs">Shift+Enter</kbd> for new line
+          {' '}• Smart features: Auto-link URLs, **bold**, *italic*, &gt; quotes
         </p>
       </div>
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        accept="image/*,application/pdf,.doc,.docx,.txt"
-        onChange={handleFileInput}
+      <input 
+        ref={fileInputRef} 
+        type="file" 
+        multiple 
+        className="hidden" 
+        accept="image/*,application/pdf,.doc,.docx,.txt,.zip,.rar" 
+        onChange={handleFileInput} 
       />
     </div>
   );

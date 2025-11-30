@@ -74,7 +74,7 @@ export default function AuthCallbackPage() {
   }, [router, searchParams, dispatch]);
 
   return (
-    <div className="flex items-center justify-center py-4 lg:h-screen">
+    <div className="flex items-center justify-center h-screen py-4">
       <div className="text-center space-y-4">
         {error ? (
           <>
