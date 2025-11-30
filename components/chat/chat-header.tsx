@@ -48,7 +48,7 @@ export function ChatHeader({
 
   return (
     <>
-      <div className="bg-background px-4 py-3 h-16 flex items-center w-full border-b border-border">
+      <div className="bg-background px-4 py-3 h-14 flex items-center w-full border-b border-border">
         <div className="flex items-center justify-between gap-3 w-full">
           {/* Left side */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
