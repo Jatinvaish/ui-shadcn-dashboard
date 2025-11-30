@@ -1,4 +1,4 @@
-// components/chat/message-list.tsx - FIXED FOR REAL-TIME UPDATES
+// components/chat/message-list.tsx
 "use client"
 
 import React, { useRef, useEffect, useMemo } from "react"
@@ -67,7 +67,7 @@ export function MessageList({
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastMessageIdRef = useRef<string | null>(null)
 
-  // Track user scrolling behavior
+  // Track user scrolling
   useEffect(() => {
     const handleScroll = () => {
       isUserScrollingRef.current = true;
@@ -93,7 +93,7 @@ export function MessageList({
     }
   }, []);
 
-  // ✅ FIX: Auto-scroll to bottom on new messages with proper detection
+  // Auto-scroll on new messages
   useEffect(() => {
     if (!scrollRef.current || messages.length === 0) return;
 
@@ -102,7 +102,6 @@ export function MessageList({
     const isOwnMessage = lastMessage?.authorId === currentUserId;
     const isAtBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 100;
 
-    // Auto-scroll if: new message AND (it's your own message OR you're already at bottom)
     if (isNewMessage && (isOwnMessage || isAtBottom || !isUserScrollingRef.current)) {
       setTimeout(() => {
         if (scrollRef.current) {
@@ -164,7 +163,7 @@ export function MessageList({
     }
   }
 
-  // ✅ FIX: Properly memoized grouped messages with stable references
+  // Grouped messages
   const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
 

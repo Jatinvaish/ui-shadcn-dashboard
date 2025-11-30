@@ -1,4 +1,4 @@
-// components/chat/thread-sidebar.tsx - UPDATED WITH CHAT2 UI
+// components/chat/thread-sidebar.tsx
 "use client";
 
 import React, { useRef, useEffect } from "react";
@@ -36,7 +36,7 @@ export function ThreadSidebar({
   );
   const isLoadingThread = useAppSelector(state => state.chat.isLoadingThread);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current && threadMessages.length > 0) {
       setTimeout(() => {
@@ -47,7 +47,7 @@ export function ThreadSidebar({
     }
   }, [threadMessages.length]);
 
-  // Load thread messages on mount
+  // Load thread messages
   useEffect(() => {
     if (parentMessageId) {
       dispatch(fetchThreadMessages({ parentMessageId, limit: 50 }));
