@@ -57,18 +57,20 @@ export interface Channel {
   related_type?: string;
   related_id?: number;
 }
-
+// Update Reaction interface
 export interface Reaction {
-  id: number;
-  message_id: number;
+  id?: number;
+  message_id?: number;
   user_id: number;
+  user_name?: string;
   emoji: string;
   first_name?: string;
   last_name?: string;
   avatar_url?: string;
-  created_at: string;
+  reacted_at?: string;
+  created_at?: string;
+  timestamp?: string;
 }
-
 export interface Attachment {
   id: number;
   message_id?: number;
@@ -94,6 +96,8 @@ export interface Message {
   avatar_url?: string;
   sender_avatar_url?: string;
   message_type: MessageType;
+  is_delivered?: boolean;
+  is_read?: boolean;
   content: string;
 
   // Flags
