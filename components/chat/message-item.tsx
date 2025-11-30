@@ -1,7 +1,7 @@
 // components/chat/message-item.tsx - UPDATED WITH CHAT2 UI
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
 import type { Message } from "./message-list"
@@ -151,6 +151,7 @@ export function MessageItem({
 
   const quickEmojis = ["👍", "❤️", "😊", "🎉", "🚀", "👀"];
 
+  // ✅ FIX: Force re-render on reactions change with proper key generation
   const groupedReactions = useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
 
@@ -187,7 +188,7 @@ export function MessageItem({
     });
 
     return Array.from(reactionMap.values()).sort((a, b) => b.count - a.count);
-  }, [message.reactions, currentUserId]);
+  }, [message.reactions, message.reactions?.length, currentUserId]); // ✅ Added length dependency
 
   const initials = message.authorName
     .split(" ")
@@ -195,9 +196,20 @@ export function MessageItem({
     .join("")
     .toUpperCase();
 
+  // ✅ Log reactions for debugging
+  useEffect(() => {
+    console.log(`💬 Message ${message.id} reactions updated:`, groupedReactions);
+  }, [groupedReactions, message.id]);
+
   return (
-    <div className="group hover:bg-muted/50 -mx-4 px-4 py-2 rounded relative">
-      <div className="flex gap-3">
+    <div className={cn(
+      "group hover:bg-muted/50 -mx-4 px-4 py-2 rounded relative",
+      isOwn && "flex flex-row-reverse" // ✅ Right-align own messages
+    )}>
+      <div className={cn(
+        "flex gap-3",
+        isOwn && "flex-row-reverse" // ✅ Reverse flex for own messages
+      )}>
         {/* Avatar */}
         <div className="w-9 h-9 rounded bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-sm font-semibold flex-shrink-0">
           {message.authorAvatar ? (
@@ -208,8 +220,14 @@ export function MessageItem({
         </div>
 
         {/* Message Body */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 mb-1">
+        <div className={cn(
+          "flex-1 min-w-0",
+          isOwn && "flex flex-col items-end" // ✅ Right-align own message content
+        )}>
+          <div className={cn(
+            "flex items-baseline gap-2 mb-1",
+            isOwn && "flex-row-reverse" // ✅ Reverse order for own messages
+          )}>
             <span className="font-bold text-sm text-foreground">{message.authorName}</span>
             <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
             <MessageReadStatus message={message} isOwn={isOwn} />
@@ -231,7 +249,12 @@ export function MessageItem({
           )}
 
           {/* Message content */}
-          <div className="text-sm text-foreground break-words prose prose-sm dark:prose-invert max-w-none">
+          <div className={cn(
+            "text-sm text-foreground break-words prose prose-sm dark:prose-invert max-w-none rounded-lg px-3 py-2",
+            isOwn 
+              ? "bg-primary text-primary-foreground" 
+              : "bg-muted/60  "
+          )}>
             {renderContent(message.content)}
           </div>
 
@@ -251,9 +274,12 @@ export function MessageItem({
 
           {/* Reactions */}
           {groupedReactions.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
+            <div className={cn(
+              "flex flex-wrap gap-1 mt-2",
+              isOwn && "justify-end" // ✅ Right-align reactions for own messages
+            )}>
               {groupedReactions.map((reaction) => (
-                <TooltipProvider key={`${message.id}-${reaction.emoji}`}>
+                <TooltipProvider key={`${message.id}-${reaction.emoji}-${reaction.count}`}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -295,7 +321,11 @@ export function MessageItem({
       </div>
 
       {/* Hover Action Buttons */}
-      <div className="absolute top-0 right-4 flex items-center gap-1 bg-background border border-border rounded shadow-md p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+      <div className={cn(
+        "absolute top-0 flex items-center gap-1 bg-background border border-border rounded shadow-md p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
+        isOwn ? "left-12" : "right-12", // ✅ Switch sides based on message owner
+        "-translate-y-1/2"
+      )}>
         {/* Quick Emoji Picker */}
         <div className="relative">
           <button
