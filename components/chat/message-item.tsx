@@ -1,4 +1,4 @@
-// components/chat/message-item.tsx - FIXED: Render HTML & proper mention display
+// components/chat/message-item.tsx
 "use client"
 
 import React, { useState, useMemo, useEffect } from "react"
@@ -111,13 +111,10 @@ export function MessageItem({
     })
   }
 
-  // ✅ FIXED: Render HTML content properly
   const renderContent = (content: string) => {
-    // Check if content is HTML
     const isHTML = /<[^>]+>/.test(content);
 
     if (isHTML) {
-      // Sanitize HTML to prevent XSS
       const sanitizedHTML = DOMPurify.sanitize(content, {
         ALLOWED_TAGS: [
           'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
@@ -134,7 +131,6 @@ export function MessageItem({
       );
     }
 
-    // Plain text fallback with @mention detection
     const mentionRegex = /@(\w+)/g;
     const parts = content.split(mentionRegex);
 
@@ -166,9 +162,6 @@ export function MessageItem({
       onOpenThread?.(message.id);
     }
   };
-
- 
-  const quickEmojis = ["👍", "❤️", "😊", "🎉", "🚀", "👀"];
 
   const groupedReactions = useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
@@ -215,16 +208,10 @@ export function MessageItem({
     .toUpperCase();
 
   return (
-    <div className={cn(
-      "group hover:bg-muted/50 -mx-4 px-4 py-2 rounded relative",
-      isOwn && "flex flex-row-reverse"
-    )}>
-      <div className={cn(
-        "flex gap-3",
-        isOwn && "flex-row-reverse"
-      )}>
+    <div className="group hover:bg-muted/30 -mx-4 lg:-mx-6 px-4 lg:px-6 py-1.5 relative">
+      <div className="flex gap-3">
         {/* Avatar */}
-        <div className="w-9 h-9 rounded bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-sm font-semibold flex-shrink-0">
+        <div className="w-9 h-9 rounded bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-sm font-semibold flex-shrink-0 mt-0.5">
           {message.authorAvatar ? (
             <img src={message.authorAvatar} alt="" className="w-full h-full rounded object-cover" />
           ) : (
@@ -233,14 +220,8 @@ export function MessageItem({
         </div>
 
         {/* Message Body */}
-        <div className={cn(
-          "flex-1 min-w-0",
-          isOwn && "flex flex-col items-end"
-        )}>
-          <div className={cn(
-            "flex items-baseline gap-2 mb-1",
-            isOwn && "flex-row-reverse"
-          )}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 mb-0.5">
             <span className="font-bold text-sm text-foreground">{message.authorName}</span>
             <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
             <MessageReadStatus message={message} isOwn={isOwn} />
@@ -261,13 +242,8 @@ export function MessageItem({
             </div>
           )}
 
-          {/* ✅ FIXED: Message content with proper HTML rendering */}
-          <div className={cn(
-            "text-sm break-words rounded-lg px-3 py-2",
-            isOwn
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted/60 text-foreground"
-          )}>
+          {/* Message content */}
+          <div className="text-sm break-words text-foreground mt-0.5">
             {renderContent(message.content)}
           </div>
 
@@ -287,10 +263,7 @@ export function MessageItem({
 
           {/* Reactions */}
           {groupedReactions.length > 0 && (
-            <div className={cn(
-              "flex flex-wrap gap-1 mt-2",
-              isOwn && "justify-end"
-            )}>
+            <div className="flex flex-wrap gap-1 mt-2">
               {groupedReactions.map((reaction) => (
                 <TooltipProvider key={`${message.id}-${reaction.emoji}-${reaction.count}`}>
                   <Tooltip>
@@ -298,7 +271,7 @@ export function MessageItem({
                       <button
                         onClick={() => onReact?.(message.id, reaction.emoji)}
                         className={cn(
-                          "flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors border",
+                          "flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors border",
                           reaction.userReacted
                             ? "bg-primary/20 border-primary text-primary"
                             : "bg-muted border-border hover:bg-muted/80"
@@ -333,14 +306,8 @@ export function MessageItem({
         </div>
       </div>
 
-      {/* Hover Action Buttons - same as before */}
-      <div className={cn(
-        "absolute top-0 flex items-center gap-1 bg-background border border-border rounded shadow-md p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
-        isOwn ? "left-12" : "right-12",
-        "-translate-y-1/2"
-      )}>
-   
-
+      {/* Hover Actions */}
+      <div className="absolute top-0 right-4 lg:right-6 flex items-center gap-1 bg-background border border-border rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 -translate-y-1/2">
         <MessageActionsPopover
           isDirect={isDirect}
           isOwn={isOwn}
