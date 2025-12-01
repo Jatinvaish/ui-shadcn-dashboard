@@ -1,32 +1,37 @@
 // store/slices/subscriptionSlice.ts
-
-import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { SubscriptionService } from "@/lib/api/services/subscription.service";
 import type { RootState } from "@/store/store";
 
 interface Plan {
   id: number;
-  planName: string;
-  planSlug: string;
-  planType: string;
-  planTier: string;
-  isFree: boolean;
-  priceMonthly?: number;
-  priceYearly?: number;
+  plan_name: string;
+  plan_slug: string;
+  plan_type: string;
+  plan_tier: string;
+  is_free: boolean;
+  price_monthly?: number;
+  price_yearly?: number;
   features?: any;
-  maxStaff?: number;
-  maxStorageGb?: number;
-  maxCampaigns?: number;
+  max_staff?: number;
+  max_storage_gb?: number;
+  max_campaigns?: number;
+  max_invitations?: number;
+  max_integrations?: number;
+  priority_support?: boolean;
+  custom_branding?: boolean;
+  white_label?: boolean;
+  sso_enabled?: boolean;
 }
 
 interface Subscription {
-  id: number;
-  planId: number;
-  status: string;
-  billingCycle: string;
-  currentPeriodStart?: string;
-  currentPeriodEnd?: string;
-  plan?: Plan;
+  subscription_plan_id: number;
+  subscription_status: string;
+  billing_cycle: string;
+  subscription_started_at?: string;
+  next_billing_date?: string;
+  plan_name?: string;
+  plan_tier?: string;
 }
 
 interface SubscriptionState {
@@ -47,7 +52,6 @@ const initialState: SubscriptionState = {
   error: null
 };
 
-// Thunks
 export const fetchPlans = createAsyncThunk(
   "subscription/fetchPlans",
   async (query: Record<string, any> | undefined, { rejectWithValue }) => {
@@ -55,9 +59,7 @@ export const fetchPlans = createAsyncThunk(
       const response = await SubscriptionService.listPlans(query);
       return response.data;
     } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || "Failed to fetch plans";
-
-      return rejectWithValue(message);
+      return rejectWithValue(error?.response?.data?.message || "Failed to fetch plans");
     }
   }
 );
@@ -122,30 +124,6 @@ export const fetchSubscriptionHistory = createAsyncThunk(
   }
 );
 
-export const checkLimit = createAsyncThunk(
-  "subscription/checkLimit",
-  async (limitType: string, { rejectWithValue }) => {
-    try {
-      const response = await SubscriptionService.checkLimit(limitType);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || error.message);
-    }
-  }
-);
-
-export const checkFeature = createAsyncThunk(
-  "subscription/checkFeature",
-  async (featureName: string, { rejectWithValue }) => {
-    try {
-      const response = await SubscriptionService.checkFeature(featureName);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || error.message);
-    }
-  }
-);
-
 export const fetchSubscriptionStatus = createAsyncThunk(
   "subscription/fetchStatus",
   async (_, { rejectWithValue }) => {
@@ -175,7 +153,7 @@ const subscriptionSlice = createSlice({
       })
       .addCase(fetchPlans.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.plans = action.payload.data || action.payload;
+        state.plans = action.payload.data || action.payload || [];
       })
       .addCase(fetchPlans.rejected, (state, action) => {
         state.isLoading = false;
@@ -197,22 +175,21 @@ const subscriptionSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(changeSubscription.fulfilled, (state, action) => {
+      .addCase(changeSubscription.fulfilled, (state) => {
         state.isLoading = false;
-        state.currentSubscription = action.payload.data || action.payload;
       })
       .addCase(changeSubscription.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      .addCase(cancelSubscription.fulfilled, (state, action) => {
-        state.currentSubscription = action.payload.data || action.payload;
+      .addCase(cancelSubscription.fulfilled, (state) => {
+        state.isLoading = false;
       })
-      .addCase(reactivateSubscription.fulfilled, (state, action) => {
-        state.currentSubscription = action.payload.data || action.payload;
+      .addCase(reactivateSubscription.fulfilled, (state) => {
+        state.isLoading = false;
       })
       .addCase(fetchSubscriptionHistory.fulfilled, (state, action) => {
-        state.subscriptionHistory = action.payload.data || action.payload;
+        state.subscriptionHistory = action.payload.data || action.payload || [];
       })
       .addCase(fetchSubscriptionStatus.fulfilled, (state, action) => {
         state.subscriptionStatus = action.payload.data || action.payload;
@@ -223,10 +200,8 @@ const subscriptionSlice = createSlice({
 export const { clearError, resetSubscriptionState } = subscriptionSlice.actions;
 
 export const selectPlans = (state: RootState) => state.subscription.plans;
-export const selectCurrentSubscription = (state: RootState) =>
-  state.subscription.currentSubscription;
-export const selectSubscriptionHistory = (state: RootState) =>
-  state.subscription.subscriptionHistory;
+export const selectCurrentSubscription = (state: RootState) => state.subscription.currentSubscription;
+export const selectSubscriptionHistory = (state: RootState) => state.subscription.subscriptionHistory;
 export const selectSubscriptionStatus = (state: RootState) => state.subscription.subscriptionStatus;
 export const selectSubscriptionLoading = (state: RootState) => state.subscription.isLoading;
 export const selectSubscriptionError = (state: RootState) => state.subscription.error;
