@@ -64,11 +64,7 @@ export default function Page() {
     }
   }, [authError]);
 
-  useEffect(() => {
-    if (sessionExpired) {
-      toast.error("Your session has expired. Please login again.");
-    }
-  }, [sessionExpired]);
+ 
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -108,7 +104,7 @@ export default function Page() {
   };
 
   return (
-    <div className="flex items-center justify-center py-4 lg:h-screen ">
+    <div className="flex items-center justify-center h-screen py-4">
       <Card className="mx-auto w-96 rounded-2xl border-0 bg-accent">
         <CardHeader className="text-center pb-2 space-y-0.5">
           <div className="inline-flex items-center gap-2 mb-0 justify-center pr-3">

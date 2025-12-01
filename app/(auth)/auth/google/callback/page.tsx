@@ -68,13 +68,21 @@ export default function GoogleCallbackPage() {
   }, [searchParams, router, dispatch]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-        <h2 className="mt-4 text-xl font-semibold">Completing Google sign-in...</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Please wait while we redirect you
-        </p>
+    <div className="flex items-center justify-center h-screen py-4">
+      <div className="text-center space-y-4">
+        {error ? (
+          <>
+            <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+            <div className="text-destructive font-semibold">{error}</div>
+            <div className="text-sm text-muted-foreground">Redirecting to sign-in...</div>
+          </>
+        ) : (
+          <>
+            <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+            <div className="text-foreground font-medium">Completing authentication...</div>
+            <div className="text-sm text-muted-foreground">Please wait</div>
+          </>
+        )}
       </div>
     </div>
   );

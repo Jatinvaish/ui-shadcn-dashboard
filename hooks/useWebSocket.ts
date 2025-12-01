@@ -1,4 +1,4 @@
-// hooks/useWebSocket.ts - COMPLETE REPLACEMENT
+// hooks/useWebSocket.ts - FIXED: Properly send HTML content
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
@@ -210,7 +210,6 @@ export const useWebSocket = (
           dispatch(fetchUserChannels(50));
           break;
 
-        // ⭐ ADD THIS CASE FOR TYPING
         case 'user_typing':
           console.log('⌨️ USER TYPING EVENT:', data);
 
@@ -261,7 +260,7 @@ export const useWebSocket = (
     };
   }, [token, userId, dispatch]);
 
-  // EMIT FUNCTIONS
+  // ✅ FIXED: Send HTML content properly
   const sendMessage = useCallback(async (data: SendMessagePayload): Promise<boolean> => {
     if (!socketRef.current?.connected) {
       console.warn('⚠️ Socket not connected');
@@ -269,8 +268,20 @@ export const useWebSocket = (
     }
 
     return new Promise((resolve) => {
-      console.log('📤 Sending message:', data);
-      socketRef.current!.emit('send_message', data, (response: any) => {
+      // ✅ Log the exact payload being sent
+      const payload = {
+        channelId: data.channelId,
+        content: data.content,  // ✅ This should be HTML from rich text editor
+        messageType: data.messageType || 'text',
+        mentions: data.mentions,
+        replyToMessageId: data.replyToMessageId,
+        threadId: data.threadId,
+        attachments: data.attachments,
+      };
+
+      console.log('📤 Sending message:', payload);
+      
+      socketRef.current!.emit('send_message', payload, (response: any) => {
         console.log('✅ Send response:', response);
         resolve(response?.success || false);
       });
