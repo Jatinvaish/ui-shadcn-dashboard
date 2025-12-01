@@ -50,7 +50,7 @@ export function MessageActionsPopover({
   const [open, setOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [editContent, setEditContent] = useState(messageContent)
+  const [editContent, setEditContent] = useState("")
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
 
   // Helper function to strip HTML and get plain text
@@ -81,14 +81,19 @@ export function MessageActionsPopover({
   }
 
   const handleEdit = () => {
-    setEditContent(messageContent)
+    // Convert HTML to plain text for editing
+    const plainText = getPlainText(messageContent)
+    setEditContent(plainText)
     setEditDialogOpen(true)
     setOpen(false)
   }
 
   const handleEditSubmit = () => {
-    if (editContent.trim() && editContent !== messageContent) {
-      onEdit?.(messageId, editContent.trim())
+    const trimmedContent = editContent.trim()
+    const originalPlainText = getPlainText(messageContent)
+    
+    if (trimmedContent && trimmedContent !== originalPlainText) {
+      onEdit?.(messageId, trimmedContent)
     }
     setEditDialogOpen(false)
   }
@@ -243,11 +248,15 @@ export function MessageActionsPopover({
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             className="min-h-[100px]"
+            placeholder="Enter your message..."
             autoFocus
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditSubmit} disabled={!editContent.trim() || editContent === messageContent}>
+            <Button 
+              onClick={handleEditSubmit} 
+              disabled={!editContent.trim() || editContent.trim() === getPlainText(messageContent)}
+            >
               Save changes
             </Button>
           </DialogFooter>

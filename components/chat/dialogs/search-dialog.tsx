@@ -1,4 +1,4 @@
-// components/chat/dialogs/search-dialog.tsx - INTEGRATED WITH EXISTING CHAT
+// components/chat/dialogs/search-dialog.tsx - FIXED VERSION
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -20,6 +20,13 @@ interface SearchDialogProps {
   onChannelSelect?: (channelId: number) => void
   onMessageSelect?: (channelId: number, messageId: number) => void
   onStartDM?: (userId: string) => void
+}
+
+// Helper to strip HTML tags and get plain text
+const stripHtml = (html: string): string => {
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html
+  return tmp.textContent || tmp.innerText || ''
 }
 
 export function SearchDialog({ 
@@ -58,10 +65,7 @@ export function SearchDialog({
     const channel = channels.find(c => c.id === channelId)
     if (channel) {
       dispatch(setSelectedChannel(channel))
-      
-      // Load messages for the channel
       await dispatch(fetchMessages({ channelId, limit: 50 }))
-      
       onChannelSelect?.(channelId)
       onOpenChange(false)
     }
@@ -70,25 +74,17 @@ export function SearchDialog({
   const handleMessageClick = async (channelId: number, messageId: number) => {
     const channel = channels.find(c => c.id === channelId)
     if (channel) {
-      // Set the channel first
       dispatch(setSelectedChannel(channel))
-      
-      // Load messages for the channel
       await dispatch(fetchMessages({ channelId, limit: 50 }))
-      
-      // Close dialog
       onOpenChange(false)
       
-      // Scroll to message after a brief delay to ensure DOM is ready
       setTimeout(() => {
         const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
         if (messageElement) {
           messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          
-          // Add highlight flash effect
-          messageElement.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20')
+          messageElement.classList.add('bg-yellow-100/50', 'dark:bg-yellow-900/20')
           setTimeout(() => {
-            messageElement.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20')
+            messageElement.classList.remove('bg-yellow-100/50', 'dark:bg-yellow-900/20')
           }, 2000)
         }
       }, 500)
@@ -133,7 +129,7 @@ export function SearchDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[650px] p-0 gap-0 max-h-[85vh]">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <DialogTitle className="sr-only">Search</DialogTitle>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -141,7 +137,7 @@ export function SearchDialog({
               placeholder="Search messages, channels, or people..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="pl-10 pr-10 h-11 text-base border-0 shadow-none focus-visible:ring-0 bg-muted/50"
+              className="pl-10 pr-10 h-11 text-base border-border shadow-none focus-visible:ring-1 focus-visible:ring-primary bg-muted/50"
               autoFocus
             />
             {isSearching && (
@@ -151,30 +147,30 @@ export function SearchDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex-1 flex flex-col">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-auto py-0 gap-6">
+          <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-6 h-auto py-0 gap-6">
             <TabsTrigger 
               value="all" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 data-[state=active]:shadow-none"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 data-[state=active]:shadow-none text-foreground data-[state=active]:text-primary"
             >
               All Results
             </TabsTrigger>
             <TabsTrigger 
               value="messages" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none text-foreground data-[state=active]:text-primary"
             >
               <MessageSquare className="h-4 w-4" /> 
               Messages
             </TabsTrigger>
             <TabsTrigger 
               value="channels" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none text-foreground data-[state=active]:text-primary"
             >
               <Hash className="h-4 w-4" /> 
               Channels
             </TabsTrigger>
             <TabsTrigger 
               value="members" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3 gap-2 data-[state=active]:shadow-none text-foreground data-[state=active]:text-primary"
             >
               <Users className="h-4 w-4" /> 
               People
@@ -187,9 +183,9 @@ export function SearchDialog({
                 <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
                   <Search className="h-8 w-8 text-muted-foreground/50" />
                 </div>
-                <h3 className="font-semibold text-base mb-1">Search Everything</h3>
+                <h3 className="font-semibold text-base mb-1 text-foreground">Search Everything</h3>
                 <p className="text-sm text-muted-foreground mb-2">Find messages, channels, and people instantly</p>
-                <p className="text-xs text-muted-foreground">Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">⌘K</kbd> anytime to search</p>
+                <p className="text-xs text-muted-foreground">Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono border border-border">⌘K</kbd> anytime to search</p>
               </div>
             ) : query.length < 2 ? (
               <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
@@ -205,7 +201,7 @@ export function SearchDialog({
                 <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
                   <Search className="h-8 w-8 text-muted-foreground/50" />
                 </div>
-                <h3 className="font-semibold text-base mb-1">No results found</h3>
+                <h3 className="font-semibold text-base mb-1 text-foreground">No results found</h3>
                 <p className="text-sm text-muted-foreground">Try different keywords for "{query}"</p>
               </div>
             ) : (
@@ -224,25 +220,28 @@ export function SearchDialog({
                       </div>
                     )}
                     <div className="space-y-1">
-                      {searchResults.messages.map((msg) => (
-                        <button
-                          key={msg.id}
-                          onClick={() => handleMessageClick(msg.channel_id, msg.id)}
-                          className="w-full text-left p-3 rounded-lg hover:bg-muted/70 transition-all cursor-pointer group border border-transparent hover:border-border"
-                        >
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-                            <Hash className="h-3 w-3" />
-                            <span className="font-medium">{msg.channel_name}</span>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{msg.sender_first_name} {msg.sender_last_name}</span>
-                            <span className="ml-auto text-muted-foreground/70">{formatDate(msg.sent_at)}</span>
-                            <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                          <p className="text-sm line-clamp-2 leading-relaxed">
-                            {highlightMatch(msg.content, query)}
-                          </p>
-                        </button>
-                      ))}
+                      {searchResults.messages.map((msg) => {
+                        const plainContent = stripHtml(msg.content)
+                        return (
+                          <button
+                            key={msg.id}
+                            onClick={() => handleMessageClick(msg.channel_id, msg.id)}
+                            className="w-full text-left p-3 rounded-lg hover:bg-muted/70 transition-all cursor-pointer group border border-transparent hover:border-border"
+                          >
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+                              <Hash className="h-3 w-3" />
+                              <span className="font-medium text-foreground">{msg.channel_name}</span>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{msg.sender_first_name} {msg.sender_last_name}</span>
+                              <span className="ml-auto text-muted-foreground/70">{formatDate(msg.sent_at)}</span>
+                              <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                            </div>
+                            <p className="text-sm line-clamp-2 leading-relaxed text-foreground">
+                              {highlightMatch(plainContent, query)}
+                            </p>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -271,7 +270,7 @@ export function SearchDialog({
                             <Hash className="h-5 w-5 text-primary" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm mb-0.5">{highlightMatch(ch.name, query)}</p>
+                            <p className="font-medium text-sm mb-0.5 text-foreground">{highlightMatch(ch.name, query)}</p>
                             {ch.description && (
                               <p className="text-xs text-muted-foreground line-clamp-1">
                                 {ch.description}
@@ -282,7 +281,7 @@ export function SearchDialog({
                             <span className="text-xs text-muted-foreground whitespace-nowrap">
                               {ch.member_count} {ch.member_count === 1 ? 'member' : 'members'}
                             </span>
-                            <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                            <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
                           </div>
                         </button>
                       ))}
@@ -316,7 +315,7 @@ export function SearchDialog({
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm mb-0.5">
+                            <p className="font-medium text-sm mb-0.5 text-foreground">
                               {highlightMatch(`${member.first_name} ${member.last_name}`, query)}
                             </p>
                             <p className="text-xs text-muted-foreground truncate">{member.email}</p>
