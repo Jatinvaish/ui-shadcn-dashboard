@@ -49,7 +49,7 @@ export function PrimarySidebar({
             <tab.icon className="h-5 w-5" />
             <span className="mt-0.5 text-[10px] font-medium">{tab.label}</span>
             {tab.badge > 0 && (
-              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-background text-[10px] font-bold text-background-foreground">
                 {tab.badge > 9 ? "9+" : tab.badge}
               </span>
             )}

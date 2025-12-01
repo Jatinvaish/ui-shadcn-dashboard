@@ -67,7 +67,6 @@ export function MessageList({
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastMessageIdRef = useRef<string | null>(null)
 
-  // Track user scrolling
   useEffect(() => {
     const handleScroll = () => {
       isUserScrollingRef.current = true;
@@ -93,7 +92,6 @@ export function MessageList({
     }
   }, []);
 
-  // Auto-scroll on new messages
   useEffect(() => {
     if (!scrollRef.current || messages.length === 0) return;
 
@@ -117,7 +115,6 @@ export function MessageList({
     lastMessageIdRef.current = lastMessage?.id || null;
   }, [messages, currentUserId]);
 
-  // Intersection Observer for read tracking
   useEffect(() => {
     if (!scrollRef.current || messages.length === 0) return;
 
@@ -150,7 +147,6 @@ export function MessageList({
     return () => observer.disconnect();
   }, [messages]);
 
-  // Scroll to specific message
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId)
     if (element) {
@@ -163,7 +159,6 @@ export function MessageList({
     }
   }
 
-  // Grouped messages
   const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: Message[] }[] = []
 
@@ -226,8 +221,7 @@ export function MessageList({
       ) : (
         groupedMessages.map((group, groupIndex) => (
           <div key={groupIndex} className="space-y-0">
-            {/* Date Separator */}
-            <div className="flex items-center gap-3 my-4">
+            <div className="flex items-center gap-3 my-4 px-4 lg:px-6">
               <div className="flex-1 h-px bg-border"></div>
               <span className="text-xs text-muted-foreground font-medium px-2">
                 {formatDate(group.date)}
@@ -235,7 +229,6 @@ export function MessageList({
               <div className="flex-1 h-px bg-border"></div>
             </div>
 
-            {/* Messages */}
             {group.messages.map((message) => (
               <div
                 key={message.id}

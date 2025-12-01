@@ -1,12 +1,13 @@
-// components/chat/message-item.tsx - UPDATED WITH CHAT2 UI
+// components/chat/message-item.tsx
 "use client"
 
 import React, { useState, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
 import type { Message } from "./message-list"
-import { MessageCircle, Check, CheckCheck, Pin, MoreVertical, Smile } from "lucide-react"
+import { MessageCircle, Check, CheckCheck, Pin } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import DOMPurify from 'dompurify'
 
 interface MessageItemProps {
   message: Message
@@ -102,7 +103,6 @@ export function MessageItem({
   onScrollToMessage,
   isInThread = false,
 }: MessageItemProps) {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
   const formatTime = (date: Date) => {
     return new Date(date).toLocaleTimeString("en-US", {
@@ -112,6 +112,25 @@ export function MessageItem({
   }
 
   const renderContent = (content: string) => {
+    const isHTML = /<[^>]+>/.test(content);
+
+    if (isHTML) {
+      const sanitizedHTML = DOMPurify.sanitize(content, {
+        ALLOWED_TAGS: [
+          'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
+          'ul', 'ol', 'li', 'blockquote', 'a', 'span'
+        ],
+        ALLOWED_ATTR: ['class', 'href', 'data-type', 'data-id', 'data-label']
+      });
+
+      return (
+        <div
+          className="prose prose-sm dark:prose-invert max-w-none"
+          dangerouslySetInnerHTML={{ __html: sanitizedHTML }}
+        />
+      );
+    }
+
     const mentionRegex = /@(\w+)/g;
     const parts = content.split(mentionRegex);
 
@@ -144,14 +163,6 @@ export function MessageItem({
     }
   };
 
-  const handleEmojiSelect = (emoji: string) => {
-    onReact?.(message.id, emoji);
-    setShowEmojiPicker(false);
-  };
-
-  const quickEmojis = ["👍", "❤️", "😊", "🎉", "🚀", "👀"];
-
-  // ✅ FIX: Force re-render on reactions change with proper key generation
   const groupedReactions = useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
 
@@ -188,7 +199,7 @@ export function MessageItem({
     });
 
     return Array.from(reactionMap.values()).sort((a, b) => b.count - a.count);
-  }, [message.reactions, message.reactions?.length, currentUserId]); // ✅ Added length dependency
+  }, [message.reactions, message.reactions?.length, currentUserId]);
 
   const initials = message.authorName
     .split(" ")
@@ -196,22 +207,11 @@ export function MessageItem({
     .join("")
     .toUpperCase();
 
-  // ✅ Log reactions for debugging
-  useEffect(() => {
-    console.log(`💬 Message ${message.id} reactions updated:`, groupedReactions);
-  }, [groupedReactions, message.id]);
-
   return (
-    <div className={cn(
-      "group hover:bg-muted/50 -mx-4 px-4 py-2 rounded relative",
-      isOwn && "flex flex-row-reverse" // ✅ Right-align own messages
-    )}>
-      <div className={cn(
-        "flex gap-3",
-        isOwn && "flex-row-reverse" // ✅ Reverse flex for own messages
-      )}>
+    <div className="group hover:bg-muted/30 -mx-4 lg:-mx-6 px-4 lg:px-6 py-1.5 relative">
+      <div className="flex gap-3">
         {/* Avatar */}
-        <div className="w-9 h-9 rounded bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-sm font-semibold flex-shrink-0">
+        <div className="w-9 h-9 rounded bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-sm font-semibold flex-shrink-0 mt-0.5">
           {message.authorAvatar ? (
             <img src={message.authorAvatar} alt="" className="w-full h-full rounded object-cover" />
           ) : (
@@ -220,14 +220,8 @@ export function MessageItem({
         </div>
 
         {/* Message Body */}
-        <div className={cn(
-          "flex-1 min-w-0",
-          isOwn && "flex flex-col items-end" // ✅ Right-align own message content
-        )}>
-          <div className={cn(
-            "flex items-baseline gap-2 mb-1",
-            isOwn && "flex-row-reverse" // ✅ Reverse order for own messages
-          )}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 mb-0.5">
             <span className="font-bold text-sm text-foreground">{message.authorName}</span>
             <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
             <MessageReadStatus message={message} isOwn={isOwn} />
@@ -249,12 +243,7 @@ export function MessageItem({
           )}
 
           {/* Message content */}
-          <div className={cn(
-            "text-sm text-foreground break-words prose prose-sm dark:prose-invert max-w-none rounded-lg px-3 py-2",
-            isOwn 
-              ? "bg-primary text-primary-foreground" 
-              : "bg-muted/60  "
-          )}>
+          <div className="text-sm break-words text-foreground mt-0.5">
             {renderContent(message.content)}
           </div>
 
@@ -274,10 +263,7 @@ export function MessageItem({
 
           {/* Reactions */}
           {groupedReactions.length > 0 && (
-            <div className={cn(
-              "flex flex-wrap gap-1 mt-2",
-              isOwn && "justify-end" // ✅ Right-align reactions for own messages
-            )}>
+            <div className="flex flex-wrap gap-1 mt-2">
               {groupedReactions.map((reaction) => (
                 <TooltipProvider key={`${message.id}-${reaction.emoji}-${reaction.count}`}>
                   <Tooltip>
@@ -285,7 +271,7 @@ export function MessageItem({
                       <button
                         onClick={() => onReact?.(message.id, reaction.emoji)}
                         className={cn(
-                          "flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors border",
+                          "flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors border",
                           reaction.userReacted
                             ? "bg-primary/20 border-primary text-primary"
                             : "bg-muted border-border hover:bg-muted/80"
@@ -320,40 +306,8 @@ export function MessageItem({
         </div>
       </div>
 
-      {/* Hover Action Buttons */}
-      <div className={cn(
-        "absolute top-0 flex items-center gap-1 bg-background border border-border rounded shadow-md p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
-        isOwn ? "left-12" : "right-12", // ✅ Switch sides based on message owner
-        "-translate-y-1/2"
-      )}>
-        {/* Quick Emoji Picker */}
-        <div className="relative">
-          <button
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-1.5 hover:bg-muted rounded"
-            title="React"
-          >
-            <Smile className="w-4 h-4" />
-          </button>
-          {showEmojiPicker && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowEmojiPicker(false)} />
-              <div className="absolute bottom-full right-0 mb-2 bg-popover border border-border rounded-lg shadow-lg p-2 flex gap-1 z-20">
-                {quickEmojis.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => handleEmojiSelect(emoji)}
-                    className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* More Actions */}
+      {/* Hover Actions */}
+      <div className="absolute top-0 right-4 lg:right-6 flex items-center gap-1 bg-background border border-border rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 -translate-y-1/2">
         <MessageActionsPopover
           isDirect={isDirect}
           isOwn={isOwn}
@@ -365,6 +319,7 @@ export function MessageItem({
           onDelete={onDelete}
           onEdit={onEdit}
           onPin={onPin}
+          onReact={onReact}
           onForward={onForward}
           isInThread={isInThread}
         />
