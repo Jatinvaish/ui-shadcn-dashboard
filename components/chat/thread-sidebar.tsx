@@ -1,10 +1,9 @@
-// components/chat/thread-sidebar.tsx - COMPLETE WITH FULL FUNCTIONALITY
+// components/chat/thread-sidebar.tsx
 "use client";
 
 import React, { useRef, useEffect } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { X, MessageCircle, Loader2 } from 'lucide-react';
+import { X, MessageSquare, Loader2 } from 'lucide-react';
 import { MessageItem } from "./message-item";
 import { RichTextEditor } from "./rich-text-editor";
 import type { Message } from "./message-list";
@@ -36,9 +35,8 @@ export function ThreadSidebar({
     parentMessageId ? state.chat.threadMessages[parentMessageId] || [] : []
   );
   const isLoadingThread = useAppSelector(state => state.chat.isLoadingThread);
-  const selectedChannel = useAppSelector(state => state.chat.selectedChannel);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current && threadMessages.length > 0) {
       setTimeout(() => {
@@ -49,7 +47,7 @@ export function ThreadSidebar({
     }
   }, [threadMessages.length]);
 
-  // Load thread messages on mount
+  // Load thread messages
   useEffect(() => {
     if (parentMessageId) {
       dispatch(fetchThreadMessages({ parentMessageId, limit: 50 }));
@@ -99,7 +97,6 @@ export function ThreadSidebar({
       const result = await onReplyInThread?.(text.trim(), parentMessageId);
       
       if (result) {
-        // Auto-scroll to bottom after sending
         setTimeout(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -115,82 +112,68 @@ export function ThreadSidebar({
   };
 
   return (
-    <>
-      {/* Mobile Overlay */}
-      <div 
-        className="fixed inset-0 z-40 bg-black/50 lg:hidden" 
-        onClick={onClose} 
-      />
-      
-      {/* Thread Sidebar Container */}
-      <div className={cn(
-        "fixed inset-y-0 right-0 z-50 lg:z-auto lg:relative lg:flex lg:flex-col",
-        "bg-background border-l border-border overflow-hidden",
-        "w-full sm:w-96 lg:w-96 shadow-2xl lg:shadow-none",
-        "h-full"
-      )}>
-        {/* Header */}
-        <div className="px-4 py-3 sm:py-4 h-14 sm:h-16 flex items-center justify-between border-b border-border flex-shrink-0 bg-card">
-          <div>
-            <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2 text-foreground">
-              <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              Thread
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
-            </p>
-          </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={onClose}
-            className="h-8 w-8 hover:bg-muted"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+    <div className="w-full md:w-96 bg-background border-l border-border flex flex-col fixed md:relative inset-0 md:inset-auto z-40">
+      {/* Header */}
+      <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-card">
+        <div>
+          <h3 className="font-bold flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-primary" />
+            Thread
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+          </p>
         </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onClose}
+          className="h-8 w-8"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto bg-background" ref={scrollRef}>
-          <div className="p-2 sm:p-3 space-y-0">
-            {isLoadingThread ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : transformedMessages.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-12">
-                <MessageCircle className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
-                <p className="font-medium mb-1">No replies yet</p>
-                <p className="text-xs">Start the conversation in this thread</p>
-              </div>
-            ) : (
-              <>
-                {/* Parent Message */}
-                {parentMessage && (
-                  <div className="mb-3 pb-3 border-b border-border bg-muted/30 rounded-lg p-2">
-                    <div className="text-xs text-muted-foreground mb-2 font-medium px-2">
-                      Original message
-                    </div>
-                    <MessageItem
-                      message={parentMessage}
-                      isOwn={parentMessage.authorId === currentUserId}
-                      isDirect={false}
-                      currentUserId={currentUserId}
-                      onReply={() => {}}
-                      onReact={() => {}}
-                      onOpenThread={() => {}}
-                      isInThread={true}
-                    />
+      {/* Thread Messages */}
+      <div className="flex-1 overflow-y-auto" ref={scrollRef}>
+        <div className="p-4">
+          {isLoadingThread ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : transformedMessages.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageSquare className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
+              <p className="font-medium mb-1">No replies yet</p>
+              <p className="text-xs">Start the conversation!</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Parent Message */}
+              {parentMessage && (
+                <div className="pb-4 border-b border-border">
+                  <div className="text-xs text-muted-foreground mb-2 font-medium">
+                    Original message
                   </div>
-                )}
-                
-                {/* Thread Replies */}
+                  <MessageItem
+                    message={parentMessage}
+                    isOwn={parentMessage.authorId === currentUserId}
+                    isDirect={false}
+                    currentUserId={currentUserId}
+                    onReply={() => {}}
+                    onReact={() => {}}
+                    onOpenThread={() => {}}
+                    isInThread={true}
+                  />
+                </div>
+              )}
+              
+              {/* Thread Replies */}
+              {replies.length > 0 && (
                 <div className="space-y-0">
-                  {replies.length > 0 && (
-                    <div className="text-xs text-muted-foreground mb-2 font-medium px-2">
-                      Replies
-                    </div>
-                  )}
+                  <div className="text-xs text-muted-foreground mb-2 font-medium">
+                    Replies
+                  </div>
                   {replies.map((message) => (
                     <MessageItem
                       key={message.id}
@@ -205,22 +188,22 @@ export function ThreadSidebar({
                     />
                   ))}
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Reply Editor */}
-        <div className="border-t border-border flex-shrink-0 bg-card">
-          <RichTextEditor 
-            onSend={handleSend}
-            disabled={!parentMessageId || isLoadingThread}
-            placeholder="Reply in thread..."
-            className="border-0"
-            teamMembers={teamMembers}
-          />
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </>
+
+      {/* Reply Input */}
+      <div className="border-t border-border">
+        <RichTextEditor 
+          onSend={handleSend}
+          disabled={!parentMessageId || isLoadingThread}
+          placeholder="Reply in thread..."
+          className="border-0"
+          teamMembers={teamMembers}
+        />
+      </div>
+    </div>
   );
 }

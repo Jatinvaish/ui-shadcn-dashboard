@@ -1,3 +1,4 @@
+// components/chat/popovers/message-actions-popover.tsx
 "use client"
 
 import React, { useState } from "react"
@@ -6,8 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { MessageCircle, MoreVertical, Reply, Trash2, Edit, Pin, PinOff, Forward, Copy } from "lucide-react"
+import { MessageCircle, MoreVertical, Reply, Trash2, Edit, Pin, PinOff, Forward, Copy, Smile } from "lucide-react"
 import toast from "react-hot-toast"
+import dynamic from 'next/dynamic'
+
+const Picker = dynamic(
+  () => import('emoji-picker-react'),
+  { ssr: false }
+)
 
 interface MessageActionsPopoverProps {
   isDirect?: boolean
@@ -21,6 +28,7 @@ interface MessageActionsPopoverProps {
   onEdit?: (messageId: string, newContent: string) => void
   onPin?: (messageId: string, isPinned: boolean) => void
   onForward?: (messageId: string) => void
+  onReact?: (messageId: string, emoji: string) => void
   isInThread?: boolean
 }
 
@@ -36,12 +44,21 @@ export function MessageActionsPopover({
   onEdit,
   onPin,
   onForward,
+  onReact,
   isInThread = false,
 }: MessageActionsPopoverProps) {
   const [open, setOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [editContent, setEditContent] = useState(messageContent)
+  const [editContent, setEditContent] = useState("")
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+
+  // Helper function to strip HTML and get plain text
+  const getPlainText = (html: string): string => {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = html
+    return tempDiv.textContent || tempDiv.innerText || ''
+  }
 
   const handleReply = () => {
     if (isDirect || isInThread) {
@@ -54,7 +71,8 @@ export function MessageActionsPopover({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(messageContent)
+      const plainText = getPlainText(messageContent)
+      await navigator.clipboard.writeText(plainText)
       toast.success("Message copied to clipboard")
     } catch {
       toast.error("Failed to copy message")
@@ -63,14 +81,19 @@ export function MessageActionsPopover({
   }
 
   const handleEdit = () => {
-    setEditContent(messageContent)
+    // Convert HTML to plain text for editing
+    const plainText = getPlainText(messageContent)
+    setEditContent(plainText)
     setEditDialogOpen(true)
     setOpen(false)
   }
 
   const handleEditSubmit = () => {
-    if (editContent.trim() && editContent !== messageContent) {
-      onEdit?.(messageId, editContent.trim())
+    const trimmedContent = editContent.trim()
+    const originalPlainText = getPlainText(messageContent)
+    
+    if (trimmedContent && trimmedContent !== originalPlainText) {
+      onEdit?.(messageId, trimmedContent)
     }
     setEditDialogOpen(false)
   }
@@ -95,15 +118,56 @@ export function MessageActionsPopover({
     setOpen(false)
   }
 
+  const handleEmojiSelect = (emojiData: any) => {
+    onReact?.(messageId, emojiData.emoji)
+    setEmojiPickerOpen(false)
+  }
+
   return (
     <>
+      <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+        <PopoverTrigger asChild>
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            className="h-7 w-7 hover:bg-muted"
+            title="Add reaction"
+          >
+            <Smile className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent 
+          className="w-auto p-0 border-0" 
+          side="top" 
+          align="start"
+          sideOffset={8}
+          collisionPadding={10}
+          sticky="always"
+        >
+          <Picker
+            onEmojiClick={handleEmojiSelect}
+            width={350}
+            height={400}
+            searchPlaceholder="Search emoji..."
+            previewConfig={{ showPreview: false }}
+          />
+        </PopoverContent>
+      </Popover>
+
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button size="icon" variant="ghost" className="h-7 w-7">
+          <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-muted">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-1" side="top" align="end">
+        <PopoverContent 
+          className="w-48 p-1" 
+          side="top" 
+          align="end"
+          sideOffset={8}
+          collisionPadding={10}
+          sticky="always"
+        >
           <div className="flex flex-col">
             <button 
               onClick={handleReply} 
@@ -184,11 +248,15 @@ export function MessageActionsPopover({
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             className="min-h-[100px]"
+            placeholder="Enter your message..."
             autoFocus
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditSubmit} disabled={!editContent.trim() || editContent === messageContent}>
+            <Button 
+              onClick={handleEditSubmit} 
+              disabled={!editContent.trim() || editContent.trim() === getPlainText(messageContent)}
+            >
               Save changes
             </Button>
           </DialogFooter>

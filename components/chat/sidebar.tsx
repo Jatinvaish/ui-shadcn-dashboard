@@ -167,7 +167,7 @@ export function Sidebar({
                         <p className="text-xs text-muted-foreground truncate">Active now</p>
                       </div>
                       {dm.unread && dm.unread > 0 && (
-                        <span className="bg-destructive text-destructive-foreground inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
+                        <span className="bg-background text-primary inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
                           {dm.unread}
                         </span>
                       )}
@@ -217,7 +217,7 @@ export function Sidebar({
                       <span className="flex-1 truncate text-left font-medium">{channel.name}</span>
                       {channel.isPinned && <span className="flex-shrink-0 text-sm">📌</span>}
                       {channel.unread && channel.unread > 0 && (
-                        <span className="bg-destructive text-destructive-foreground inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
+                        <span className="bg-background text-primary inline-flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold">
                           {channel.unread}
                         </span>
                       )}

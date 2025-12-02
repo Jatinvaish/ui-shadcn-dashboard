@@ -159,12 +159,12 @@ export class AuthService {
   static async cancelInvite(invitationId: number) {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.INVITE_CANCEL, { invitationId });
   }
-  
+
   // Logout
   static async logout() {
     return encryptedApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
   }
-  
+
   static updateAuthCookies(data: { accessToken?: string; refreshToken?: string; user?: any }) {
     const cookieOptions = {
       expires: 7,
@@ -175,14 +175,25 @@ export class AuthService {
 
     if (data.accessToken) {
       Cookies.set("accessToken", data.accessToken, cookieOptions);
+      console.log("✅ Access token cookie set");
     }
 
     if (data.refreshToken) {
       Cookies.set("refreshToken", data.refreshToken, cookieOptions);
+      console.log("✅ Refresh token cookie set");
     }
 
     if (data.user) {
-      Cookies.set("user", JSON.stringify(data.user), cookieOptions);
+      // ✅ Ensure tenantId is included in user object
+      const userWithTenant = {
+        ...data.user,
+        tenantId: data.user.tenantId, // ✅ Explicitly preserve tenantId
+        onboardingRequired: false,
+        onboardingCompleted: true
+      };
+
+      Cookies.set("user", JSON.stringify(userWithTenant), cookieOptions);
+      console.log("✅ User cookie set with tenantId:", userWithTenant.tenantId);
     }
   }
 }
