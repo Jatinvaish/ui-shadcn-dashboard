@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - FINAL WORKING VERSION
+// app/dashboard/chat/page.tsx - PART 1
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -32,15 +32,13 @@ import {
   resetUnreadCount,
   markAsRead,
   fetchThreadMessages,
-  replyInThread,
 } from "@/store/slices/chatSlice";
 
 import { ChatService, ChannelType, MessageType, SendMessagePayload } from "@/lib/api/services/chat-service";
 
 const ChatPage = () => {
   const dispatch = useAppDispatch();
-  
-  // ✅ SUBSCRIBE TO REDUX STATE - This triggers re-renders
+
   const selectedChannel = useAppSelector((state) => state.chat.selectedChannel);
   const allMessages = useAppSelector((state) => state.chat.messages);
   const threadMessages = useAppSelector((state) => state.chat.threadMessages);
@@ -87,7 +85,7 @@ const ChatPage = () => {
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ==================== INITIALIZATION ====================
+  // Initialization
   useEffect(() => {
     const init = async () => {
       try {
@@ -104,7 +102,7 @@ const ChatPage = () => {
     init();
   }, [dispatch]);
 
-  // ==================== LOAD CHANNEL DATA ====================
+  // Load Channel Data
   useEffect(() => {
     if (selectedChannel) {
       const loadChannelData = async () => {
@@ -138,7 +136,7 @@ const ChatPage = () => {
     }
   }, [selectedChannel?.id, dispatch, isConnected, markAsReadWS]);
 
-  // ==================== LOAD THREAD ====================
+  // Load Thread
   useEffect(() => {
     if (selectedThreadId) {
       const loadThread = async () => {
@@ -156,7 +154,7 @@ const ChatPage = () => {
     }
   }, [selectedThreadId, dispatch]);
 
-  // ==================== TOAST NOTIFICATIONS ====================
+  // Toast Notifications
   useEffect(() => {
     if (successMessage) {
       toast.success(successMessage);
@@ -171,7 +169,7 @@ const ChatPage = () => {
     }
   }, [error, dispatch]);
 
-  // ==================== KEYBOARD SHORTCUTS ====================
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -183,7 +181,7 @@ const ChatPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ==================== MESSAGE CONVERSION ====================
+  // Message Conversion
   const convertToFrontendMessage = useCallback((msg: any): Message => {
     const senderFirstName = msg.sender_first_name || msg.first_name || '';
     const senderLastName = msg.sender_last_name || msg.last_name || '';
@@ -221,7 +219,7 @@ const ChatPage = () => {
     } as Message;
   }, []);
 
-  // ==================== CHANNEL DISPLAY NAME ====================
+  // Channel Display Name
   const getChannelDisplayName = useCallback((channel: any): string => {
     if (channel.channel_type === ChannelType.DIRECT) {
       const members = channelMembers[channel.id] || [];
@@ -235,7 +233,6 @@ const ChatPage = () => {
     return channel.name || "New Channel";
   }, [channelMembers, currentUser]);
 
-  // ✅ GET MESSAGES FROM REDUX - This will update when Redux updates
   const rawMessages = selectedChannel ? (allMessages[selectedChannel.id] || []) : [];
   const currentMessages: Message[] = rawMessages.map(convertToFrontendMessage);
 
@@ -282,12 +279,6 @@ const ChatPage = () => {
     email: m.email,
   }));
 
-  // ✅ TYPING USERS - Direct from Redux
-  const typingInChannel = selectedChannel ? (typingUsers[selectedChannel.id] || []) : [];
-  const currentTypingUsers = typingInChannel
-    .filter((t) => t.userId !== currentUser?.id)
-    .map(t => t.userName || 'Someone');
-
   const isChannelAdmin = React.useMemo(() => {
     if (!selectedChannel || !currentUser) return false;
     const members = channelMembers[selectedChannel.id] || [];
@@ -299,18 +290,17 @@ const ChatPage = () => {
   const currentChannelDisplayName = selectedChannel ? getChannelDisplayName(selectedChannel) : "";
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
-
-  // ✅ LOG UPDATES
+  // app/dashboard/chat/page.tsx - PART 2 (Handlers)
+  // Add these handlers inside ChatPage component before return statement
   useEffect(() => {
-    console.log('🔄 Messages updated:', currentMessages.length);
-  }, [currentMessages.length]);
+    console.log('🔍 TYPING STATE CHANGED:', {
+      selectedChannelId: selectedChannel?.id,
+      allTypingUsers: typingUsers,
+      typingInThisChannel: selectedChannel ? typingUsers[selectedChannel.id] : null,
+    });
+  }, [typingUsers, selectedChannel]);
 
-  useEffect(() => {
-    console.log('⌨️ Typing users:', currentTypingUsers);
-  }, [currentTypingUsers.length]);
-  // app/dashboard/chat/page.tsx - HANDLERS AND RENDER (CONTINUED)
-
-  // ==================== MARK AS READ LISTENER ====================
+  // Mark As Read Listener
   useEffect(() => {
     const handleMarkAsRead = (event: CustomEvent) => {
       const { messageId, channelId } = event.detail;
@@ -324,7 +314,7 @@ const ChatPage = () => {
     return () => window.removeEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
   }, [isConnected, markAsReadWS, dispatch]);
 
-  // ==================== CHANNEL HANDLERS ====================
+  // Channel Handlers
   const handleChannelClick = useCallback((channelId: string) => {
     const channel = channels?.find((c) => c.id.toString() === channelId || c.channel_id === channelId);
     if (channel) {
@@ -427,7 +417,8 @@ const ChatPage = () => {
     }
   }, [selectedChannel, dispatch]);
 
-  // ==================== MESSAGE HANDLERS ====================
+  // Message Handlers
+
   const handleSendMessage = useCallback(async (
     html: string,
     text: string,
@@ -437,12 +428,19 @@ const ChatPage = () => {
     try {
       const payload: SendMessagePayload = {
         channelId: selectedChannel.id,
-        content: text.trim(),
+        content: html,  // ✅ CRITICAL FIX: Send HTML instead of plain text
         messageType: MessageType.TEXT,
         replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         threadId: selectedThreadId || undefined,
         mentions: mentions && mentions.length > 0 ? mentions : undefined,
       };
+
+      console.log('✅ Sending message with HTML:', {
+        content: html,
+        mentions,
+        payload
+      });
+
       if (isConnected) {
         await sendMessageWS(payload);
       } else {
@@ -456,10 +454,15 @@ const ChatPage = () => {
     }
   }, [selectedChannel, replyingTo, selectedThreadId, isConnected, sendMessageWS]);
 
-  // ==================== TYPING HANDLERS ====================
+  // Typing Handlers
   const handleTypingStart = useCallback(() => {
-    if (!selectedChannel || !isConnected) return;
+    if (!selectedChannel || !isConnected) {
+      console.log('⚠️ Cannot start typing: no channel or not connected');
+      return;
+    }
+    console.log('⌨️ PAGE: Start typing in channel', selectedChannel.id);
     startTypingWS(selectedChannel.id);
+
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       stopTypingWS(selectedChannel.id);
@@ -468,11 +471,13 @@ const ChatPage = () => {
 
   const handleTypingStop = useCallback(() => {
     if (!selectedChannel || !isConnected) return;
+    console.log('⌨️ PAGE: Stop typing in channel', selectedChannel.id);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     stopTypingWS(selectedChannel.id);
   }, [selectedChannel, isConnected, stopTypingWS]);
 
-  // ==================== MESSAGE ACTIONS ====================
+
+  // Message Actions
   const handleDeleteMessage = useCallback((messageId: string) => {
     if (!selectedChannel || !isConnected) return;
     deleteMessageWS(parseInt(messageId), selectedChannel.id);
@@ -553,8 +558,10 @@ const ChatPage = () => {
       dispatch(fetchChannelMembers(selectedChannel.id));
     }
   }, [selectedChannel, dispatch, isConnected, inviteMembersWS]);
+  // Continue to Part 6...
+  // app/dashboard/chat/page.tsx - PART 3 (Render)
+  // Add this as the return statement for ChatPage component
 
-  // ==================== RENDER ====================
   return (
     <div className="flex w-full overflow-hidden bg-background h-[calc(100vh-var(--header-height))]">
       {!isConnected && (
@@ -583,7 +590,7 @@ const ChatPage = () => {
           availableUsers={availableUsersForDM}
           onCreateChannel={handleCreateChannel}
           onStartDirectMessage={handleStartDirectMessage}
-          onStatusChange={() => {}}
+          onStatusChange={() => { }}
           onMenuClick={() => setIsPrimarySidebarOpen(true)}
         />
       </div>
@@ -643,13 +650,23 @@ const ChatPage = () => {
               onForward={handleForwardMessage}
             />
 
-            {currentTypingUsers.length > 0 && (
-              <div className="px-4 py-2 text-xs text-muted-foreground animate-pulse">
-                {currentTypingUsers.length === 1
-                  ? `${currentTypingUsers[0]} is typing...`
-                  : `${currentTypingUsers.length} people are typing...`}
-              </div>
-            )}
+            {/* FIXED TYPING INDICATOR */}
+            {(() => {
+              const typingInChannel = selectedChannel ? (typingUsers[selectedChannel.id] || []) : [];
+              const currentTypingUsers = typingInChannel
+                .filter((t) => Number(t.userId) !== Number(currentUser?.id))
+                .map(t => t.userName || 'Someone');
+              if (currentTypingUsers.length === 0) return null;
+              return (
+                <div className="px-4 py-2 text-xs text-muted-foreground animate-pulse border-t border-border bg-muted/30">
+                  {currentTypingUsers.length === 1
+                    ? `${currentTypingUsers[0]} is typing...`
+                    : currentTypingUsers.length === 2
+                      ? `${currentTypingUsers[0]} and ${currentTypingUsers[1]} are typing...`
+                      : `${currentTypingUsers.length} people are typing...`}
+                </div>
+              );
+            })()}
 
             <RichTextEditor
               onSend={handleSendMessage}
