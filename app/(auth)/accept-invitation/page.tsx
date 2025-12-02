@@ -1,25 +1,13 @@
 // app/(auth)/accept-invitation/page.tsx
-'use client';
+"use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { acceptInvite, login, clearError } from "@/store/slices/authSlice";
 import { Loader2, Eye, EyeOff, CheckCircle2 } from "lucide-react";
@@ -28,18 +16,20 @@ import { z } from "zod";
 import { Label } from "@/components/ui/label";
 import Cookies from "js-cookie";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3060/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3060/api/v1";
 
 // Validation schema
-const acceptInviteSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters"),
-  lastName: z.string().min(2, "Last name must be at least 2 characters"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string().min(8, "Please confirm your password"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const acceptInviteSchema = z
+  .object({
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(8, "Please confirm your password")
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"]
+  });
 
 type AcceptInviteFormValues = z.infer<typeof acceptInviteSchema>;
 
@@ -62,8 +52,8 @@ export default function AcceptInvitationPage() {
       firstName: "",
       lastName: "",
       password: "",
-      confirmPassword: "",
-    },
+      confirmPassword: ""
+    }
   });
 
   // Fetch invitation details
@@ -77,14 +67,11 @@ export default function AcceptInvitationPage() {
 
       try {
         setLoading(true);
-        const response = await fetch(
-          `${API_URL}/auth/invitation/details?token=${token}`,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
+        const response = await fetch(`${API_URL}/auth/invitation/details?token=${token}`, {
+          headers: {
+            "Content-Type": "application/json"
           }
-        );
+        });
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -96,9 +83,9 @@ export default function AcceptInvitationPage() {
 
         // Pre-fill name if available
         if (data.data.invitee_name) {
-          const nameParts = data.data.invitee_name.split(' ');
-          form.setValue('firstName', nameParts[0] || '');
-          form.setValue('lastName', nameParts.slice(1).join(' ') || '');
+          const nameParts = data.data.invitee_name.split(" ");
+          form.setValue("firstName", nameParts[0] || "");
+          form.setValue("lastName", nameParts.slice(1).join(" ") || "");
         }
       } catch (err: any) {
         console.error("Failed to fetch invitation:", err);
@@ -137,54 +124,98 @@ export default function AcceptInvitationPage() {
       dispatch(clearError());
 
       // Accept invitation
-      const result = await dispatch(acceptInvite({
-        token,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        password: data.password,
-      })).unwrap();
+      const response = await dispatch(
+        acceptInvite({
+          token,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          password: data.password
+        })
+      ).unwrap();
 
-      // Auto-login after accepting invitation
-      if (result.user?.email) {
-        toast.success("Invitation accepted! Logging you in...");
+      // ✅ CRITICAL: Extract data from wrapped response
+      // Your API returns: { success, statusCode, message, data: { actual data here } }
+      const result = response.data || response;
 
-        // ✅ Store user with onboarding completed
-        const userData = {
-          ...result.user,
-          onboardingRequired: false,
-          onboardingCompleted: true,
-        };
+      console.log("✅ Accept Invitation Response:", {
+        fullResponse: response,
+        extractedResult: result,
+        hasAccessToken: !!result.accessToken,
+        hasUser: !!result.user,
+        hasTenantId: !!result.user?.tenantId
+      });
 
-        Cookies.set("user", JSON.stringify(userData), {
-          expires: 7,
-          path: "/",
-          secure: true,
-          sameSite: "strict"
-        });
-
-        Cookies.set("accessToken", result.accessToken, {
-          expires: 7,
-          path: "/",
-          secure: true,
-          sameSite: "strict"
-        });
-
-        // ✅ Redirect to dashboard, NOT onboarding
-        window.location.href = "/dashboard";
+      // ✅ Validate we have the necessary data
+      if (!result.user || !result.accessToken) {
+        console.error("❌ Missing auth data in response:", { result });
+        toast.error("Incomplete authentication data received");
+        return;
       }
+
+      const tenantId = result.user.tenantId;
+
+      if (!tenantId) {
+        console.error("❌ No tenantId in response:", result);
+        toast.error("Tenant information missing from response");
+        return;
+      }
+
+      // ✅ Store complete user data with onboarding completed
+      const userData = {
+        ...result.user,
+        tenantId, // ✅ Explicitly set tenantId
+        onboardingRequired: false,
+        onboardingCompleted: true
+      };
+
+      console.log("✅ Storing user data:", userData);
+
+      // ✅ Set all cookies
+      Cookies.set("user", JSON.stringify(userData), {
+        expires: 7,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax"
+      });
+
+      Cookies.set("accessToken", result.accessToken, {
+        expires: 7,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax"
+      });
+
+      if (result.refreshToken) {
+        Cookies.set("refreshToken", result.refreshToken, {
+          expires: 7,
+          path: "/",
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax"
+        });
+      }
+
+      toast.success("Invitation accepted! Logging you in...");
+
+      // ✅ Wait for cookies to be written
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      console.log("✅ Cookies set, redirecting to dashboard");
+
+      // ✅ Redirect to dashboard, NOT onboarding
+      window.location.href = "/dashboard";
     } catch (err: any) {
-      console.error("Accept invitation error:", err);
-      // Error is already shown by Redux
+      console.error("❌ Accept invitation error:", err);
+      toast.error(err.message || "Failed to accept invitation");
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <Card className="w-96 rounded-2xl border-0 bg-accent">
+      <div className="bg-background flex min-h-screen items-center justify-center">
+        <Card className="bg-accent w-96 rounded-2xl border-0">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-sm text-muted-foreground">Loading invitation...</p>
+            <Loader2 className="text-primary mb-4 h-8 w-8 animate-spin" />
+            <p className="text-muted-foreground text-sm">Loading invitation...</p>
           </CardContent>
         </Card>
       </div>
@@ -197,40 +228,34 @@ export default function AcceptInvitationPage() {
 
   return (
     <div className="flex items-center justify-center py-4 lg:h-screen">
-      <Card className="mx-auto w-96 rounded-2xl border-0 bg-accent">
-        <CardHeader className="text-center pb-2 space-y-0.5">
-          <div className="inline-flex items-center gap-2 mb-0 justify-center pr-3">
-            <img
-              src="/fluera_new_logo.png"
-              alt="Fluera logo"
-              className="h-9 w-30"
-            />
+      <Card className="bg-accent mx-auto w-96 rounded-2xl border-0">
+        <CardHeader className="space-y-0.5 pb-2 text-center">
+          <div className="mb-0 inline-flex items-center justify-center gap-2 pr-3">
+            <img src="/fluera_new_logo.png" alt="Fluera logo" className="h-9 w-30" />
           </div>
-          <CardTitle className="text-2xl font-bold pt-0.5 mt-3">
-            Accept Invitation
-          </CardTitle>
-          <CardDescription className="text-xs pt-0">
+          <CardTitle className="mt-3 pt-0.5 text-2xl font-bold">Accept Invitation</CardTitle>
+          <CardDescription className="pt-0 text-xs">
             Complete your profile to join {invitationDetails.tenant_name}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* Invitation Info */}
-          <div className="mb-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
+          <div className="bg-primary/5 border-primary/20 mb-4 rounded-lg border p-3">
             <div className="flex items-start gap-2">
-              <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  You've been invited as <span className="text-xs text-muted-foreground mt-0.5 break-words">
+              <CheckCircle2 className="text-primary mt-0.5 h-5 w-5 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-foreground text-sm font-medium">
+                  You've been invited as{" "}
+                  <span className="text-muted-foreground mt-0.5 text-xs break-words">
                     {invitationDetails.role_display_name || invitationDetails.role_name}
                   </span>
                 </p>
 
                 {invitationDetails.invitee_email && (
-                  <p className="text-xs text-muted-foreground mt-1 break-all">
-                    Email:  {invitationDetails.invitee_email}
+                  <p className="text-muted-foreground mt-1 text-xs break-all">
+                    Email: {invitationDetails.invitee_email}
                   </p>
                 )}
-
               </div>
             </div>
           </div>
@@ -302,9 +327,8 @@ export default function AcceptInvitationPage() {
                             <button
                               type="button"
                               onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                              disabled={isLoading}
-                            >
+                              className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              disabled={isLoading}>
                               {showPassword ? (
                                 <EyeOff className="h-4 w-4" />
                               ) : (
@@ -339,9 +363,8 @@ export default function AcceptInvitationPage() {
                             <button
                               type="button"
                               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                              disabled={isLoading}
-                            >
+                              className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              disabled={isLoading}>
                               {showConfirmPassword ? (
                                 <EyeOff className="h-4 w-4" />
                               ) : (
@@ -359,9 +382,8 @@ export default function AcceptInvitationPage() {
                 {/* Submit Button */}
                 <Button
                   type="submit"
-                  className="w-full h-10 font-semibold text-sm mt-2"
-                  disabled={isLoading}
-                >
+                  className="mt-2 h-10 w-full text-sm font-semibold"
+                  disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -375,9 +397,9 @@ export default function AcceptInvitationPage() {
             </form>
           </Form>
 
-          <div className="mt-4 text-center text-sm text-muted-foreground">
+          <div className="text-muted-foreground mt-4 text-center text-sm">
             Already have an account?{" "}
-            <a href="/sign-in" className="underline text-foreground hover:text-primary">
+            <a href="/sign-in" className="text-foreground hover:text-primary underline">
               Sign in
             </a>
           </div>
