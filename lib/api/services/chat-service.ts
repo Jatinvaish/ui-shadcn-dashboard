@@ -1,6 +1,8 @@
 // lib/api/services/chat-service.ts - COMPLETE & ALIGNED WITH BACKEND
 import { encryptedApiClient } from '../encrypted-client';
 import { API_ENDPOINTS } from '../endpoints';
+import axios from 'axios';
+import Cookies from 'js-cookie';
 
 // ==================== HELPER ====================
 const extractData = <T>(response: any): T => {
@@ -29,6 +31,31 @@ export enum MessageType {
   VIDEO = 'video',
   AUDIO = 'audio',
   SYSTEM = 'system'
+}
+
+// ==================== FILE UPLOAD INTERFACES ====================
+export interface UploadedFile {
+  attachmentId: number;
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  thumbnailUrl?: string;
+}
+
+export interface FileUploadProgress {
+  loaded: number;
+  total: number;
+  percentage: number;
+}
+
+export interface FileDownloadInfo {
+  url: string;
+  expiresIn?: number;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  directAccess?: boolean;
 }
 
 // ==================== INTERFACES ====================
@@ -255,6 +282,149 @@ export interface NotificationPreferencePayload {
 
 // ==================== CHAT SERVICE ====================
 export class ChatService {
+  // ==================== FILE UPLOAD METHODS ====================
+
+  /**
+   * ✅ Upload single file for chat message
+   */
+  static async uploadMessageFile(
+    file: File,
+    messageId?: number,
+    onProgress?: (progress: FileUploadProgress) => void
+  ): Promise<UploadedFile> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (messageId) {
+      formData.append('messageId', messageId.toString());
+    }
+
+    const token = Cookies.get('accessToken');
+    const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3060/api/v1';
+
+    const response = await axios.post(
+      `${baseURL}${API_ENDPOINTS.CHAT.MESSAGES.UPLOAD}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage,
+            });
+          }
+        },
+      }
+    );
+
+    return extractData(response.data);
+  }
+
+  /**
+   * ✅ Upload multiple files for chat message
+   */
+  static async uploadMultipleMessageFiles(
+    files: File[],
+    messageId?: number,
+    onProgress?: (progress: FileUploadProgress) => void
+  ): Promise<UploadedFile[]> {
+    const formData = new FormData();
+    
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+    
+    if (messageId) {
+      formData.append('messageId', messageId.toString());
+    }
+
+    const token = Cookies.get('accessToken');
+    const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3060/api/v1';
+
+    const response = await axios.post(
+      `${baseURL}${API_ENDPOINTS.CHAT.MESSAGES.UPLOAD_MULTIPLE}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage,
+            });
+          }
+        },
+      }
+    );
+
+    return extractData(response.data);
+  }
+
+  /**
+   * ✅ Get file download URL
+   */
+  static async getFileDownloadUrl(attachmentId: number): Promise<FileDownloadInfo> {
+    return extractData(
+      await encryptedApiClient.get(API_ENDPOINTS.CHAT.MESSAGES.FILE_DOWNLOAD(attachmentId))
+    );
+  }
+
+  /**
+   * ✅ Delete attachment
+   */
+  static async deleteAttachment(attachmentId: number): Promise<void> {
+    await encryptedApiClient.delete(API_ENDPOINTS.CHAT.MESSAGES.FILE_DELETE(attachmentId));
+  }
+
+  /**
+   * ✅ Format file size for display
+   */
+  static formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  /**
+   * ✅ Get file icon based on mime type
+   */
+  static getFileIcon(mimeType: string): string {
+    if (mimeType.startsWith('image/')) return '🖼️';
+    if (mimeType.startsWith('video/')) return '🎥';
+    if (mimeType.startsWith('audio/')) return '🎵';
+    if (mimeType.includes('pdf')) return '📄';
+    if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
+    if (mimeType.includes('zip') || mimeType.includes('rar')) return '📦';
+    return '📎';
+  }
+
+  /**
+   * ✅ Check if file is an image
+   */
+  static isImage(mimeType: string): boolean {
+    return mimeType.startsWith('image/');
+  }
+
+  /**
+   * ✅ Check if file is previewable
+   */
+  static isPreviewable(mimeType: string): boolean {
+    return mimeType.startsWith('image/') || mimeType === 'application/pdf';
+  }
+
   // ==================== MESSAGES ====================
 
   static async sendMessage(payload: SendMessagePayload): Promise<Message> {
