@@ -412,7 +412,6 @@ export const sendInvite = createAsyncThunk(
   }
 );
 
-
 export const resendInvite = createAsyncThunk(
   "auth/resendInvite",
   async (
@@ -455,9 +454,35 @@ export const acceptInvite = createAsyncThunk(
   ) => {
     try {
       const response = await AuthService.acceptInvite(payload);
-      const { user, accessToken, refreshToken } = response.data;
-      storeAuthData(user, accessToken, refreshToken);
 
+      // ✅ CRITICAL: Extract data from wrapped response
+      const result = response.data || response;
+
+      const { user, accessToken, refreshToken } = result;
+
+      if (!user || !accessToken) {
+        console.error("❌ Invalid response structure:", { response, result });
+        return rejectWithValue("Invalid response from server");
+      }
+
+      // ✅ Ensure tenantId is present
+      const tenantId = result.tenantId || user.tenantId;
+
+      if (!tenantId) {
+        console.error("❌ No tenantId in accept invite response:", result);
+        return rejectWithValue("Tenant information missing from response");
+      }
+
+      const userWithTenant = {
+        ...user,
+        tenantId, // ✅ Explicitly set tenantId
+        onboardingRequired: false,
+        onboardingCompleted: true
+      };
+
+      storeAuthData(userWithTenant, accessToken, refreshToken);
+
+      // ✅ Load menu permissions
       try {
         const permResponse: any = await RbacService.getMyAccessibleMenus();
         if (permResponse.data?.success && permResponse.data?.data) {
@@ -472,8 +497,14 @@ export const acceptInvite = createAsyncThunk(
         console.error("Failed to load permissions:", permError);
       }
 
-      return { user, accessToken };
+      return {
+        user: userWithTenant,
+        accessToken,
+        refreshToken,
+        tenantId
+      };
     } catch (error: any) {
+      console.error("❌ acceptInvite thunk error:", error);
       return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
@@ -619,9 +650,14 @@ const authSlice = createSlice({
       .addCase(createAgency.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = true;
-        state.user = { ...action.payload.user, onboardingRequired: false };
+        state.user = {
+          ...action.payload.user,
+          tenantId: action.payload.tenantId, // ✅ Ensure tenantId is set
+          onboardingRequired: false,
+          onboardingCompleted: true
+        };
         state.accessToken = action.payload.accessToken;
-        state.initialized = true; // ✅ Mark as initialized
+        state.initialized = true;
       })
       .addCase(createAgency.rejected, (state, action) => {
         state.isLoading = false;
@@ -637,9 +673,14 @@ const authSlice = createSlice({
       .addCase(createBrand.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = true;
-        state.user = { ...action.payload.user, onboardingRequired: false };
+        state.user = {
+          ...action.payload.user,
+          tenantId: action.payload.tenantId, // ✅ Ensure tenantId is set
+          onboardingRequired: false,
+          onboardingCompleted: true
+        };
         state.accessToken = action.payload.accessToken;
-        state.initialized = true; // ✅ Mark as initialized
+        state.initialized = true;
       })
       .addCase(createBrand.rejected, (state, action) => {
         state.isLoading = false;
@@ -655,9 +696,14 @@ const authSlice = createSlice({
       .addCase(createCreator.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = true;
-        state.user = { ...action.payload.user, onboardingRequired: false };
+        state.user = {
+          ...action.payload.user,
+          tenantId: action.payload.tenantId, // ✅ Ensure tenantId is set
+          onboardingRequired: false,
+          onboardingCompleted: true
+        };
         state.accessToken = action.payload.accessToken;
-        state.initialized = true; // ✅ Mark as initialized
+        state.initialized = true;
       })
       .addCase(createCreator.rejected, (state, action) => {
         state.isLoading = false;
@@ -779,11 +825,18 @@ const authSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
+      // In authSlice extraReducers
       .addCase(acceptInvite.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = true;
-        state.user = action.payload.user;
+        state.user = {
+          ...action.payload.user,
+          tenantId: action.payload.tenantId, // ✅ Ensure tenantId is set
+          onboardingRequired: false,
+          onboardingCompleted: true
+        };
         state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
         state.initialized = true;
       })
       .addCase(acceptInvite.rejected, (state, action) => {
