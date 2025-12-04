@@ -48,6 +48,7 @@ export const API_ENDPOINTS = {
       UPLOAD_MULTIPLE: "/chat/messages/upload-multiple",
       // ✅ Add these new endpoints
       SEND_FILE: "/chat/messages/send-file", // ✅ NEW
+      SEND_FILES: "/chat/messages/send-files",
       SEND_ATTACHMENT: "/chat/messages/send-attachment", // ✅ NEW
       FILE_DOWNLOAD: (attachmentId: number) => `/chat/messages/files/${attachmentId}/download`,
       FILE_DELETE: (attachmentId: number) => `/chat/messages/files/${attachmentId}`,

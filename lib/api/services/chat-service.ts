@@ -339,6 +339,65 @@ export class ChatService {
   }
 
   /**
+   * ✅ Send multiple files as ONE message with multiple attachments
+   */
+  static async sendFilesAsOneMessage(
+    files: File[],
+    channelId: number,
+    options?: {
+      caption?: string;
+      replyToMessageId?: number;
+      threadId?: number;
+    },
+    onProgress?: (progress: FileUploadProgress) => void
+  ): Promise<Message> {
+    const formData = new FormData();
+
+    // Append all files
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    formData.append("channelId", channelId.toString());
+
+    if (options?.caption) {
+      formData.append("caption", options.caption);
+    }
+    if (options?.replyToMessageId) {
+      formData.append("replyToMessageId", options.replyToMessageId.toString());
+    }
+    if (options?.threadId) {
+      formData.append("threadId", options.threadId.toString());
+    }
+
+    const token = Cookies.get("accessToken");
+    const baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3060/api/v1";
+
+    const response = await axios.post(
+      `${baseURL}${API_ENDPOINTS.CHAT.MESSAGES.SEND_FILES}`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage
+            });
+          }
+        }
+      }
+    );
+
+    return extractData(response.data);
+  }
+
+  /**
    * ✅ Send multiple files as messages
    */
   static async sendMultipleFileMessages(
