@@ -532,28 +532,6 @@ const ChatPage = () => {
   }, [selectedChannel, dispatch]);
   // app/dashboard/chat/page.tsx - PART 5: Message Handlers
 
-  const handleSendMessage = useCallback(async (
-    html: string,
-    text: string,
-    mentions?: number[],
-  ): Promise<boolean> => {
-    if (!selectedChannel || !text.trim()) return false;
-    try {
-      const payload: SendMessagePayload = {
-        channelId: selectedChannel.id,
-        content: html,
-        messageType: MessageType.TEXT,
-        replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
-        threadId: selectedThreadId || undefined,
-        mentions: mentions && mentions.length > 0 ? mentions : undefined,
-      };
-
-      console.log('✅ Sending message with HTML:', {
-        content: html,
-        mentions,
-        payload
-      });
-
   // ✅ UPDATED: Send Message Handler with File Attachments
   const handleSendMessage = useCallback(
     async (
