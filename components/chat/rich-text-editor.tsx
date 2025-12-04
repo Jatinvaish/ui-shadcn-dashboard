@@ -1,8 +1,15 @@
-// components/chat/rich-text-editor.tsx - UPDATED WITH DIRECT FILE MESSAGE SENDING
+// components/chat/rich-text-editor.tsx - UPDATED WITH DIRECT FILE MESSAGE SENDING + DND & PASTE
 
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback, KeyboardEvent } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  KeyboardEvent,
+  DragEvent as ReactDragEvent
+} from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -208,6 +215,7 @@ export function RichTextEditor({
   const [isTyping, setIsTyping] = useState(false);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const editor = useEditor({
@@ -335,6 +343,7 @@ export function RichTextEditor({
       if (isTyping) onTypingStop?.();
       attachments.forEach((a) => URL.revokeObjectURL(a.preview));
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const extractMentions = useCallback(() => {
@@ -355,6 +364,43 @@ export function RichTextEditor({
     json.content?.forEach(traverse);
     return mentionedUserIds;
   }, [editor]);
+
+  // Centralized files handler used by file input, drop, paste
+  const handleFiles = useCallback((incoming: FileList | File[]) => {
+    const maxFileSize = 100 * 1024 * 1024; // 100MB
+    const newAttachments: FileAttachment[] = [];
+
+    const addFile = (file: File) => {
+      // Basic validation
+      if (file.size > maxFileSize) {
+        toast.error(`${file.name} is too large. Max size is 100MB.`);
+        return;
+      }
+      // Avoid duplicates by name+size (simple heuristic)
+      const exists = attachments.some((a) => a.file.name === file.name && a.file.size === file.size);
+      if (exists) return;
+
+      const preview = URL.createObjectURL(file);
+      newAttachments.push({ file, preview });
+    };
+
+    if ("length" in incoming) {
+      for (let i = 0; i < incoming.length; i++) {
+        addFile(incoming[i]);
+      }
+    } else {
+      // fallback
+      Array.from(incoming).forEach(addFile);
+    }
+
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments]);
+    }
+
+    // reset file input so same file can be selected again later
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachments]);
 
   // ✅ Send files as messages directly
   const sendFilesAsMessages = useCallback(async (): Promise<boolean> => {
@@ -383,7 +429,7 @@ export function RichTextEditor({
             caption: i === 0 ? editor?.getText().trim() : undefined,
             replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined
           },
-          (progress) => {
+          (progress: FileUploadProgress) => {
             setAttachments((prev) =>
               prev.map((a, idx) => (idx === i ? { ...a, progress: progress.percentage } : a))
             );
@@ -438,7 +484,7 @@ export function RichTextEditor({
           caption,
           replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined
         },
-        (progress) => {
+        (progress: FileUploadProgress) => {
           // Update progress for all files
           setAttachments((prev) => prev.map((a) => ({ ...a, progress: progress.percentage })));
         }
@@ -543,28 +589,9 @@ export function RichTextEditor({
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    const newAttachments: FileAttachment[] = [];
-    const maxFileSize = 100 * 1024 * 1024; // 100MB
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-
-      if (file.size > maxFileSize) {
-        toast.error(`${file.name} is too large. Max size is 100MB.`);
-        continue;
-      }
-
-      const preview = URL.createObjectURL(file);
-      newAttachments.push({ file, preview });
-    }
-
-    if (newAttachments.length > 0) {
-      setAttachments((prev) => [...prev, ...newAttachments]);
-    }
-
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+    handleFiles(files);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleFiles]);
 
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => {
@@ -594,6 +621,96 @@ export function RichTextEditor({
     return () => dom.removeEventListener("keydown", handler);
   }, [editor, handleSend]);
 
+  // --- Drag & Drop handlers on wrapper div ---
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setIsDragging(true);
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear when leaving the editor container entirely
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    if (!e.dataTransfer) return;
+    const dt = e.dataTransfer;
+
+    // If files are present, use them
+    if (dt.files && dt.files.length > 0) {
+      handleFiles(dt.files);
+      return;
+    }
+
+    // Fallback: try to get items that may contain blobs
+    if (dt.items && dt.items.length > 0) {
+      const files: File[] = [];
+      for (let i = 0; i < dt.items.length; i++) {
+        const item = dt.items[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) handleFiles(files);
+    }
+  }, [handleFiles]);
+
+  // --- Paste support (images/videos/files) ---
+  useEffect(() => {
+    if (!editor) return;
+
+    const dom = editor.view.dom as HTMLElement;
+
+    const onPaste = (e: ClipboardEvent) => {
+      try {
+        const clipboard = e.clipboardData;
+        if (!clipboard) return;
+
+        const files = clipboard.files;
+        if (files && files.length > 0) {
+          e.preventDefault();
+          handleFiles(files);
+          return;
+        }
+
+        // Sometimes images are in items
+        const items = clipboard.items;
+        if (items && items.length > 0) {
+          const filesFromItems: File[] = [];
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.kind === "file") {
+              const file = item.getAsFile();
+              if (file) filesFromItems.push(file);
+            }
+          }
+          if (filesFromItems.length > 0) {
+            e.preventDefault();
+            handleFiles(filesFromItems);
+          }
+        }
+      } catch (err) {
+        // swallow errors to avoid breaking editor paste behavior
+        // console.debug("paste handler error", err);
+      }
+    };
+
+    dom.addEventListener("paste", onPaste as EventListener);
+    return () => dom.removeEventListener("paste", onPaste as EventListener);
+  }, [editor, handleFiles]);
+
+  // Also attach dragover/drop to the editor container via a ref wrapper — done inline in JSX
+
   return (
     <div className={cn("bg-background border-border border-t px-2 py-2 sm:px-4", className)}>
       <div className="w-full space-y-2">
@@ -613,7 +730,28 @@ export function RichTextEditor({
           </div>
         )}
 
-        <div className="border-border hover:border-primary/50 bg-background focus-within:border-primary focus-within:ring-primary/20 flex flex-col overflow-hidden rounded-lg border transition-colors focus-within:ring-1">
+        <div
+          // Editor container with DnD handlers
+          onDragOver={onDragOver}
+          onDragEnter={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+          className={cn(
+            "border-border hover:border-primary/50 bg-background focus-within:border-primary focus-within:ring-primary/20 flex flex-col overflow-hidden rounded-lg border transition-colors focus-within:ring-1 relative"
+          )}>
+          {/* Drop overlay */}
+          {isDragging && (
+            <div
+              aria-hidden
+              className="absolute inset-0 z-20 flex items-center justify-center rounded bg-white/60 dark:bg-black/40">
+              <div className="flex flex-col items-center gap-2 rounded border border-dashed border-border bg-transparent px-6 py-4">
+                <Paperclip className="h-6 w-6" />
+                <div className="text-sm font-medium">Drop files here to attach</div>
+                <div className="text-xs text-muted-foreground">You can drop images, videos or documents</div>
+              </div>
+            </div>
+          )}
+
           {/* File Attachments Preview */}
           {attachments.length > 0 && (
             <div className="border-border flex flex-wrap gap-2 border-b px-2 py-2 sm:px-3">
@@ -627,7 +765,7 @@ export function RichTextEditor({
             </div>
           )}
 
-          <EditorContent editor={editor} className="w-full" />
+          <EditorContent editor={editor} className="w-full relative z-10" />
 
           <div className="bg-muted/50 border-border flex items-center justify-between border-t px-1 py-1.5 sm:px-2">
             <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
@@ -792,7 +930,7 @@ export function RichTextEditor({
                   }
                 }}
                 disabled={disabled || isUploading || !channelId}
-                className="h-6 w-6 p-0 sm:h-7 sm:w-7"
+                className="h-6 w-6 p-0 sm:h-7 sm:w-3"
                 title={channelId ? "Add image" : "Select a channel first"}>
                 <ImageIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
