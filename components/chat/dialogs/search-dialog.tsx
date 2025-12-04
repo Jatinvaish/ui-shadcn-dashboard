@@ -1,4 +1,4 @@
-// components/chat/dialogs/search-dialog.tsx - COMPLETE FIX WITH NAVIGATION
+// components/chat/dialogs/search-dialog.tsx - FIXED NAVIGATION
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -12,17 +12,15 @@ import { Search, MessageSquare, Hash, Users, Loader2, MessageCircle, ArrowUpRigh
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
 import { searchChat, clearSearchResults } from "@/store/slices/chatSlice"
 import useDebounce from "@/hooks/useDebounce"
-import { cn } from "@/lib/utils"
 
 interface SearchDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onChannelSelect?: (channelId: number) => void
-  onMessageSelect?: (channelId: number, messageId: number) => void
+  onChannelSelect?: (channelId: number, channelType?: string) => void
+  onMessageSelect?: (channelId: number, messageId: number, channelType?: string) => void
   onStartDM?: (userId: string) => void
 }
 
-// Helper to strip HTML tags and get plain text
 const stripHtml = (html: string): string => {
   const tmp = document.createElement('div')
   tmp.innerHTML = html
@@ -38,6 +36,7 @@ export function SearchDialog({
 }: SearchDialogProps) {
   const dispatch = useAppDispatch()
   const { searchResults, isSearching } = useAppSelector((state) => state.chat)
+  const channels = useAppSelector((state) => state.chat.channels)
   
   const [query, setQuery] = useState("")
   const [activeTab, setActiveTab] = useState<"all" | "messages" | "channels" | "members">("all")
@@ -61,20 +60,26 @@ export function SearchDialog({
     }
   }, [open, dispatch])
 
-  // ✅ FIXED: Call parent handlers directly (parent will handle navigation)
   const handleChannelClick = (channelId: number) => {
-    console.log('🔍 SearchDialog: Channel clicked', channelId)
-    onChannelSelect?.(channelId)
+    console.log('🔍 Channel clicked:', channelId)
+    const channel = channels.find(ch => ch.id === channelId)
+    const channelType = channel?.channel_type || 'group'
+    onChannelSelect?.(channelId, channelType)
+    onOpenChange(false)
   }
 
   const handleMessageClick = (channelId: number, messageId: number) => {
-    console.log('🔍 SearchDialog: Message clicked', { channelId, messageId })
-    onMessageSelect?.(channelId, messageId)
+    console.log('🔍 Message clicked:', { channelId, messageId })
+    const channel = channels.find(ch => ch.id === channelId)
+    const channelType = channel?.channel_type || 'group'
+    onMessageSelect?.(channelId, messageId, channelType)
+    onOpenChange(false)
   }
 
   const handleMemberClick = (memberId: number) => {
-    console.log('🔍 SearchDialog: Member clicked', memberId)
+    console.log('🔍 Member clicked:', memberId)
     onStartDM?.(memberId.toString())
+    onOpenChange(false)
   }
 
   const formatDate = (date: string) => {
