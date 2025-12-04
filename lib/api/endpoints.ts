@@ -41,12 +41,17 @@ export const API_ENDPOINTS = {
       DELIVERY_STATUS: (messageId: number) => `/chat/messages/${messageId}/delivery-status`,
       MARK_DELIVERED: (messageId: number) => `/chat/messages/${messageId}/mark-delivered`,
       READ_STATUS: (messageId: number) => `/chat/messages/${messageId}/read-status`,
-      READ_STATUS_DETAILED: (messageId: number) => `/chat/messages/${messageId}/read-status-detailed`,
-       // ✅ File Upload Endpoints
+      READ_STATUS_DETAILED: (messageId: number) =>
+        `/chat/messages/${messageId}/read-status-detailed`,
+      // ✅ File Upload Endpoints
       UPLOAD: "/chat/messages/upload",
       UPLOAD_MULTIPLE: "/chat/messages/upload-multiple",
       FILE_DOWNLOAD: (attachmentId: number) => `/chat/messages/files/${attachmentId}/download`,
-      FILE_DELETE: (attachmentId: number) => `/chat/messages/files/${attachmentId}`
+      FILE_DELETE: (attachmentId: number) => `/chat/messages/files/${attachmentId}`,
+      // ✅ Add these new endpoints
+      SEND_FILE: "/chat/messages/send-file",
+      SEND_ATTACHMENT: "/chat/messages/send-attachment",
+      PENDING_ATTACHMENTS: "/chat/attachments/pending"
     },
 
     // ✅ Reactions - Aligned with chat.controller.ts
@@ -81,9 +86,9 @@ export const API_ENDPOINTS = {
     MEMBERS: {
       LIST: (channelId: number) => `/chat/channels/${channelId}/members`,
       ADD: (channelId: number) => `/chat/channels/${channelId}/members`,
-      REMOVE: (channelId: number, userId: number) => 
+      REMOVE: (channelId: number, userId: number) =>
         `/chat/channels/${channelId}/members/${userId}`,
-      UPDATE_ROLE: (channelId: number, userId: number) => 
+      UPDATE_ROLE: (channelId: number, userId: number) =>
         `/chat/channels/${channelId}/members/${userId}/role`
     },
 

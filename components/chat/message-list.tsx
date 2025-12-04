@@ -4,6 +4,8 @@
 import React, { useRef, useEffect, useMemo } from "react"
 import { MessageItem } from "./message-item"
 
+// components/chat/message-list.tsx - Update Message interface
+
 export interface Message {
   id: string
   authorId: string
@@ -14,7 +16,15 @@ export interface Message {
   edited?: boolean
   reactions?: any[]
   threadReplies?: number
-  files?: Array<{ name: string; size: number }>
+  // ✅ Updated files interface
+  files?: Array<{
+    id?: number;
+    name: string;
+    size: number;
+    url?: string;
+    mimeType?: string;
+    thumbnailUrl?: string;
+  }>
   replyTo?: {
     messageId: string
     authorName: string
