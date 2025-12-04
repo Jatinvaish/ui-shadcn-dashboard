@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - WITH FILE UPLOAD SUPPORT
+
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -44,6 +44,7 @@ import {
 const ChatPage = () => {
   const dispatch = useAppDispatch();
 
+  // Redux State
   const selectedChannel = useAppSelector((state) => state.chat.selectedChannel);
   const allMessages = useAppSelector((state) => state.chat.messages);
   const threadMessages = useAppSelector((state) => state.chat.threadMessages);
@@ -60,6 +61,7 @@ const ChatPage = () => {
   const currentUser = useAppSelector(selectUser);
   const token = useAppSelector((state) => state.auth.accessToken);
 
+  // WebSocket
   const {
     sendMessage: sendMessageWS,
     startTyping: startTypingWS,
@@ -75,6 +77,7 @@ const ChatPage = () => {
     isConnected
   } = useWebSocket(token, currentUser?.id || null);
 
+  // Local State
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"chat" | "channels" | "activity">("chat");
@@ -89,6 +92,8 @@ const ChatPage = () => {
   const [forwardMessageContent, setForwardMessageContent] = useState("");
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  // app/dashboard/chat/page.tsx - PART 2: Effects and Initialization
 
   // Initialization
   useEffect(() => {
@@ -192,6 +197,30 @@ const ChatPage = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Typing Indicator Debug
+  useEffect(() => {
+    console.log('🔍 TYPING STATE CHANGED:', {
+      selectedChannelId: selectedChannel?.id,
+      allTypingUsers: typingUsers,
+      typingInThisChannel: selectedChannel ? typingUsers[selectedChannel.id] : null,
+    });
+  }, [typingUsers, selectedChannel]);
+
+  // Mark As Read Listener
+  useEffect(() => {
+    const handleMarkAsRead = (event: CustomEvent) => {
+      const { messageId, channelId } = event.detail;
+      if (isConnected) {
+        markAsReadWS(parseInt(messageId), channelId);
+      } else {
+        dispatch(markAsRead({ channelId, messageId: parseInt(messageId) }));
+      }
+    };
+    window.addEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+    return () => window.removeEventListener('markMessageAsRead', handleMarkAsRead as EventListener);
+  }, [isConnected, markAsReadWS, dispatch]);
+  // app/dashboard/chat/page.tsx - PART 3: Helper Functions
+
   // Message Conversion
   const convertToFrontendMessage = useCallback((msg: any): Message => {
     const senderFirstName = msg.sender_first_name || msg.first_name || "";
@@ -260,7 +289,53 @@ const ChatPage = () => {
     [channelMembers, currentUser]
   );
 
+   // Scroll to specific message
+  const scrollToMessage = useCallback((messageId: string) => {
+    console.log('🎯 Scrolling to message:', messageId);
+    
+    // Wait a bit for DOM to be ready
+    setTimeout(() => {
+      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+      console.log('📍 Found message element:', messageElement);
+      
+      if (messageElement) {
+        // Scroll to message
+        messageElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center',
+          inline: 'nearest'
+        });
+        
+        // Highlight the message
+        messageElement.classList.add(
+          'bg-yellow-100/50', 
+          'dark:bg-yellow-900/20',
+          'transition-colors',
+          'duration-500',
+          'ring-2',
+          'ring-yellow-400/50',
+          'rounded-lg'
+        );
+        
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          messageElement.classList.remove(
+            'bg-yellow-100/50',
+            'dark:bg-yellow-900/20',
+            'ring-2',
+            'ring-yellow-400/50'
+          );
+        }, 3000);
+      } else {
+        console.warn('⚠️ Message element not found:', messageId);
+      }
+    }, 800); // Increased delay to ensure messages are rendered
+  }, []);
+
+  // Data transformations
+  
   const rawMessages = selectedChannel ? allMessages[selectedChannel.id] || [] : [];
+ 
   const currentMessages: Message[] = rawMessages.map(convertToFrontendMessage);
 
   const rawThreadMessages = selectedThreadId ? threadMessages[selectedThreadId] || [] : [];
@@ -343,20 +418,16 @@ const ChatPage = () => {
   }, [isConnected, markAsReadWS, dispatch]);
 
   // Channel Handlers
-  const handleChannelClick = useCallback(
-    (channelId: string) => {
-      const channel = channels?.find(
-        (c) => c.id.toString() === channelId || c.channel_id === channelId
-      );
-      if (channel) {
-        dispatch(setSelectedChannel(channel));
-        setSelectedThreadId(null);
-        setReplyingTo(null);
-        setShowThreadSidebar(false);
-      }
-    },
-    [channels, dispatch]
-  );
+    const handleChannelClick = useCallback((channelId: string) => {
+    console.log('🔄 Channel clicked:', channelId);
+    const channel = channels?.find((c) => c.id.toString() === channelId || c.channel_id === channelId);
+    if (channel) {
+      dispatch(setSelectedChannel(channel));
+      setSelectedThreadId(null);
+      setReplyingTo(null);
+      setShowThreadSidebar(false);
+    }
+  }, [channels, dispatch]);
 
   const handleBackToList = useCallback(() => {
     dispatch(setSelectedChannel(null));
@@ -450,18 +521,38 @@ const ChatPage = () => {
     }
   }, [selectedChannel, dispatch]);
 
-  const handleUpdateChannel = useCallback(
-    async (name: string, description: string) => {
-      if (!selectedChannel) return;
-      try {
-        await ChatService.updateChannel(selectedChannel.id, { name, description });
-        await dispatch(fetchUserChannels(100)).unwrap();
-      } catch (e: any) {
-        toast.error(e?.message || "Failed to update channel");
-      }
-    },
-    [selectedChannel, dispatch]
-  );
+  const handleUpdateChannel = useCallback(async (name: string, description: string) => {
+    if (!selectedChannel) return;
+    try {
+      await ChatService.updateChannel(selectedChannel.id, { name, description });
+      await dispatch(fetchUserChannels(100)).unwrap();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update channel");
+    }
+  }, [selectedChannel, dispatch]);
+  // app/dashboard/chat/page.tsx - PART 5: Message Handlers
+
+  const handleSendMessage = useCallback(async (
+    html: string,
+    text: string,
+    mentions?: number[],
+  ): Promise<boolean> => {
+    if (!selectedChannel || !text.trim()) return false;
+    try {
+      const payload: SendMessagePayload = {
+        channelId: selectedChannel.id,
+        content: html,
+        messageType: MessageType.TEXT,
+        replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
+        threadId: selectedThreadId || undefined,
+        mentions: mentions && mentions.length > 0 ? mentions : undefined,
+      };
+
+      console.log('✅ Sending message with HTML:', {
+        content: html,
+        mentions,
+        payload
+      });
 
   // ✅ UPDATED: Send Message Handler with File Attachments
   const handleSendMessage = useCallback(
@@ -577,6 +668,138 @@ const ChatPage = () => {
     [currentMessages]
   );
 
+ 
+  const handleMembersAdded = useCallback((channelId: number, userIds: number[]) => {
+    if (isConnected) {
+      inviteMembersWS(channelId, userIds);
+    }
+    if (selectedChannel) {
+      dispatch(fetchUserChannels(100));
+      dispatch(fetchChannelMembers(selectedChannel.id));
+    }
+  }, [selectedChannel, dispatch, isConnected, inviteMembersWS]);
+  // app/dashboard/chat/page.tsx - PART 6: Search Handlers (CRITICAL FIX)
+
+  // ✅ SEARCH DIALOG HANDLERS - THE FIX FOR NAVIGATION
+  const handleSearchChannelSelect = useCallback(async (channelId: number) => {
+    console.log('🔍 Search: Channel selected:', channelId);
+    
+    // Find the channel
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel) {
+      console.error('❌ Channel not found:', channelId);
+      return;
+    }
+
+    try {
+      // 1. Close search dialog first
+      setSearchDialogOpen(false);
+      
+      // 2. Clear any thread/reply state
+      setSelectedThreadId(null);
+      setReplyingTo(null);
+      setShowThreadSidebar(false);
+      
+      // 3. Set the selected channel
+      dispatch(setSelectedChannel(channel));
+      
+      // 4. Load channel data
+      await dispatch(fetchMessages({ channelId, limit: 50 })).unwrap();
+      await dispatch(fetchChannelMembers(channelId)).unwrap();
+      
+      console.log('✅ Search: Channel loaded successfully');
+      toast.success(`Opened #${channel.name}`);
+    } catch (e: any) {
+      console.error('❌ Search: Failed to load channel:', e);
+      toast.error("Failed to open channel");
+    }
+  }, [channels, dispatch]);
+
+  const handleSearchMessageSelect = useCallback(async (channelId: number, messageId: number) => {
+    console.log('🔍 Search: Message selected:', { channelId, messageId });
+    
+    // Find the channel
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel) {
+      console.error('❌ Channel not found:', channelId);
+      return;
+    }
+
+    try {
+      // 1. Close search dialog first
+      setSearchDialogOpen(false);
+      
+      // 2. Clear any thread/reply state
+      setSelectedThreadId(null);
+      setReplyingTo(null);
+      setShowThreadSidebar(false);
+      
+      // 3. Set the selected channel
+      dispatch(setSelectedChannel(channel));
+      
+      // 4. Load channel messages
+      await dispatch(fetchMessages({ channelId, limit: 50 })).unwrap();
+      await dispatch(fetchChannelMembers(channelId)).unwrap();
+      
+      // 5. Scroll to the specific message
+      console.log('📜 Search: Scrolling to message:', messageId);
+      scrollToMessage(messageId.toString());
+      
+      console.log('✅ Search: Message navigation successful');
+      toast.success(`Found message in #${channel.name}`);
+    } catch (e: any) {
+      console.error('❌ Search: Failed to navigate to message:', e);
+      toast.error("Failed to navigate to message");
+    }
+  }, [channels, dispatch, scrollToMessage]);
+
+  const handleSearchStartDM = useCallback(async (userId: string) => {
+    console.log('🔍 Search: Starting DM with user:', userId);
+    
+    try {
+      // 1. Close search dialog
+      setSearchDialogOpen(false);
+      
+      // 2. Check if DM already exists
+      const existingDM = channels.find(ch =>
+        ch.channel_type === ChannelType.DIRECT &&
+        channelMembers[ch.id]?.some(m => m.user_id === parseInt(userId))
+      );
+      
+      if (existingDM) {
+        // DM exists, just select it
+        console.log('📱 Search: Found existing DM:', existingDM.id);
+        dispatch(setSelectedChannel(existingDM));
+        await dispatch(fetchMessages({ channelId: existingDM.id, limit: 50 })).unwrap();
+        toast.success("Opened conversation");
+      } else {
+        // Create new DM
+        console.log('📱 Search: Creating new DM');
+        await ChatService.startTeamChat([parseInt(userId)]);
+        await dispatch(fetchUserChannels(100)).unwrap();
+        
+        // Find the newly created DM
+        const newDM = channels.find(ch =>
+          ch.channel_type === ChannelType.DIRECT &&
+          channelMembers[ch.id]?.some(m => m.user_id === parseInt(userId))
+        );
+        
+        if (newDM) {
+          dispatch(setSelectedChannel(newDM));
+          await dispatch(fetchMessages({ channelId: newDM.id, limit: 50 })).unwrap();
+        }
+        
+        toast.success("Started conversation");
+      }
+      
+      console.log('✅ Search: DM opened successfully');
+    } catch (e: any) {
+      console.error('❌ Search: Failed to start DM:', e);
+      toast.error("Failed to start conversation");
+    }
+  }, [channels, channelMembers, dispatch]);
+  // app/dashboard/chat/page.tsx - PART 7: Render JSX
+ 
   const handleOpenThread = useCallback(
     (messageId: string) => {
       if (isDirect) {
@@ -619,18 +842,7 @@ const ChatPage = () => {
     [currentMessages]
   );
 
-  const handleMembersAdded = useCallback(
-    (channelId: number, userIds: number[]) => {
-      if (isConnected) {
-        inviteMembersWS(channelId, userIds);
-      }
-      if (selectedChannel) {
-        dispatch(fetchUserChannels(100));
-        dispatch(fetchChannelMembers(selectedChannel.id));
-      }
-    },
-    [selectedChannel, dispatch, isConnected, inviteMembersWS]
-  );
+ 
 
   return (
     <div className="bg-background flex h-[calc(100vh-var(--header-height))] w-full overflow-hidden">
@@ -725,7 +937,7 @@ const ChatPage = () => {
               onForward={handleForwardMessage}
             />
 
-            {/* FIXED TYPING INDICATOR */}
+            {/* TYPING INDICATOR */}
             {(() => {
               const typingInChannel = selectedChannel ? typingUsers[selectedChannel.id] || [] : [];
               const currentTypingUsers = typingInChannel
@@ -807,10 +1019,13 @@ const ChatPage = () => {
         />
       )}
 
+      {/* ✅ CRITICAL: Pass the fixed search handlers */}
       <SearchDialog
         open={searchDialogOpen}
         onOpenChange={setSearchDialogOpen}
-        onStartDM={handleStartDirectMessage}
+        onChannelSelect={handleSearchChannelSelect}
+        onMessageSelect={handleSearchMessageSelect}
+        onStartDM={handleSearchStartDM}
       />
 
       {forwardMessageId && (

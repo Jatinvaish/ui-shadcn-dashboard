@@ -19,6 +19,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
@@ -49,6 +50,14 @@ export function ChannelSettingsDialog({
   const [desc, setDesc] = React.useState(description)
   const [showArchiveDialog, setShowArchiveDialog] = React.useState(false)
   const [showLeaveDialog, setShowLeaveDialog] = React.useState(false)
+
+  // Update local state when dialog opens or props change
+  React.useEffect(() => {
+    if (open) {
+      setName(channelName)
+      setDesc(description)
+    }
+  }, [open, channelName, description])
 
   const handleUpdate = () => {
     onUpdateChannel?.(name, desc)
@@ -116,17 +125,19 @@ export function ChannelSettingsDialog({
               This channel will be archived and hidden from everyone's channel list. This action can be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              onArchiveChannel?.()
-              setShowArchiveDialog(false)
-              onOpenChange(false)
-            }}
-            className="bg-destructive hover:bg-destructive/90"
-          >
-            Archive
-          </AlertDialogAction>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onArchiveChannel?.()
+                setShowArchiveDialog(false)
+                onOpenChange(false)
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
@@ -138,17 +149,19 @@ export function ChannelSettingsDialog({
               You will no longer have access to #{channelName}. You can request to rejoin later.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              onLeaveChannel?.()
-              setShowLeaveDialog(false)
-              onOpenChange(false)
-            }}
-            className="bg-destructive hover:bg-destructive/90"
-          >
-            Leave
-          </AlertDialogAction>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onLeaveChannel?.()
+                setShowLeaveDialog(false)
+                onOpenChange(false)
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
