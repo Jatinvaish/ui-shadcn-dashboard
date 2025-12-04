@@ -1,4 +1,5 @@
-// components/chat/rich-text-editor.tsx - WITH FILE UPLOAD
+// components/chat/rich-text-editor.tsx - UPDATED WITH DIRECT FILE MESSAGE SENDING
+
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback, KeyboardEvent } from 'react';
@@ -26,7 +27,6 @@ import {
   List as ListIcon,
   ListOrdered,
   Quote,
-  Upload,
   Underline as UnderlineIcon,
   Strikethrough,
   Paperclip,
@@ -36,7 +36,7 @@ import {
 import { cn } from '@/lib/utils';
 import { EmojiPopover } from './popovers/emoji-popover';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
-import { ChatService, UploadedFile, FileUploadProgress } from '@/lib/api/services/chat-service';
+import { ChatService, FileUploadProgress } from '@/lib/api/services/chat-service';
 import toast from 'react-hot-toast';
 
 interface MentionListProps {
@@ -102,14 +102,14 @@ const MentionList = React.forwardRef<any, MentionListProps>((props, ref) => {
 });
 MentionList.displayName = 'MentionList';
 
-// ✅ File Attachment Preview Component
+// ✅ File Attachment Interface
 interface FileAttachment {
   file: File;
   preview: string;
-  uploadedFile?: UploadedFile;
   uploading?: boolean;
   progress?: number;
   error?: string;
+  sent?: boolean;
 }
 
 interface FilePreviewProps {
@@ -160,7 +160,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ attachment, onRemove }) => {
         </div>
       )}
       
-      {attachment.uploadedFile && !attachment.uploading && (
+      {attachment.sent && !attachment.uploading && (
         <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
           <span className="text-[8px] text-white">✓</span>
         </div>
@@ -169,6 +169,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ attachment, onRemove }) => {
       <button 
         onClick={onRemove} 
         className="absolute -top-1 -right-1 bg-background rounded-full p-0.5 sm:p-1 shadow opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 dark:hover:bg-red-900/30"
+        disabled={attachment.uploading}
       >
         <X className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-red-500" />
       </button>
@@ -184,6 +185,7 @@ interface RichTextEditorProps {
     mentions?: number[],
     attachmentIds?: number[]
   ) => Promise<boolean> | void;
+  onFileSent?: (message: any) => void; // ✅ NEW: Callback when file message is sent
   disabled?: boolean;
   replyingTo?: { id: string; authorName: string; content: string } | null;
   onClearReply?: () => void;
@@ -191,11 +193,13 @@ interface RichTextEditorProps {
   onTypingStop?: () => void;
   teamMembers?: Array<{ id: string; name: string; email: string }>;
   className?: string;
+  channelId?: number; // ✅ NEW: Required for sending files as messages
 }
 
 export function RichTextEditor({
   placeholder = 'Type a message...',
   onSend,
+  onFileSent,
   disabled,
   replyingTo,
   onClearReply,
@@ -203,6 +207,7 @@ export function RichTextEditor({
   onTypingStop,
   teamMembers = [],
   className,
+  channelId,
 }: RichTextEditorProps) {
   const [isSending, setIsSending] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -210,64 +215,6 @@ export function RichTextEditor({
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleTypingStart = useCallback(() => {
-    if (!isTyping) {
-      setIsTyping(true);
-      onTypingStart?.();
-    }
-  }, [isTyping, onTypingStart]);
-
-  const handleTypingStop = useCallback(() => {
-    if (isTyping) {
-      setIsTyping(false);
-      onTypingStop?.();
-    }
-  }, [isTyping, onTypingStop]);
-
-  const autoDetectAndFormat = useCallback((text: string, editor: any) => {
-    if (!editor) return;
-
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const hasUrls = urlRegex.test(text);
-    
-    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
-    const hasEmails = emailRegex.test(text);
-
-    const codeBlockRegex = /```[\s\S]*?```/g;
-    const hasCodeBlocks = codeBlockRegex.test(text);
-
-    const boldRegex = /\*\*([^*]+)\*\*/g;
-    if (boldRegex.test(text)) {
-      const selection = editor.state.selection;
-      const match = text.match(boldRegex);
-      if (match) {
-        const cleanText = match[0].replace(/\*\*/g, '');
-        editor.commands.insertContent(cleanText);
-        editor.commands.setTextSelection({
-          from: selection.from - match[0].length,
-          to: selection.from - match[0].length + cleanText.length
-        });
-        editor.commands.toggleBold();
-      }
-    }
-
-    const listStartRegex = /^(\d+\.|[-*])\s/;
-    if (listStartRegex.test(text.trim())) {
-      const match = text.trim().match(listStartRegex);
-      if (match) {
-        if (match[1].includes('.')) {
-          editor.commands.toggleOrderedList();
-        } else {
-          editor.commands.toggleBulletList();
-        }
-      }
-    }
-
-    if (text.trim().startsWith('>')) {
-      editor.commands.toggleBlockquote();
-    }
-  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -279,19 +226,13 @@ export function RichTextEditor({
         listItem: false,
       }),
       BulletList.configure({
-        HTMLAttributes: {
-          class: 'list-disc pl-5 my-1 space-y-0.5',
-        },
+        HTMLAttributes: { class: 'list-disc pl-5 my-1 space-y-0.5' },
       }),
       OrderedList.configure({
-        HTMLAttributes: {
-          class: 'list-decimal pl-5 my-1 space-y-0.5',
-        },
+        HTMLAttributes: { class: 'list-decimal pl-5 my-1 space-y-0.5' },
       }),
       ListItem.configure({
-        HTMLAttributes: {
-          class: 'ml-0 pl-0.5 leading-normal',
-        },
+        HTMLAttributes: { class: 'ml-0 pl-0.5 leading-normal' },
       }),
       Placeholder.configure({ placeholder }),
       Link.configure({
@@ -315,11 +256,7 @@ export function RichTextEditor({
         },
       }),
       Underline,
-      Strike.configure({
-        HTMLAttributes: {
-          class: 'line-through',
-        },
-      }),
+      Strike.configure({ HTMLAttributes: { class: 'line-through' } }),
       Mention.configure({
         HTMLAttributes: {
           class: 'text-primary bg-primary/10 px-1 py-0.5 rounded font-semibold',
@@ -352,9 +289,7 @@ export function RichTextEditor({
               },
               onUpdate(props) {
                 component.updateProps(props);
-                popup[0].setProps({
-                  getReferenceClientRect: props.clientRect as any,
-                });
+                popup[0].setProps({ getReferenceClientRect: props.clientRect as any });
               },
               onKeyDown(props) {
                 if (props.event.key === 'Escape') {
@@ -376,16 +311,6 @@ export function RichTextEditor({
       attributes: {
         class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[60px] max-h-[200px] overflow-y-auto px-3 py-2.5 text-sm leading-relaxed [&>p]:my-0.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&_code]:bg-muted/60 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
       },
-      handlePaste: (view, event) => {
-        const text = event.clipboardData?.getData('text/plain');
-        if (text) {
-          const urlRegex = /(https?:\/\/[^\s]+)/g;
-          if (urlRegex.test(text)) {
-            return false;
-          }
-        }
-        return false;
-      },
     },
     onUpdate: ({ editor }) => {
       const text = editor.getText();
@@ -402,8 +327,6 @@ export function RichTextEditor({
           onTypingStop?.();
         }
       }, 3000);
-
-      autoDetectAndFormat(text, editor);
     },
   });
 
@@ -411,10 +334,9 @@ export function RichTextEditor({
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (isTyping) onTypingStop?.();
-      // Clean up previews
       attachments.forEach((a) => URL.revokeObjectURL(a.preview));
     };
-  }, [isTyping, onTypingStop]);
+  }, []);
 
   const extractMentions = useCallback(() => {
     if (!editor) return [];
@@ -435,148 +357,120 @@ export function RichTextEditor({
     return mentionedUserIds;
   }, [editor]);
 
-  // ✅ Upload files before sending message
-  const uploadFiles = useCallback(async (): Promise<number[]> => {
-    const pendingUploads = attachments.filter(a => !a.uploadedFile && !a.error);
-    
-    if (pendingUploads.length === 0) {
-      return attachments
-        .filter(a => a.uploadedFile)
-        .map(a => a.uploadedFile!.attachmentId);
-    }
+  // ✅ Send files as messages directly
+  const sendFilesAsMessages = useCallback(async (): Promise<boolean> => {
+    if (!channelId || attachments.length === 0) return true;
 
     setIsUploading(true);
-    const uploadedIds: number[] = [];
+    let allSuccess = true;
 
-    for (let i = 0; i < pendingUploads.length; i++) {
-      const attachment = pendingUploads[i];
-      const attachmentIndex = attachments.findIndex(a => a.file === attachment.file);
+    for (let i = 0; i < attachments.length; i++) {
+      const attachment = attachments[i];
       
-      try {
-        // Update progress
-        setAttachments(prev => prev.map((a, idx) => 
-          idx === attachmentIndex ? { ...a, uploading: true, progress: 0 } : a
-        ));
+      // Skip already sent files
+      if (attachment.sent) continue;
 
-        const result = await ChatService.uploadMessageFile(
+      // Update status to uploading
+      setAttachments(prev => prev.map((a, idx) => 
+        idx === i ? { ...a, uploading: true, progress: 0 } : a
+      ));
+
+      try {
+        // ✅ Use sendFileMessage - sends file and creates message in one call
+        const message = await ChatService.sendFileMessage(
           attachment.file,
-          undefined,
+          channelId,
+          {
+            caption: i === 0 ? editor?.getText().trim() : undefined,
+            replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
+          },
           (progress) => {
             setAttachments(prev => prev.map((a, idx) => 
-              idx === attachmentIndex ? { ...a, progress: progress.percentage } : a
+              idx === i ? { ...a, progress: progress.percentage } : a
             ));
           }
         );
 
+        // Mark as sent
         setAttachments(prev => prev.map((a, idx) => 
-          idx === attachmentIndex ? { 
-            ...a, 
-            uploading: false, 
-            uploadedFile: result,
-            progress: 100 
-          } : a
+          idx === i ? { ...a, uploading: false, sent: true, progress: 100 } : a
         ));
 
-        uploadedIds.push(result.attachmentId);
+        // Notify parent about the sent message
+        onFileSent?.(message);
+
+        console.log('✅ File message sent:', message);
       } catch (error: any) {
-        console.error('File upload failed:', error);
+        console.error('❌ Failed to send file:', error);
         setAttachments(prev => prev.map((a, idx) => 
-          idx === attachmentIndex ? { 
-            ...a, 
-            uploading: false, 
-            error: error?.message || 'Upload failed' 
-          } : a
+          idx === i ? { ...a, uploading: false, error: error?.message || 'Failed' } : a
         ));
-        toast.error(`Failed to upload ${attachment.file.name}`);
+        toast.error(`Failed to send ${attachment.file.name}`);
+        allSuccess = false;
       }
     }
 
     setIsUploading(false);
-    
-    // Return all successfully uploaded attachment IDs
-    return [
-      ...attachments
-        .filter(a => a.uploadedFile)
-        .map(a => a.uploadedFile!.attachmentId),
-      ...uploadedIds
-    ];
-  }, [attachments]);
+    return allSuccess;
+  }, [channelId, attachments, editor, replyingTo, onFileSent]);
 
   const handleSend = useCallback(async () => {
     if (!editor || disabled || isSending || isUploading) return;
 
     const html = editor.getHTML();
     const plainText = editor.getText().trim();
+    const hasFiles = attachments.length > 0;
+    const hasText = plainText.length > 0;
 
-    if (!plainText && attachments.length === 0) return;
-
-    const mentions = extractMentions();
+    // Nothing to send
+    if (!hasText && !hasFiles) return;
 
     setIsSending(true);
+
     try {
-      // Upload files first
-      let attachmentIds: number[] = [];
-      if (attachments.length > 0) {
-        attachmentIds = await uploadFiles();
+      // ✅ If we have files, send them as messages directly
+      if (hasFiles && channelId) {
+        const success = await sendFilesAsMessages();
+        
+        if (success) {
+          // Clear editor only if files were sent (text goes as caption with first file)
+          editor.commands.clearContent();
+          attachments.forEach((a) => URL.revokeObjectURL(a.preview));
+          setAttachments([]);
+          onClearReply?.();
+        }
+      } 
+      // ✅ Text only message (no files)
+      else if (hasText && !hasFiles) {
+        const mentions = extractMentions();
+        const result = await onSend?.(html, plainText, mentions, undefined);
+
+        if (result !== false) {
+          editor.commands.clearContent();
+          onClearReply?.();
+        }
       }
 
-      console.log('✅ Sending message:', {
-        content: html,
-        mentions,
-        attachmentIds
-      });
-
-      const result = await onSend?.(html, plainText, mentions, attachmentIds);
-
-      if (result !== false) {
-        editor.commands.clearContent();
-        // Clean up attachments
-        attachments.forEach((a) => URL.revokeObjectURL(a.preview));
-        setAttachments([]);
-        if (isTyping) {
-          onTypingStop?.();
-          setIsTyping(false);
-        }
+      if (isTyping) {
+        onTypingStop?.();
+        setIsTyping(false);
       }
     } finally {
       setIsSending(false);
     }
-  }, [editor, disabled, isSending, isUploading, attachments, extractMentions, onSend, isTyping, onTypingStop, uploadFiles]);
+  }, [
+    editor, disabled, isSending, isUploading, attachments, channelId,
+    sendFilesAsMessages, extractMentions, onSend, isTyping, onTypingStop, onClearReply
+  ]);
 
-  const insertEmoji = useCallback(
-    (emoji: string) => {
-      editor?.chain().focus().insertContent(emoji).run();
-    },
-    [editor]
-  );
+  const insertEmoji = useCallback((emoji: string) => {
+    editor?.chain().focus().insertContent(emoji).run();
+  }, [editor]);
 
   const insertMention = useCallback(() => {
     editor?.chain().focus().insertContent('@').run();
   }, [editor]);
 
-  const toggleBulletList = () => editor?.chain().focus().toggleBulletList().run();
-  const toggleOrderedList = () => editor?.chain().focus().toggleOrderedList().run();
-  const toggleBlockquote = () => editor?.chain().focus().toggleBlockquote().run();
-  const toggleCodeBlock = () => editor?.chain().focus().toggleCodeBlock().run();
-
-  const canSend = ((editor?.getText().trim().length ?? 0) > 0 || attachments.length > 0) && !isUploading;
-
-  useEffect(() => {
-    if (!editor) return;
-
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        handleSend();
-      }
-    };
-
-    const dom = editor.view.dom;
-    dom.addEventListener('keydown', handler as any);
-    return () => dom.removeEventListener('keydown', handler as any);
-  }, [editor, handleSend]);
-
-  // ✅ Handle file selection
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -587,7 +481,6 @@ export function RichTextEditor({
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       
-      // Validate file size
       if (file.size > maxFileSize) {
         toast.error(`${file.name} is too large. Max size is 100MB.`);
         continue;
@@ -612,9 +505,24 @@ export function RichTextEditor({
     });
   }, []);
 
-  const triggerFileUpload = () => {
-    fileInputRef.current?.click();
-  };
+  const triggerFileUpload = () => fileInputRef.current?.click();
+
+  const canSend = ((editor?.getText().trim().length ?? 0) > 0 || attachments.length > 0) && !isUploading;
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const handler = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        handleSend();
+      }
+    };
+
+    const dom = editor.view.dom;
+    dom.addEventListener('keydown', handler);
+    return () => dom.removeEventListener('keydown', handler);
+  }, [editor, handleSend]);
 
   return (
     <div className={cn('bg-background px-2 sm:px-4 py-2 border-t border-border', className)}>
@@ -632,7 +540,7 @@ export function RichTextEditor({
         )}
 
         <div className="flex flex-col border border-border rounded-lg overflow-hidden hover:border-primary/50 transition-colors bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20">
-          {/* ✅ File Attachments Preview */}
+          {/* File Attachments Preview */}
           {attachments.length > 0 && (
             <div className="px-2 sm:px-3 py-2 border-b border-border flex flex-wrap gap-2">
               {attachments.map((att, idx) => (
@@ -720,7 +628,7 @@ export function RichTextEditor({
               <Button 
                 size="icon" 
                 variant="ghost" 
-                onClick={toggleBulletList} 
+                onClick={() => editor?.chain().focus().toggleBulletList().run()} 
                 disabled={disabled} 
                 className={cn(
                   "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
@@ -733,7 +641,7 @@ export function RichTextEditor({
               <Button 
                 size="icon" 
                 variant="ghost" 
-                onClick={toggleOrderedList} 
+                onClick={() => editor?.chain().focus().toggleOrderedList().run()} 
                 disabled={disabled} 
                 className={cn(
                   "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
@@ -746,7 +654,7 @@ export function RichTextEditor({
               <Button 
                 size="icon" 
                 variant="ghost" 
-                onClick={toggleBlockquote} 
+                onClick={() => editor?.chain().focus().toggleBlockquote().run()} 
                 disabled={disabled} 
                 className={cn(
                   "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
@@ -759,7 +667,7 @@ export function RichTextEditor({
               <Button 
                 size="icon" 
                 variant="ghost" 
-                onClick={toggleCodeBlock} 
+                onClick={() => editor?.chain().focus().toggleCodeBlock().run()} 
                 disabled={disabled} 
                 className={cn(
                   "h-6 w-6 sm:h-7 sm:w-7 p-0 transition-colors",
@@ -784,17 +692,17 @@ export function RichTextEditor({
               </Button>
               <EmojiPopover onEmojiSelect={insertEmoji} disabled={disabled} />
               
-              {/* ✅ File Upload Button */}
+              {/* File Upload Button */}
               <Button 
                 size="icon" 
                 variant="ghost" 
                 onClick={triggerFileUpload} 
-                disabled={disabled || isUploading} 
+                disabled={disabled || isUploading || !channelId} 
                 className={cn(
                   "h-6 w-6 sm:h-7 sm:w-7 p-0",
                   attachments.length > 0 && "text-primary"
                 )}
-                title="Attach file"
+                title={channelId ? "Attach file" : "Select a channel first"}
               >
                 {isUploading ? (
                   <Loader2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin" />
@@ -803,7 +711,7 @@ export function RichTextEditor({
                 )}
               </Button>
               
-              {/* ✅ Image Upload Button */}
+              {/* Image Upload Button */}
               <Button 
                 size="icon" 
                 variant="ghost" 
@@ -811,17 +719,16 @@ export function RichTextEditor({
                   if (fileInputRef.current) {
                     fileInputRef.current.accept = 'image/*';
                     fileInputRef.current.click();
-                    // Reset accept after a short delay
                     setTimeout(() => {
                       if (fileInputRef.current) {
-                        fileInputRef.current.accept = 'image/*,application/pdf,.doc,.docx,.txt,.zip,.rar';
+                        fileInputRef.current.accept = 'image/*,application/pdf,.doc,.docx,.txt,.zip,.rar,.xlsx,.xls,.pptx,.ppt';
                       }
                     }, 100);
                   }
                 }} 
-                disabled={disabled || isUploading} 
+                disabled={disabled || isUploading || !channelId} 
                 className="h-6 w-6 sm:h-7 sm:w-7 p-0" 
-                title="Add image"
+                title={channelId ? "Add image" : "Select a channel first"}
               >
                 <ImageIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </Button>
@@ -849,13 +756,13 @@ export function RichTextEditor({
           <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs">Shift+Enter</kbd> for new line
           {attachments.length > 0 && (
             <span className="ml-2 text-primary">
-              • {attachments.length} file{attachments.length > 1 ? 's' : ''} attached
+              • {attachments.length} file{attachments.length > 1 ? 's' : ''} will be sent as message{attachments.length > 1 ? 's' : ''}
             </span>
           )}
         </p>
       </div>
 
-      {/* ✅ Hidden file input */}
+      {/* Hidden file input */}
       <input 
         ref={fileInputRef} 
         type="file" 

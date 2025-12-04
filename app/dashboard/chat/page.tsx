@@ -31,7 +31,8 @@ import {
   clearSuccessMessage,
   resetUnreadCount,
   markAsRead,
-  fetchThreadMessages
+  fetchThreadMessages,
+  addMessageToChannel
 } from "@/store/slices/chatSlice";
 
 import {
@@ -632,6 +633,85 @@ const ChatPage = () => {
     [selectedChannel, dispatch, isConnected, inviteMembersWS]
   );
 
+  /**
+   * ✅ Handle file message sent via REST API
+   * Since file uploads use REST (not WebSocket), we need to manually add the message to Redux
+   */
+  const handleFileSent = useCallback(
+    (message: any) => {
+      if (!message) {
+        console.warn("⚠️ handleFileSent called with no message");
+        return;
+      }
+
+      if (!selectedChannel) {
+        console.warn("⚠️ handleFileSent called with no selected channel");
+        return;
+      }
+
+      console.log("📎 File message sent successfully:", {
+        messageId: message.id,
+        channelId: message.channel_id,
+        hasAttachments: message.attachments?.length || 0
+      });
+
+      // Normalize message to match expected format
+      const normalizedMessage = {
+        id: message.id,
+        channel_id: message.channel_id || selectedChannel.id,
+        sender_user_id: message.sender_user_id || currentUser?.id,
+        sender_tenant_id: message.sender_tenant_id,
+        message_type: message.message_type || "file",
+        content: message.content || "",
+        sent_at: message.sent_at || new Date().toISOString(),
+        created_at: message.created_at || new Date().toISOString(),
+
+        // Sender info
+        sender_first_name: message.sender_first_name || currentUser?.firstName || "",
+        sender_last_name: message.sender_last_name || currentUser?.lastName || "",
+        sender_avatar_url: message.sender_avatar_url || currentUser?.avatarUrl || "",
+
+        // Flags
+        has_attachments: true,
+        has_mentions: message.has_mentions || false,
+        is_edited: false,
+        is_deleted: false,
+        is_pinned: false,
+
+        // Attachments
+        attachments: message.attachments || [],
+
+        // Thread info
+        reply_to_message_id: message.reply_to_message_id,
+        thread_id: message.thread_id,
+        reply_count: 0,
+
+        // Counts
+        reaction_count: 0,
+        attachment_count: message.attachments?.length || 1,
+        read_count: 0,
+        delivered_count: 0,
+
+        // Status
+        is_read_by_me: true,
+        am_i_mentioned: false
+      };
+
+      // Add to Redux store
+      dispatch(addMessageToChannel(normalizedMessage));
+
+      // Reset unread count for this channel (since we just sent a message)
+      dispatch(resetUnreadCount(selectedChannel.id));
+
+      // Clear reply state
+      setReplyingTo(null);
+
+      // Show success toast (optional)
+      // toast.success('File sent successfully');
+    },
+    [selectedChannel, currentUser, dispatch]
+  );
+
   return (
     <div className="bg-background flex h-[calc(100vh-var(--header-height))] w-full overflow-hidden">
       {!isConnected && (
@@ -744,7 +824,7 @@ const ChatPage = () => {
             })()}
 
             {/* ✅ Updated RichTextEditor with file upload support */}
-            <RichTextEditor
+            {/* <RichTextEditor
               onSend={handleSendMessage}
               replyingTo={replyingTo}
               onClearReply={() => setReplyingTo(null)}
@@ -753,6 +833,18 @@ const ChatPage = () => {
               placeholder={`Message ${isDirect ? currentChannelDisplayName : "#" + currentChannelDisplayName}`}
               teamMembers={teamMembersForMentions}
               disabled={!isConnected}
+            /> */}
+            <RichTextEditor
+              onSend={handleSendMessage}
+              onFileSent={handleFileSent} // ✅ NEW PROP
+              replyingTo={replyingTo}
+              onClearReply={() => setReplyingTo(null)}
+              onTypingStart={handleTypingStart}
+              onTypingStop={handleTypingStop}
+              placeholder={`Message ${isDirect ? currentChannelDisplayName : "#" + currentChannelDisplayName}`}
+              teamMembers={teamMembersForMentions}
+              disabled={!isConnected}
+              channelId={selectedChannel?.id} // ✅ ADD THIS
             />
           </>
         ) : (

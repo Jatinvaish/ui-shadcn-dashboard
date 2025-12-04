@@ -284,48 +284,90 @@ export interface NotificationPreferencePayload {
 export class ChatService {
   // ==================== FILE UPLOAD METHODS ====================
 
-  // lib/api/services/chat-service.ts - Add these methods if missing
-
   /**
-   * ✅ Send file as standalone message
+   * ✅ Send file directly as message (dedicated endpoint)
    */
   static async sendFileMessage(
     file: File,
     channelId: number,
-    caption?: string,
-    replyToMessageId?: number,
-    threadId?: number,
+    options?: {
+      caption?: string;
+      replyToMessageId?: number;
+      threadId?: number;
+    },
     onProgress?: (progress: FileUploadProgress) => void
   ): Promise<Message> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("channelId", channelId.toString());
-    formData.append("sendAsMessage", "true");
-    if (caption) formData.append("caption", caption);
-    if (replyToMessageId) formData.append("replyToMessageId", replyToMessageId.toString());
-    if (threadId) formData.append("threadId", threadId.toString());
+
+    if (options?.caption) {
+      formData.append("caption", options.caption);
+    }
+    if (options?.replyToMessageId) {
+      formData.append("replyToMessageId", options.replyToMessageId.toString());
+    }
+    if (options?.threadId) {
+      formData.append("threadId", options.threadId.toString());
+    }
 
     const token = Cookies.get("accessToken");
     const baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3060/api/v1";
 
-    const response = await axios.post(`${baseURL}${API_ENDPOINTS.CHAT.MESSAGES.UPLOAD}`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress({
-            loaded: progressEvent.loaded,
-            total: progressEvent.total,
-            percentage
-          });
+    const response = await axios.post(
+      `${baseURL}${API_ENDPOINTS.CHAT.MESSAGES.SEND_FILE}`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage
+            });
+          }
         }
       }
-    });
+    );
 
     return extractData(response.data);
+  }
+
+  /**
+   * ✅ Send multiple files as messages
+   */
+  static async sendMultipleFileMessages(
+    files: File[],
+    channelId: number,
+    caption?: string,
+    onProgress?: (progress: FileUploadProgress) => void
+  ): Promise<Message[]> {
+    const results: Message[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      // Only first file gets caption
+      const fileCaption = i === 0 ? caption : undefined;
+
+      try {
+        const message = await this.sendFileMessage(
+          file,
+          channelId,
+          { caption: fileCaption },
+          onProgress
+        );
+        results.push(message);
+      } catch (error) {
+        console.error(`Failed to send file ${file.name}:`, error);
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -334,17 +376,19 @@ export class ChatService {
   static async sendAttachmentAsMessage(
     channelId: number,
     attachmentId: number,
-    caption?: string,
-    replyToMessageId?: number,
-    threadId?: number
+    options?: {
+      caption?: string;
+      replyToMessageId?: number;
+      threadId?: number;
+    }
   ): Promise<Message> {
     return extractData(
-      await encryptedApiClient.post("/chat/messages/send-attachment", {
+      await encryptedApiClient.post(API_ENDPOINTS.CHAT.MESSAGES.SEND_ATTACHMENT, {
         channelId,
         attachmentId,
-        caption,
-        replyToMessageId,
-        threadId
+        caption: options?.caption,
+        replyToMessageId: options?.replyToMessageId,
+        threadId: options?.threadId
       })
     );
   }
@@ -358,15 +402,42 @@ export class ChatService {
   /**
    * ✅ Upload single file for chat message
    */
+  /**
+   * ✅ Upload file and optionally send as message
+   * If sendAsMessage=true and channelId provided, creates message immediately
+   */
   static async uploadMessageFile(
     file: File,
-    messageId?: number,
+    options?: {
+      messageId?: number;
+      channelId?: number;
+      caption?: string;
+      sendAsMessage?: boolean;
+      replyToMessageId?: number;
+      threadId?: number;
+    },
     onProgress?: (progress: FileUploadProgress) => void
-  ): Promise<UploadedFile> {
+  ): Promise<UploadedFile & { message?: Message }> {
     const formData = new FormData();
     formData.append("file", file);
-    if (messageId) {
-      formData.append("messageId", messageId.toString());
+
+    if (options?.messageId) {
+      formData.append("messageId", options.messageId.toString());
+    }
+    if (options?.channelId) {
+      formData.append("channelId", options.channelId.toString());
+    }
+    if (options?.caption) {
+      formData.append("caption", options.caption);
+    }
+    if (options?.sendAsMessage) {
+      formData.append("sendAsMessage", "true");
+    }
+    if (options?.replyToMessageId) {
+      formData.append("replyToMessageId", options.replyToMessageId.toString());
+    }
+    if (options?.threadId) {
+      formData.append("threadId", options.threadId.toString());
     }
 
     const token = Cookies.get("accessToken");

@@ -46,12 +46,12 @@ export const API_ENDPOINTS = {
       // ✅ File Upload Endpoints
       UPLOAD: "/chat/messages/upload",
       UPLOAD_MULTIPLE: "/chat/messages/upload-multiple",
+      // ✅ Add these new endpoints
+      SEND_FILE: "/chat/messages/send-file", // ✅ NEW
+      SEND_ATTACHMENT: "/chat/messages/send-attachment", // ✅ NEW
       FILE_DOWNLOAD: (attachmentId: number) => `/chat/messages/files/${attachmentId}/download`,
       FILE_DELETE: (attachmentId: number) => `/chat/messages/files/${attachmentId}`,
-      // ✅ Add these new endpoints
-      SEND_FILE: "/chat/messages/send-file",
-      SEND_ATTACHMENT: "/chat/messages/send-attachment",
-      PENDING_ATTACHMENTS: "/chat/attachments/pending"
+      PENDING_ATTACHMENTS: "/chat/attachments/pending" // ✅ NEW
     },
 
     // ✅ Reactions - Aligned with chat.controller.ts
