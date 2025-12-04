@@ -1,4 +1,4 @@
-// components/chat/dialogs/search-dialog.tsx - FIXED VERSION
+// components/chat/dialogs/search-dialog.tsx - COMPLETE FIX WITH NAVIGATION
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Search, MessageSquare, Hash, Users, Loader2, MessageCircle, ArrowUpRight } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
-import { searchChat, clearSearchResults, setSelectedChannel, fetchMessages } from "@/store/slices/chatSlice"
+import { searchChat, clearSearchResults } from "@/store/slices/chatSlice"
 import useDebounce from "@/hooks/useDebounce"
 import { cn } from "@/lib/utils"
 
@@ -37,7 +37,7 @@ export function SearchDialog({
   onStartDM 
 }: SearchDialogProps) {
   const dispatch = useAppDispatch()
-  const { searchResults, isSearching, channels } = useAppSelector((state) => state.chat)
+  const { searchResults, isSearching } = useAppSelector((state) => state.chat)
   
   const [query, setQuery] = useState("")
   const [activeTab, setActiveTab] = useState<"all" | "messages" | "channels" | "members">("all")
@@ -61,41 +61,20 @@ export function SearchDialog({
     }
   }, [open, dispatch])
 
-  const handleChannelClick = async (channelId: number) => {
-    const channel = channels.find(c => c.id === channelId)
-    if (channel) {
-      dispatch(setSelectedChannel(channel))
-      await dispatch(fetchMessages({ channelId, limit: 50 }))
-      onChannelSelect?.(channelId)
-      onOpenChange(false)
-    }
+  // ✅ FIXED: Call parent handlers directly (parent will handle navigation)
+  const handleChannelClick = (channelId: number) => {
+    console.log('🔍 SearchDialog: Channel clicked', channelId)
+    onChannelSelect?.(channelId)
   }
 
-  const handleMessageClick = async (channelId: number, messageId: number) => {
-    const channel = channels.find(c => c.id === channelId)
-    if (channel) {
-      dispatch(setSelectedChannel(channel))
-      await dispatch(fetchMessages({ channelId, limit: 50 }))
-      onOpenChange(false)
-      
-      setTimeout(() => {
-        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-        if (messageElement) {
-          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          messageElement.classList.add('bg-yellow-100/50', 'dark:bg-yellow-900/20')
-          setTimeout(() => {
-            messageElement.classList.remove('bg-yellow-100/50', 'dark:bg-yellow-900/20')
-          }, 2000)
-        }
-      }, 500)
-      
-      onMessageSelect?.(channelId, messageId)
-    }
+  const handleMessageClick = (channelId: number, messageId: number) => {
+    console.log('🔍 SearchDialog: Message clicked', { channelId, messageId })
+    onMessageSelect?.(channelId, messageId)
   }
 
   const handleMemberClick = (memberId: number) => {
+    console.log('🔍 SearchDialog: Member clicked', memberId)
     onStartDM?.(memberId.toString())
-    onOpenChange(false)
   }
 
   const formatDate = (date: string) => {
@@ -324,7 +303,10 @@ export function SearchDialog({
                             size="sm" 
                             variant="ghost" 
                             className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 h-8"
-                            onClick={() => handleMemberClick(member.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleMemberClick(member.id)
+                            }}
                           >
                             <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                             Message
