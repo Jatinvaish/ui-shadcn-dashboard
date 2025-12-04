@@ -12,6 +12,8 @@ import {
   SearchResults,
   Reaction,
   Attachment,
+  UploadedFile,
+  FileUploadProgress,
 } from '../../lib/api/services/chat-service';
 
 // ==================== STATE INTERFACE ====================
@@ -41,6 +43,16 @@ interface ChatState {
 
   unreadCount: number;
 
+  // ✅ File Upload State
+  uploadingFiles: Record<string, {
+    fileName: string;
+    progress: number;
+    status: 'uploading' | 'completed' | 'error';
+    error?: string;
+    result?: UploadedFile;
+  }>;
+  isUploading: boolean;
+
   error: string | null;
   successMessage: string | null;
 }
@@ -64,6 +76,9 @@ const initialState: ChatState = {
   typingUsers: {},
   onlineUsers: [],
   unreadCount: 0,
+  // ✅ File Upload Initial State
+  uploadingFiles: {},
+  isUploading: false,
   error: null,
   successMessage: null,
 };
@@ -90,6 +105,65 @@ const normalizeChannel = (ch: any): Channel => ({
   created_at: ch.created_at,
   updated_at: ch.updated_at,
 });
+
+// ==================== FILE UPLOAD THUNKS ====================
+
+export const uploadMessageFile = createAsyncThunk<
+  UploadedFile,
+  { file: File; messageId?: number; uploadId: string },
+  { rejectValue: string }
+>(
+  'chat/uploadMessageFile',
+  async ({ file, messageId, uploadId }, { dispatch, rejectWithValue }) => {
+    try {
+      const result = await ChatService.uploadMessageFile(
+        file,
+        messageId,
+        (progress) => {
+          dispatch(updateFileUploadProgress({
+            uploadId,
+            progress: progress.percentage,
+          }));
+        }
+      );
+      return result;
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to upload file');
+    }
+  }
+);
+
+export const uploadMultipleMessageFiles = createAsyncThunk<
+  UploadedFile[],
+  { files: File[]; messageId?: number },
+  { rejectValue: string }
+>(
+  'chat/uploadMultipleMessageFiles',
+  async ({ files, messageId }, { rejectWithValue }) => {
+    try {
+      const results = await ChatService.uploadMultipleMessageFiles(files, messageId);
+      return results;
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to upload files');
+    }
+  }
+);
+
+export const deleteAttachment = createAsyncThunk<
+  number,
+  number,
+  { rejectValue: string }
+>(
+  'chat/deleteAttachment',
+  async (attachmentId, { rejectWithValue }) => {
+    try {
+      await ChatService.deleteAttachment(attachmentId);
+      return attachmentId;
+    } catch (e: any) {
+      return rejectWithValue(e?.message || 'Failed to delete attachment');
+    }
+  }
+);
 
 // ==================== ASYNC THUNKS ====================
 
@@ -299,7 +373,6 @@ export const markAsRead = createAsyncThunk<
     }
   }
 );
-// store/slices/chatSlice.ts - Add this async thunk with other thunks
 
 export const forwardMessage = createAsyncThunk(
   'chat/forwardMessage',
@@ -312,6 +385,7 @@ export const forwardMessage = createAsyncThunk(
     }
   }
 );
+
 // ==================== SLICE ====================
 const chatSlice = createSlice({
   name: 'chat',
@@ -332,6 +406,56 @@ const chatSlice = createSlice({
 
     clearSearchResults: (state) => {
       state.searchResults = null;
+    },
+
+    // ✅ File Upload Reducers
+    startFileUpload: (state, action: PayloadAction<{ uploadId: string; fileName: string }>) => {
+      state.uploadingFiles[action.payload.uploadId] = {
+        fileName: action.payload.fileName,
+        progress: 0,
+        status: 'uploading',
+      };
+      state.isUploading = true;
+    },
+
+    updateFileUploadProgress: (state, action: PayloadAction<{ uploadId: string; progress: number }>) => {
+      const upload = state.uploadingFiles[action.payload.uploadId];
+      if (upload) {
+        upload.progress = action.payload.progress;
+      }
+    },
+
+    completeFileUpload: (state, action: PayloadAction<{ uploadId: string; result: UploadedFile }>) => {
+      const upload = state.uploadingFiles[action.payload.uploadId];
+      if (upload) {
+        upload.status = 'completed';
+        upload.progress = 100;
+        upload.result = action.payload.result;
+      }
+      // Check if all uploads are complete
+      const uploading = Object.values(state.uploadingFiles).some(u => u.status === 'uploading');
+      state.isUploading = uploading;
+    },
+
+    failFileUpload: (state, action: PayloadAction<{ uploadId: string; error: string }>) => {
+      const upload = state.uploadingFiles[action.payload.uploadId];
+      if (upload) {
+        upload.status = 'error';
+        upload.error = action.payload.error;
+      }
+      const uploading = Object.values(state.uploadingFiles).some(u => u.status === 'uploading');
+      state.isUploading = uploading;
+    },
+
+    clearFileUpload: (state, action: PayloadAction<string>) => {
+      delete state.uploadingFiles[action.payload];
+      const uploading = Object.values(state.uploadingFiles).some(u => u.status === 'uploading');
+      state.isUploading = uploading;
+    },
+
+    clearAllFileUploads: (state) => {
+      state.uploadingFiles = {};
+      state.isUploading = false;
     },
 
     // Real-time Message Updates
@@ -384,9 +508,6 @@ const chatSlice = createSlice({
 
 
     // Reactions
-
-    // store/slices/chatSlice.ts - UPDATE addReactionToMessage reducer (TYPE-SAFE VERSION)
-
     addReactionToMessage: (state, action: PayloadAction<{
       messageId: number;
       channelId: number;
@@ -403,7 +524,6 @@ const chatSlice = createSlice({
       const messages = state.messages[channelId];
       if (!messages) return;
 
-      // Try both number and string comparison
       const message = messages.find(m =>
         Number(m.id) === Number(messageId) || m.id === messageId
       );
@@ -601,7 +721,6 @@ const chatSlice = createSlice({
       const exists = currentTyping.some(u => Number(u.userId) === Number(userId));
 
       if (!exists) {
-        // CRITICAL: Create completely new object to trigger React re-render
         state.typingUsers = {
           ...state.typingUsers,
           [channelId]: [
@@ -624,7 +743,6 @@ const chatSlice = createSlice({
 
       const currentTyping = state.typingUsers[channelId];
       if (currentTyping && currentTyping.length > 0) {
-        // CRITICAL: Create completely new object to trigger React re-render
         state.typingUsers = {
           ...state.typingUsers,
           [channelId]: currentTyping.filter(u => Number(u.userId) !== Number(userId))
@@ -765,6 +883,47 @@ const chatSlice = createSlice({
       // Unread Count
       .addCase(fetchUnreadCount.fulfilled, (state, action) => {
         state.unreadCount = action.payload;
+      })
+
+      // ✅ File Upload Cases
+      .addCase(uploadMessageFile.pending, (state, action) => {
+        const uploadId = action.meta.arg.uploadId;
+        state.uploadingFiles[uploadId] = {
+          fileName: action.meta.arg.file.name,
+          progress: 0,
+          status: 'uploading',
+        };
+        state.isUploading = true;
+      })
+      .addCase(uploadMessageFile.fulfilled, (state, action) => {
+        const uploadId = action.meta.arg.uploadId;
+        if (state.uploadingFiles[uploadId]) {
+          state.uploadingFiles[uploadId].status = 'completed';
+          state.uploadingFiles[uploadId].progress = 100;
+          state.uploadingFiles[uploadId].result = action.payload;
+        }
+        const uploading = Object.values(state.uploadingFiles).some(u => u.status === 'uploading');
+        state.isUploading = uploading;
+      })
+      .addCase(uploadMessageFile.rejected, (state, action) => {
+        const uploadId = action.meta.arg.uploadId;
+        if (state.uploadingFiles[uploadId]) {
+          state.uploadingFiles[uploadId].status = 'error';
+          state.uploadingFiles[uploadId].error = action.payload as string;
+        }
+        const uploading = Object.values(state.uploadingFiles).some(u => u.status === 'uploading');
+        state.isUploading = uploading;
+      })
+
+      .addCase(uploadMultipleMessageFiles.pending, (state) => {
+        state.isUploading = true;
+      })
+      .addCase(uploadMultipleMessageFiles.fulfilled, (state) => {
+        state.isUploading = false;
+      })
+      .addCase(uploadMultipleMessageFiles.rejected, (state, action) => {
+        state.isUploading = false;
+        state.error = action.payload as string;
       });
   },
 });
@@ -792,6 +951,13 @@ export const {
   updateMessageInChannel,
   removeMessageFromChannel,
   pinMessageInChannel,
+  // ✅ File Upload Actions
+  startFileUpload,
+  updateFileUploadProgress,
+  completeFileUpload,
+  failFileUpload,
+  clearFileUpload,
+  clearAllFileUploads,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

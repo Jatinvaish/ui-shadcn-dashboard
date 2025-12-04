@@ -41,7 +41,12 @@ export const API_ENDPOINTS = {
       DELIVERY_STATUS: (messageId: number) => `/chat/messages/${messageId}/delivery-status`,
       MARK_DELIVERED: (messageId: number) => `/chat/messages/${messageId}/mark-delivered`,
       READ_STATUS: (messageId: number) => `/chat/messages/${messageId}/read-status`,
-      READ_STATUS_DETAILED: (messageId: number) => `/chat/messages/${messageId}/read-status-detailed`
+      READ_STATUS_DETAILED: (messageId: number) => `/chat/messages/${messageId}/read-status-detailed`,
+       // ✅ File Upload Endpoints
+      UPLOAD: "/chat/messages/upload",
+      UPLOAD_MULTIPLE: "/chat/messages/upload-multiple",
+      FILE_DOWNLOAD: (attachmentId: number) => `/chat/messages/files/${attachmentId}/download`,
+      FILE_DELETE: (attachmentId: number) => `/chat/messages/files/${attachmentId}`
     },
 
     // ✅ Reactions - Aligned with chat.controller.ts

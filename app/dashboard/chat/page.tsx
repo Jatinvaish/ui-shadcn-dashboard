@@ -1,4 +1,4 @@
-// app/dashboard/chat/page.tsx - PART 1
+// app/dashboard/chat/page.tsx - WITH FILE UPLOAD SUPPORT
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -216,6 +216,15 @@ const ChatPage = () => {
       read_by_user_ids: msg.read_by_user_ids,
       delivered_to_user_ids: msg.delivered_to_user_ids,
       am_i_mentioned: msg.am_i_mentioned || false,
+      // ✅ Add attachments support
+      files: msg.attachments?.map((att: any) => ({
+        id: att.id,
+        name: att.file_name || att.filename,
+        size: att.file_size,
+        url: att.file_url,
+        mimeType: att.mime_type || att.content_type,
+        thumbnailUrl: att.thumbnail_url,
+      })) || [],
     } as Message;
   }, []);
 
@@ -290,8 +299,7 @@ const ChatPage = () => {
   const currentChannelDisplayName = selectedChannel ? getChannelDisplayName(selectedChannel) : "";
   const showSidebarOnMobile = !selectedChannel;
   const showChatOnMobile = !!selectedChannel;
-  // app/dashboard/chat/page.tsx - PART 2 (Handlers)
-  // Add these handlers inside ChatPage component before return statement
+
   useEffect(() => {
     console.log('🔍 TYPING STATE CHANGED:', {
       selectedChannelId: selectedChannel?.id,
@@ -417,29 +425,26 @@ const ChatPage = () => {
     }
   }, [selectedChannel, dispatch]);
 
-  // Message Handlers
-
+  // ✅ UPDATED: Send Message Handler with File Attachments
   const handleSendMessage = useCallback(async (
     html: string,
     text: string,
     mentions?: number[],
+    attachmentIds?: number[],
   ): Promise<boolean> => {
     if (!selectedChannel || !text.trim()) return false;
     try {
       const payload: SendMessagePayload = {
         channelId: selectedChannel.id,
-        content: html,  // ✅ CRITICAL FIX: Send HTML instead of plain text
-        messageType: MessageType.TEXT,
+        content: html,
+        messageType: attachmentIds && attachmentIds.length > 0 ? MessageType.FILE : MessageType.TEXT,
         replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined,
         threadId: selectedThreadId || undefined,
         mentions: mentions && mentions.length > 0 ? mentions : undefined,
+        attachments: attachmentIds && attachmentIds.length > 0 ? attachmentIds : undefined,
       };
 
-      console.log('✅ Sending message with HTML:', {
-        content: html,
-        mentions,
-        payload
-      });
+      console.log('✅ Sending message with payload:', payload);
 
       if (isConnected) {
         await sendMessageWS(payload);
@@ -475,7 +480,6 @@ const ChatPage = () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     stopTypingWS(selectedChannel.id);
   }, [selectedChannel, isConnected, stopTypingWS]);
-
 
   // Message Actions
   const handleDeleteMessage = useCallback((messageId: string) => {
@@ -558,9 +562,6 @@ const ChatPage = () => {
       dispatch(fetchChannelMembers(selectedChannel.id));
     }
   }, [selectedChannel, dispatch, isConnected, inviteMembersWS]);
-  // Continue to Part 6...
-  // app/dashboard/chat/page.tsx - PART 3 (Render)
-  // Add this as the return statement for ChatPage component
 
   return (
     <div className="flex w-full overflow-hidden bg-background h-[calc(100vh-var(--header-height))]">
@@ -668,6 +669,7 @@ const ChatPage = () => {
               );
             })()}
 
+            {/* ✅ Updated RichTextEditor with file upload support */}
             <RichTextEditor
               onSend={handleSendMessage}
               replyingTo={replyingTo}

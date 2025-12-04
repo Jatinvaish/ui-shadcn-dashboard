@@ -1,13 +1,14 @@
-// components/chat/message-item.tsx
+// components/chat/message-item.tsx - WITH FILE ATTACHMENTS
 "use client"
 
 import React, { useState, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { MessageActionsPopover } from "./popovers/message-actions-popover"
 import type { Message } from "./message-list"
-import { MessageCircle, Check, CheckCheck, Pin } from "lucide-react"
+import { MessageCircle, Check, CheckCheck, Pin, Download, ExternalLink, FileIcon, Image as ImageIcon, Play } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import DOMPurify from 'dompurify'
+import { ChatService } from "@/lib/api/services/chat-service"
 
 interface MessageItemProps {
   message: Message
@@ -84,6 +85,148 @@ const MessageReadStatus = ({ message, isOwn }: { message: any; isOwn: boolean })
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+};
+
+// ✅ File Attachment Component
+interface FileAttachmentProps {
+  file: {
+    id?: number;
+    name: string;
+    size: number;
+    url?: string;
+    mimeType?: string;
+    thumbnailUrl?: string;
+  };
+}
+
+const FileAttachment: React.FC<FileAttachmentProps> = ({ file }) => {
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const isImage = file.mimeType?.startsWith('image/');
+  const isVideo = file.mimeType?.startsWith('video/');
+  const isPdf = file.mimeType?.includes('pdf');
+
+  const handleDownload = async () => {
+    if (!file.id) {
+      // Direct download if we have URL
+      if (file.url) {
+        window.open(file.url, '_blank');
+      }
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const downloadInfo = await ChatService.getFileDownloadUrl(file.id);
+      window.open(downloadInfo.url, '_blank');
+    } catch (error) {
+      console.error('Failed to get download URL:', error);
+      // Fallback to direct URL
+      if (file.url) {
+        window.open(file.url, '_blank');
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Image preview
+  if (isImage && !imageError) {
+    return (
+      <div className="relative max-w-xs rounded-lg overflow-hidden border border-border group">
+        {!isImageLoaded && (
+          <div className="w-48 h-32 bg-muted animate-pulse flex items-center justify-center">
+            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+          </div>
+        )}
+        <img
+          src={file.thumbnailUrl || file.url}
+          alt={file.name}
+          className={cn(
+            "max-w-full max-h-64 object-contain cursor-pointer transition-opacity",
+            isImageLoaded ? "opacity-100" : "opacity-0 absolute"
+          )}
+          onLoad={() => setIsImageLoaded(true)}
+          onError={() => setImageError(true)}
+          onClick={() => file.url && window.open(file.url, '_blank')}
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <button
+            onClick={handleDownload}
+            className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
+            disabled={isDownloading}
+          >
+            <Download className="w-4 h-4 text-gray-700" />
+          </button>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+          <p className="text-xs text-white truncate">{file.name}</p>
+          <p className="text-[10px] text-white/80">{ChatService.formatFileSize(file.size)}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Video preview
+  if (isVideo) {
+    return (
+      <div className="relative max-w-xs rounded-lg overflow-hidden border border-border group">
+        <div className="w-48 h-32 bg-muted flex items-center justify-center relative">
+          {file.thumbnailUrl ? (
+            <img src={file.thumbnailUrl} alt={file.name} className="w-full h-full object-cover" />
+          ) : (
+            <Play className="w-12 h-12 text-muted-foreground" />
+          )}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+            <Play className="w-10 h-10 text-white fill-white" />
+          </div>
+        </div>
+        <div className="p-2 bg-muted/50">
+          <p className="text-xs truncate font-medium">{file.name}</p>
+          <p className="text-[10px] text-muted-foreground">{ChatService.formatFileSize(file.size)}</p>
+        </div>
+        <button
+          onClick={handleDownload}
+          className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-full hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+          disabled={isDownloading}
+        >
+          <Download className="w-3.5 h-3.5 text-gray-700" />
+        </button>
+      </div>
+    );
+  }
+
+  // Generic file attachment
+  return (
+    <div 
+      className="inline-flex items-center gap-3 rounded-lg border border-border bg-muted/50 px-3 py-2.5 hover:bg-muted transition-colors cursor-pointer group max-w-xs"
+      onClick={handleDownload}
+    >
+      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+        <span className="text-lg">{ChatService.getFileIcon(file.mimeType || 'application/octet-stream')}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{file.name}</p>
+        <p className="text-xs text-muted-foreground">{ChatService.formatFileSize(file.size)}</p>
+      </div>
+      <button 
+        className="flex-shrink-0 p-1.5 rounded-full hover:bg-primary/10 opacity-60 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDownload();
+        }}
+        disabled={isDownloading}
+      >
+        {isDownloading ? (
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <Download className="w-4 h-4" />
+        )}
+      </button>
+    </div>
   );
 };
 
@@ -247,16 +390,14 @@ export function MessageItem({
             {renderContent(message.content)}
           </div>
 
-          {/* File Attachments */}
+          {/* ✅ File Attachments */}
           {message.files && message.files.length > 0 && (
-            <div className="space-y-1 mt-2">
-              {message.files.map((file) => (
-                <div
-                  key={file.name}
-                  className="inline-flex items-center gap-2 rounded border border-border bg-muted px-3 py-1 text-xs hover:bg-muted/80 transition-colors cursor-pointer"
-                >
-                  📎 {file.name}
-                </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {message.files.map((file, index) => (
+                <FileAttachment 
+                  key={file.id || `${file.name}-${index}`}
+                  file={file}
+                />
               ))}
             </div>
           )}
