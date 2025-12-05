@@ -401,68 +401,7 @@ export function RichTextEditor({
     if (fileInputRef.current) fileInputRef.current.value = "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachments]);
-
-  // ✅ Send files as messages directly
-  const sendFilesAsMessages = useCallback(async (): Promise<boolean> => {
-    if (!channelId || attachments.length === 0) return true;
-
-    setIsUploading(true);
-    let allSuccess = true;
-
-    for (let i = 0; i < attachments.length; i++) {
-      const attachment = attachments[i];
-
-      // Skip already sent files
-      if (attachment.sent) continue;
-
-      // Update status to uploading
-      setAttachments((prev) =>
-        prev.map((a, idx) => (idx === i ? { ...a, uploading: true, progress: 0 } : a))
-      );
-
-      try {
-        // ✅ Use sendFileMessage - sends file and creates message in one call
-        const message = await ChatService.sendFileMessage(
-          attachment.file,
-          channelId,
-          {
-            caption: i === 0 ? editor?.getText().trim() : undefined,
-            replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined
-          },
-          (progress: FileUploadProgress) => {
-            setAttachments((prev) =>
-              prev.map((a, idx) => (idx === i ? { ...a, progress: progress.percentage } : a))
-            );
-          }
-        );
-
-        // Mark as sent
-        setAttachments((prev) =>
-          prev.map((a, idx) =>
-            idx === i ? { ...a, uploading: false, sent: true, progress: 100 } : a
-          )
-        );
-
-        // Notify parent about the sent message
-        onFileSent?.(message);
-
-        console.log("✅ File message sent:", message);
-      } catch (error: any) {
-        console.error("❌ Failed to send file:", error);
-        setAttachments((prev) =>
-          prev.map((a, idx) =>
-            idx === i ? { ...a, uploading: false, error: error?.message || "Failed" } : a
-          )
-        );
-        toast.error(`Failed to send ${attachment.file.name}`);
-        allSuccess = false;
-      }
-    }
-
-    setIsUploading(false);
-    return allSuccess;
-  }, [channelId, attachments, editor, replyingTo, onFileSent]);
-
+ 
   // ✅ Send ALL files as ONE message with multiple attachments
   const sendFilesAsOneMessage = useCallback(async (): Promise<boolean> => {
     if (!channelId || attachments.length === 0) return true;
