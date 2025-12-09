@@ -399,14 +399,13 @@ export function MessageItem({
             {message.edited && <span className="text-muted-foreground text-xs">(edited)</span>}
             {message.isPinned && <Pin className="text-muted-foreground h-3 w-3" />}
           </div>
-
           {/* Reply Preview */}
           {message.replyTo && (
             <div
               className="border-primary bg-muted/60 hover:bg-muted mb-2 cursor-pointer rounded border-l-2 p-2 text-xs transition-colors"
               onClick={() => onScrollToMessage?.(message.replyTo!.messageId)}>
               <div className="text-primary font-medium">{message.replyTo.authorName}</div>
-              <div className="text-muted-foreground line-clamp-2">{message.replyTo.content}</div>
+              <div className="text-muted-foreground line-clamp-2">{renderContent(message.replyTo.content)}</div>
             </div>
           )}
 
@@ -461,7 +460,7 @@ export function MessageItem({
           {!isInThread &&
             !isDirect &&
             message.threadReplies !== undefined &&
-            message.threadReplies >= 0 && (
+            message.threadReplies > 0 && (
               <button
                 onClick={() => onOpenThread?.(message.id)}
                 className="text-primary hover:text-primary/80 mt-2 flex items-center gap-2 text-xs font-medium">
