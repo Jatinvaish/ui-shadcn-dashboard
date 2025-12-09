@@ -405,7 +405,9 @@ export function MessageItem({
               className="border-primary bg-muted/60 hover:bg-muted mb-2 cursor-pointer rounded border-l-2 p-2 text-xs transition-colors"
               onClick={() => onScrollToMessage?.(message.replyTo!.messageId)}>
               <div className="text-primary font-medium">{message.replyTo.authorName}</div>
-              <div className="text-muted-foreground line-clamp-2">{renderContent(message.replyTo.content)}</div>
+              <div className="text-muted-foreground line-clamp-2">
+                {renderContent(message.replyTo.content)}
+              </div>
             </div>
           )}
 

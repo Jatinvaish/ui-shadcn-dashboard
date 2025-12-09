@@ -45,6 +45,7 @@ import { EmojiPopover } from "./popovers/emoji-popover";
 import tippy, { Instance as TippyInstance } from "tippy.js";
 import { ChatService, FileUploadProgress } from "@/lib/api/services/chat-service";
 import toast from "react-hot-toast";
+import { MessageContent } from "./message-content";
 
 interface MentionListProps {
   items: Array<{ id: string; name: string; email: string }>;
@@ -659,7 +660,7 @@ export function RichTextEditor({
               <span className="text-primary font-semibold">
                 Replying to {replyingTo.authorName}
               </span>
-              <div className="text-muted-foreground line-clamp-1">{replyingTo.content}</div>
+              <div className="text-muted-foreground line-clamp-1"><MessageContent isOwn={false} content={replyingTo.content} /></div>
             </div>
             <button
               onClick={onClearReply}
