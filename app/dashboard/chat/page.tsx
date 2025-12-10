@@ -247,8 +247,8 @@ const ChatPage = () => {
       replyTo: msg.reply_to_message_id
         ? {
             messageId: msg.reply_to_message_id.toString(),
-            authorName: msg.reply_to_author_name || "User",
-            content: msg.reply_to_content || "Previous message"
+            authorName: msg.reply_sender_first_name + " " + msg.reply_sender_last_name || "User",
+            content: msg.reply_message_content || "Previous message"
           }
         : undefined,
       is_sent: true,
