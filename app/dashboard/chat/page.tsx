@@ -53,8 +53,6 @@ const ChatPage = () => {
   const channelMembers = useAppSelector((state) => state.chat.channelMembers);
   const teamMembers = useAppSelector((state) => state.chat.teamMembers);
   const unreadCount = useAppSelector((state) => state.chat.unreadCount);
-  const isLoadingChannels = useAppSelector((state) => state.chat.isLoadingChannels);
-  const isLoadingMessages = useAppSelector((state) => state.chat.isLoadingMessages);
   const error = useAppSelector((state) => state.chat.error);
   const successMessage = useAppSelector((state) => state.chat.successMessage);
 
