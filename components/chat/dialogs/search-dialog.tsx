@@ -310,6 +310,8 @@ export function SearchDialog({
                             className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 h-8"
                             onClick={(e) => {
                               e.stopPropagation()
+                              //todo
+                              //@ts-ignore
                               handleMemberClick(member.id)
                             }}
                           >

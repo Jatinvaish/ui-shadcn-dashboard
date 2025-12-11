@@ -1,5 +1,5 @@
 // ============================================
-// store/slices/tenantSlice.ts - Enhanced
+// store/slices/tenantSlice.ts - Fixed TypeScript errors
 // ============================================
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { 
@@ -45,11 +45,15 @@ const initialState: TenantState = {
 /**
  * Fetch all tenants for the current user
  */
-export const fetchMyTenants = createAsyncThunk(
+export const fetchMyTenants = createAsyncThunk<
+  Tenant[],
+  void,
+  { rejectValue: string }
+>(
   'tenant/fetchMyTenants',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await TenantService.getMyTenants();
+      const response:any = await TenantService.getMyTenants();
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -60,11 +64,15 @@ export const fetchMyTenants = createAsyncThunk(
 /**
  * Fetch tenant by ID
  */
-export const fetchTenantById = createAsyncThunk(
+export const fetchTenantById = createAsyncThunk<
+  Tenant,
+  number,
+  { rejectValue: string }
+>(
   'tenant/fetchTenantById',
-  async (tenantId: number, { rejectWithValue }) => {
+  async (tenantId, { rejectWithValue }) => {
     try {
-      const response = await TenantService.getTenantById(tenantId);
+      const response:any = await TenantService.getTenantById(tenantId);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -75,11 +83,15 @@ export const fetchTenantById = createAsyncThunk(
 /**
  * Update tenant
  */
-export const updateTenant = createAsyncThunk(
+export const updateTenant = createAsyncThunk<
+  Tenant,
+  { tenantId: number; payload: UpdateTenantPayload },
+  { rejectValue: string }
+>(
   'tenant/updateTenant',
-  async ({ tenantId, payload }: { tenantId: number; payload: UpdateTenantPayload }, { rejectWithValue }) => {
+  async ({ tenantId, payload }, { rejectWithValue }) => {
     try {
-      const response = await TenantService.updateTenant(tenantId, payload);
+      const response:any = await TenantService.updateTenant(tenantId, payload);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -90,18 +102,24 @@ export const updateTenant = createAsyncThunk(
 /**
  * Fetch tenant members with pagination, sorting, and search
  */
-export const fetchTenantMembers = createAsyncThunk(
+export const fetchTenantMembers = createAsyncThunk<
+  PaginatedMembersResponse | TenantMember[],
+  { tenantId: number; params?: GetMembersParams },
+  { rejectValue: string }
+>(
   'tenant/fetchTenantMembers',
-  async ({ tenantId, params }: { tenantId: number; params?: GetMembersParams }, { rejectWithValue }) => {
+  async ({ tenantId, params }, { rejectWithValue }) => {
     try {
       console.log('🔵 Fetching tenant members:', { tenantId, params });
-      const response = await TenantService.getTenantMembers(tenantId, params);
+      const response:any = await TenantService.getTenantMembers(tenantId, params);
       console.log('🟢 Full API Response:', response);
       console.log('🟢 Response.data:', response.data);
       
-      // The response structure is: { data: { data: [], pagination: {} } }
-      // We need to return response.data which contains { data: [], pagination: {} }
-      return response.data;
+      // The response structure can be either:
+      // 1. { data: { data: [], pagination: {} } } - nested structure
+      // 2. { data: [] } - simple array
+      // We return response.data as-is and handle both cases in the reducer
+      return response.data as PaginatedMembersResponse | TenantMember[];
     } catch (error: any) {
       console.error('🔴 Fetch error:', error);
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -112,11 +130,15 @@ export const fetchTenantMembers = createAsyncThunk(
 /**
  * Fetch tenant usage statistics
  */
-export const fetchTenantUsage = createAsyncThunk(
+export const fetchTenantUsage = createAsyncThunk<
+  TenantUsage,
+  number,
+  { rejectValue: string }
+>(
   'tenant/fetchTenantUsage',
-  async (tenantId: number, { rejectWithValue }) => {
+  async (tenantId, { rejectWithValue }) => {
     try {
-      const response = await TenantService.getTenantUsage(tenantId);
+      const response:any = await TenantService.getTenantUsage(tenantId);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -127,11 +149,15 @@ export const fetchTenantUsage = createAsyncThunk(
 /**
  * Rotate tenant encryption keys
  */
-export const rotateTenantKeys = createAsyncThunk(
+export const rotateTenantKeys = createAsyncThunk<
+  void,
+  number,
+  { rejectValue: string }
+>(
   'tenant/rotateTenantKeys',
-  async (tenantId: number, { rejectWithValue }) => {
+  async (tenantId, { rejectWithValue }) => {
     try {
-      const response = await TenantService.rotateTenantKeys(tenantId);
+      const response:any = await TenantService.rotateTenantKeys(tenantId);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -185,7 +211,7 @@ const tenantSlice = createSlice({
       })
       .addCase(fetchMyTenants.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        state.error = action.payload ?? 'Failed to fetch tenants';
         state.initialized = true;
       })
       
@@ -206,7 +232,7 @@ const tenantSlice = createSlice({
       })
       .addCase(fetchTenantById.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        state.error = action.payload ?? 'Failed to fetch tenant';
       })
       
       // Update Tenant
@@ -226,7 +252,7 @@ const tenantSlice = createSlice({
       })
       .addCase(updateTenant.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        state.error = action.payload ?? 'Failed to update tenant';
       })
       
       // Fetch Tenant Members
@@ -241,19 +267,24 @@ const tenantSlice = createSlice({
         console.log('✅ Payload type:', typeof action.payload);
         console.log('✅ Payload keys:', action.payload ? Object.keys(action.payload) : 'null');
         
-        // Handle response structure
+        // Handle response structure - can be PaginatedMembersResponse or TenantMember[]
         if (action.payload) {
-          // Check if payload has data and pagination properties
-          if ('data' in action.payload && 'pagination' in action.payload) {
-            state.members = action.payload.data || [];
-            state.membersPagination = action.payload.pagination || null;
-            console.log('✅ Structure 1: Direct data/pagination');
+          // Check if payload has data and pagination properties (PaginatedMembersResponse)
+          if (typeof action.payload === 'object' && 'data' in action.payload && 'pagination' in action.payload) {
+            state.members = action.payload.data;
+            state.membersPagination = action.payload.pagination;
+            console.log('✅ Paginated structure:', {
+              membersCount: state.members.length,
+              pagination: state.membersPagination
+            });
           } 
-          // Check if it's an array (old format)
+          // Check if it's a direct array (legacy format)
           else if (Array.isArray(action.payload)) {
             state.members = action.payload;
             state.membersPagination = null;
-            console.log('✅ Structure 2: Direct array (legacy)');
+            console.log('✅ Array structure (legacy):', {
+              membersCount: state.members.length
+            });
           }
           // Unknown structure
           else {
@@ -275,7 +306,7 @@ const tenantSlice = createSlice({
       })
       .addCase(fetchTenantMembers.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        state.error = action.payload ?? 'Failed to fetch members';
         state.members = [];
         state.membersPagination = null;
         console.error('❌ Fetch members rejected:', action.payload);
@@ -292,7 +323,7 @@ const tenantSlice = createSlice({
       })
       .addCase(fetchTenantUsage.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        state.error = action.payload ?? 'Failed to fetch usage';
       })
       
       // Rotate Tenant Keys
@@ -306,7 +337,7 @@ const tenantSlice = createSlice({
       })
       .addCase(rotateTenantKeys.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        state.error = action.payload ?? 'Failed to rotate keys';
       });
   },
 });

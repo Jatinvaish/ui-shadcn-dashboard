@@ -105,7 +105,7 @@ const RoleEditPage = () => {
           items={[
             { label: 'Access Control', menuKey: 'access-control', href: '/dashboard/access-control' },
             { label: 'Roles', menuKey: 'access-control.roles', href: '/dashboard/access-control/roles' },
-            { label: role.display_name, menuKey: 'access-control.roles', href: `/dashboard/access-control/roles/${roleId}` },
+            { label: role && role.display_name || '', menuKey: 'access-control.roles', href: `/dashboard/access-control/roles/${roleId}` },
             { label: 'Edit', menuKey: 'access-control.roles', href: '', isCurrent: true },
           ]}
         />
@@ -134,7 +134,7 @@ const RoleEditPage = () => {
         items={[
           { label: 'Access Control', menuKey: 'access-control', href: '/dashboard/access-control' },
           { label: 'Roles', menuKey: 'access-control.roles', href: '/dashboard/access-control/roles' },
-          { label: role.display_name, menuKey: 'access-control.roles', href: `/dashboard/access-control/roles/${roleId}` },
+          { label: role && role.display_name || '', menuKey: 'access-control.roles', href: `/dashboard/access-control/roles/${roleId}` },
           { label: 'Edit', menuKey: 'access-control.roles', href: '', isCurrent: true },
         ]}
       />

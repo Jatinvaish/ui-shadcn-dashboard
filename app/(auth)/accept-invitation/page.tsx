@@ -124,7 +124,7 @@ export default function AcceptInvitationPage() {
       dispatch(clearError());
 
       // Accept invitation
-      const response = await dispatch(
+      const response:any = await dispatch(
         acceptInvite({
           token,
           firstName: data.firstName,

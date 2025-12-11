@@ -154,7 +154,7 @@ export default function UsersPage() {
         }
       })
     ).unwrap()
-      .then((response) => {
+      .then((response:any) => {
         console.log('✅ Members fetched successfully:', response);
         console.log('✅ Response type:', typeof response);
         console.log('✅ Response is array?:', Array.isArray(response));

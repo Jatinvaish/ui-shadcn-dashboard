@@ -19,6 +19,7 @@ interface User {
   tenantId?: string;
   userType?: string;
   user_type?: string;
+  avatarUrl?: string | null;
   first_name?: string;
   last_name?: string;
   onboardingRequired?: boolean;

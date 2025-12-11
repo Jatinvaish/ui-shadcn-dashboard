@@ -118,7 +118,7 @@ export const uploadMessageFile = createAsyncThunk<
     try {
       const result = await ChatService.uploadMessageFile(
         file,
-        messageId,
+        { messageId },
         (progress) => {
           dispatch(updateFileUploadProgress({
             uploadId,

@@ -1,5 +1,5 @@
 // ============================================
-// FILE 3: app/dashboard/layout.tsx - WRAPS WITH PROVIDER
+//app/dashboard/layout.tsx - WRAPS WITH PROVIDER
 // ============================================
 "use client";
 

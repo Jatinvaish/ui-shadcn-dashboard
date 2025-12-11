@@ -9,7 +9,6 @@ import {
 import { selectUser, selectUserType } from '@/store/slices/authSlice';
 
 export function usePermissions() {
-  const user = useAppSelector(selectUser);
   const userType = useAppSelector(selectUserType);
   const userPermissions = useAppSelector(selectUserPermissions);
   const initialized = useAppSelector(selectMenuPermissionsInitialized);
