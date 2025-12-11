@@ -14,7 +14,12 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "bundui-images.netlify.app"
+        //todo: change to your domain in production
+        hostname: isProduction ? "your-production-domain.com" : "your-development-domain.com"
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com"
       }
     ]
   }
