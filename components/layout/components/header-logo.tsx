@@ -32,7 +32,7 @@ export function HeaderLogo() {
   const handleUserAdded = () => {
     const tenantId = currentUser?.tenantId || currentTenant?.id;
     if (tenantId) {
-      dispatch(fetchTenantMembers(Number(tenantId)));
+      dispatch(fetchTenantMembers({tenantId:Number(tenantId)}));
     }
   };
 

@@ -105,7 +105,14 @@ export const useWebSocket = (token: string | null, userId: number | null): UseWe
         case "new_message":
           if (data.message) {
             console.log("💬 NEW MESSAGE:", data.message);
+
+            // ✅ Handle file messages with attachments
+            if (data.message.has_attachments && data.message.attachments) {
+              console.log("📎 File message received with attachments:", data.message.attachments);
+            }
+
             dispatch(addMessageToChannel(data.message));
+
             if (data.message.sender_user_id !== userId) {
               dispatch(incrementUnreadCount(data.message.channel_id));
             }
@@ -242,7 +249,6 @@ export const useWebSocket = (token: string | null, userId: number | null): UseWe
         case "user_typing":
           console.log("⌨️ USER TYPING EVENT:", data);
 
-          // Skip own typing
           if (Number(data.userId) === Number(userId)) {
             console.log("⌨️ Skipping own typing");
             break;
@@ -258,7 +264,6 @@ export const useWebSocket = (token: string | null, userId: number | null): UseWe
             console.log("⌨️ ✅ ADD typing user:", typingPayload);
             dispatch(addTypingUser(typingPayload));
 
-            // Auto-remove after 5 seconds
             setTimeout(() => {
               dispatch(
                 removeTypingUser({

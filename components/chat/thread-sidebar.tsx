@@ -54,7 +54,7 @@ export function ThreadSidebar({
     }
   }, [parentMessageId, dispatch]);
 
-  const convertToFrontendMessage = (msg: any): Message => {
+  const convertToFrontendMessage = (msg: any): any => {
     const senderFirstName = msg.sender_first_name || msg.first_name || '';
     const senderLastName = msg.sender_last_name || msg.last_name || '';
     const senderName = `${senderFirstName} ${senderLastName}`.trim() || msg.sender_email || 'Unknown User';

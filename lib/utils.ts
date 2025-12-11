@@ -23,9 +23,10 @@ export function generateMeta({
   canonical: string;
 }): Metadata {
   return {
-    title: `${title} - Shadcn UI Kit`,
+    title: `${title} - Fluera Dashboard`,
     description: description,
-    metadataBase: new URL(`https://shadcnuikit.com`),
+    //
+    // metadataBase: new URL(` `),
     alternates: {
       canonical: `/dashboard${canonical}`
     },

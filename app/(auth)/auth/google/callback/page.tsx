@@ -81,23 +81,11 @@ export default function GoogleCallbackPage() {
   return (
     <div className="flex items-center justify-center h-screen py-4">
       <div className="text-center space-y-4">
-        {error ? (
-          <>
-            <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
-            <div className="text-destructive font-semibold">{error}</div>
-            <div className="text-sm text-muted-foreground">
-              Redirecting to sign-in...
-            </div>
-          </>
-        ) : (
-          <>
-            <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-            <div className="text-foreground font-medium">
-              Completing authentication...
-            </div>
-            <div className="text-sm text-muted-foreground">Please wait</div>
-          </>
-        )}
+        <>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+          <div className="text-foreground font-medium">Completing authentication...</div>
+          <div className="text-sm text-muted-foreground">Please wait</div>
+        </>
       </div>
     </div>
   );

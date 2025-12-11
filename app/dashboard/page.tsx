@@ -3,7 +3,6 @@ import { generateMeta } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import CalendarDateRangePicker from "@/components/custom-date-range-picker";
 import { EarningReportsCard, TicketsCard, WebsiteAnalyticsCard, AverageDailySalesCard, SaleOverviewCard, SalesByCountriesCard, TotalEarningCard, MonthlyCampaignStateCard } from "./default/components";
-import StatCards from "./ecommerce/components/stat-cards";
 
  
 
@@ -30,7 +29,6 @@ export default function Page() {
       </div>
       <div className="grid gap-4 lg:grid-cols-12">
         <div className="lg:col-span-12">
-          <StatCards />
         </div>
         <div className="lg:col-span-12 xl:col-span-8">
           <EarningReportsCard />

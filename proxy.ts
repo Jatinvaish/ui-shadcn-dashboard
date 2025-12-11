@@ -34,24 +34,34 @@ const ONBOARDING_REQUIRED_ROUTES = [
   "/settings"
 ];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Get tokens and user data from cookies
+  const accessToken = request.cookies.get("accessToken")?.value;
+  const refreshToken = request.cookies.get("refreshToken")?.value;
+  const userCookie = request.cookies.get("user")?.value;
+
+  // ==================== HOMEPAGE REDIRECT ====================
+  if (pathname === "/") {
+    const url = request.nextUrl.clone();
+    if (accessToken) {
+      url.pathname = "/dashboard";
+    } else {
+      url.pathname = "/sign-in";
+    }
+    return NextResponse.redirect(url);
+  }
 
   // Allow API routes, static files, and public assets
   if (
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/static") ||
-    pathname.includes(".") ||
-    pathname === "/" // Allow homepage
+    pathname.includes(".")
   ) {
     return NextResponse.next();
   }
-
-  // Get tokens and user data from cookies
-  const accessToken = request.cookies.get("accessToken")?.value;
-  const refreshToken = request.cookies.get("refreshToken")?.value;
-  const userCookie = request.cookies.get("user")?.value;
 
   // Check route type
   const isPublicRoute = PUBLIC_ROUTES.some((route) =>

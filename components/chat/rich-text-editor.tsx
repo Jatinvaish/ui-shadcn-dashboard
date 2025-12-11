@@ -371,7 +371,7 @@ export function RichTextEditor({
     const maxFileSize = 100 * 1024 * 1024; // 100MB
     const newAttachments: FileAttachment[] = [];
 
-    const addFile = (file: File) => {
+    const addFile = (file: File |any) => {
       // Basic validation
       if (file.size > maxFileSize) {
         toast.error(`${file.name} is too large. Max size is 100MB.`);
@@ -402,21 +402,19 @@ export function RichTextEditor({
     if (fileInputRef.current) fileInputRef.current.value = "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachments]);
- 
+
   // ✅ Send ALL files as ONE message with multiple attachments
   const sendFilesAsOneMessage = useCallback(async (): Promise<boolean> => {
     if (!channelId || attachments.length === 0) return true;
 
     setIsUploading(true);
-
-    // Mark all as uploading
     setAttachments((prev) => prev.map((a) => ({ ...a, uploading: true, progress: 0 })));
 
     try {
       const files = attachments.map((a) => a.file);
       const caption = editor?.getText().trim() || "";
 
-      // ✅ Single API call - sends all files as one message
+      // ✅ API call - creates message in DB
       const message = await ChatService.sendFilesAsOneMessage(
         files,
         channelId,
@@ -425,17 +423,17 @@ export function RichTextEditor({
           replyToMessageId: replyingTo ? parseInt(replyingTo.id) : undefined
         },
         (progress: FileUploadProgress) => {
-          // Update progress for all files
           setAttachments((prev) => prev.map((a) => ({ ...a, progress: progress.percentage })));
         }
       );
 
-      // Mark all as sent
       setAttachments((prev) =>
         prev.map((a) => ({ ...a, uploading: false, sent: true, progress: 100 }))
       );
 
-      // Notify parent about the sent message
+      // ✅ REMOVED: Don't call sendMessageWS - backend will broadcast via WebSocket gateway
+      // The message is already created in DB and will be broadcasted automatically
+
       onFileSent?.(message);
 
       console.log("✅ Files sent as one message:", message);
@@ -792,7 +790,7 @@ export function RichTextEditor({
                 className={cn(
                   "h-6 w-6 p-0 transition-colors sm:h-7 sm:w-7",
                   editor?.isActive("orderedList") &&
-                    "bg-primary/15 text-primary hover:bg-primary/20"
+                  "bg-primary/15 text-primary hover:bg-primary/20"
                 )}
                 title="Numbered list">
                 <ListOrdered className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
